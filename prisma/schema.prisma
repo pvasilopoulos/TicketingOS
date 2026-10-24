@@ -1,0 +1,394 @@
+// TicketingOS — Prisma schema (multi-tenant)
+// SQLite for local dev. Switch `provider` to "postgresql" and update DATABASE_URL to deploy.
+//
+// Multi-tenancy model:
+//   - Every tenant (customer organization) gets a fully isolated board.
+//   - All data rows carry a tenantId and are scoped by the logged-in user's tenant.
+//   - A SUPER_ADMIN (platform operator) has tenantId = null and can view every tenant.
+//
+// SQLite has no native enums, so role/status/priority are stored as String
+// and validated in the app layer (see src/lib/constants.ts).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Tenant {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users         User[]
+  tickets       Ticket[]
+  categories    Category[]
+  tags          Tag[]
+  comments      Comment[]
+  notifications Notification[]
+  attachments   Attachment[]
+  emailSetting  EmailSetting?
+  statuses      TicketStatus[]
+  events        TicketEvent[]
+  slaTargets    SlaTarget[]
+  priorities    TicketPriority[]
+  cannedResponses CannedResponse[]
+  automations   AutomationRule[]
+  notificationPolicy TenantNotificationPolicy?
+}
+
+model TenantNotificationPolicy {
+  id         String   @id @default(cuid())
+  tenantId   String   @unique
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  allowInApp Boolean  @default(true)
+  allowPush  Boolean  @default(true)
+  allowEmail Boolean  @default(true)
+  defaults   String   @default("{}") // JSON: { category: { inApp, push, email } } — defaults for users without their own prefs
+  updatedAt  DateTime @updatedAt
+}
+
+model AutomationRule {
+  id             String  @id @default(cuid())
+  tenantId       String
+  tenant         Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name           String
+  enabled        Boolean @default(true)
+  trigger        String  @default("TICKET_CREATED")
+  conditionField String? // null | "priority" | "category"
+  conditionValue String? // priority key | category id
+  actionType     String // ASSIGN | SET_PRIORITY | SET_STATUS | ADD_TAG
+  actionValue    String // agentId | priority key | status key | tag id
+  order          Int     @default(0)
+  createdAt      DateTime @default(now())
+
+  @@index([tenantId, enabled])
+}
+
+model CannedResponse {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  title     String
+  body      String // sanitized HTML
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  role         String   @default("CUSTOMER") // SUPER_ADMIN | ADMIN | AGENT | CUSTOMER
+  avatarColor  String   @default("#6366f1")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // null for SUPER_ADMIN (platform operator); required for everyone else.
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  requestedTickets Ticket[]        @relation("Requester")
+  assignedTickets  Ticket[]        @relation("Assignee")
+  comments         Comment[]
+  attachments      Attachment[]
+  notifications    Notification[]
+  watching         TicketWatcher[]
+  actedEvents      TicketEvent[]
+  resetTokens      PasswordResetToken[]
+  savedViews       SavedView[]
+  pushSubscriptions PushSubscription[]
+  notificationPref NotificationPreference?
+
+  @@index([role])
+  @@index([tenantId])
+}
+
+model NotificationPreference {
+  id                String  @id @default(cuid())
+  userId            String  @unique
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  prefs             String  @default("{}") // JSON: { category: { inApp, push, email } }
+  quietStart        Int? // minutes from midnight (server time); null = off
+  quietEnd          Int?
+  priorityThreshold String  @default("") // "" = all; else min priority key
+  scope             String  @default("all") // all | assigned | watching
+  updatedAt         DateTime @updatedAt
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model SavedView {
+  id        String   @id @default(cuid())
+  tenantId  String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  query     String // querystring, e.g. "status=OPEN&priority=URGENT"
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique // sha256 of the raw token sent by email
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+}
+
+model Category {
+  id       String @id @default(cuid())
+  name     String
+  color    String @default("#64748b")
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  tickets  Ticket[]
+
+  @@unique([tenantId, name])
+}
+
+model Tag {
+  id       String @id @default(cuid())
+  name     String
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  tickets  TicketTag[]
+
+  @@unique([tenantId, name])
+}
+
+model Ticket {
+  id          String    @id @default(cuid())
+  number      Int // per-tenant display number (#1, #2, ...)
+  subject     String
+  description String
+  status      String    @default("OPEN")   // OPEN | PENDING | RESOLVED | CLOSED
+  priority    String    @default("MEDIUM")  // LOW | MEDIUM | HIGH | URGENT
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  closedAt    DateTime?
+  dueAt       DateTime? // SLA resolution deadline
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  requesterId String
+  requester   User   @relation("Requester", fields: [requesterId], references: [id], onDelete: Cascade)
+
+  assigneeId String?
+  assignee   User?   @relation("Assignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  comments      Comment[]
+  attachments   Attachment[]
+  tags          TicketTag[]
+  notifications Notification[]
+  watchers      TicketWatcher[]
+  events        TicketEvent[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, status])
+  @@index([tenantId, priority])
+  @@index([requesterId])
+  @@index([assigneeId])
+  @@index([createdAt])
+}
+
+model TicketPriority {
+  id       String @id @default(cuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  key   String // stored on Ticket.priority (e.g. LOW, URGENT)
+  label String
+  color String @default("#64748b")
+  order Int    @default(0) // low → high severity
+
+  @@unique([tenantId, key])
+  @@index([tenantId, order])
+}
+
+model SlaTarget {
+  id          String @id @default(cuid())
+  tenantId    String
+  tenant      Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  priority    String // LOW | MEDIUM | HIGH | URGENT
+  resolveHours Int   // target hours to resolution
+
+  @@unique([tenantId, priority])
+}
+
+model TicketStatus {
+  id       String  @id @default(cuid())
+  tenantId String
+  tenant   Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  key      String // stable identifier stored on Ticket.status (e.g. OPEN, IN_PROGRESS)
+  label    String
+  color    String  @default("#64748b")
+  isClosed Boolean @default(false) // tickets here count as resolved/closed (sets closedAt, enables reopen-on-reply)
+  order    Int     @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@unique([tenantId, key])
+  @@index([tenantId, order])
+}
+
+model EmailSetting {
+  id        String   @id @default(cuid())
+  tenantId  String   @unique
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  enabled   Boolean  @default(false)
+  provider  String   @default("SMTP") // SMTP | MICROSOFT365
+  fromName  String?
+  fromEmail String?
+
+  // SMTP
+  smtpHost     String?
+  smtpPort     Int?
+  smtpSecure   Boolean @default(true)
+  smtpUser     String?
+  smtpPassword String? // encrypted at rest
+
+  // Microsoft 365 (Graph, client-credentials flow)
+  msTenantId     String?
+  msClientId     String?
+  msClientSecret String? // encrypted at rest
+  msSender       String? // mailbox to send as (user or shared mailbox)
+
+  updatedAt DateTime @updatedAt
+}
+
+model TicketEvent {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  ticketId  String
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  actorId String?
+  actor   User?   @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  type    String // CREATED | STATUS_CHANGED | PRIORITY_CHANGED | ASSIGNED | CATEGORY_CHANGED | MEMBER_ADDED | MEMBER_REMOVED | MEMBER_ROLE_CHANGED | REOPENED
+  summary String // human-readable snapshot, e.g. "changed status from Open to Resolved"
+
+  createdAt DateTime @default(now())
+
+  @@index([ticketId, createdAt])
+}
+
+model TicketWatcher {
+  ticketId  String
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      String   @default("VIEWER") // VIEWER (CC) | COLLABORATOR (can manage)
+  createdAt DateTime @default(now())
+
+  @@id([ticketId, userId])
+  @@index([userId])
+}
+
+model TicketTag {
+  ticketId String
+  ticket   Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  tagId    String
+  tag      Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([ticketId, tagId])
+}
+
+model Comment {
+  id         String   @id @default(cuid())
+  body       String
+  isInternal Boolean  @default(false) // internal notes visible only to agents/admins
+  createdAt  DateTime @default(now())
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  ticketId String
+  ticket   Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  authorId String
+  author   User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  attachments Attachment[]
+
+  @@index([ticketId])
+}
+
+model Attachment {
+  id        String   @id @default(cuid())
+  filename  String
+  url       String
+  size      Int
+  mime      String
+  createdAt DateTime @default(now())
+
+  // Set for every attachment (incl. inline editor images that have no ticket yet),
+  // so uploads can be tenant-scoped for access control.
+  tenantId  String?
+  tenant    Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  ticketId  String?
+  ticket    Ticket?  @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  commentId String?
+  comment   Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  uploaderId String
+  uploader   User    @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  type      String   // TICKET_ASSIGNED | NEW_COMMENT | STATUS_CHANGED | NEW_TICKET
+  message   String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  ticketId String?
+  ticket   Ticket? @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
+}
