@@ -239,7 +239,7 @@ async function main() {
   await prisma.user.create({
     data: {
       name: "Platform Operator",
-      email: "super@ticketingos.dev",
+      email: "info@softify.gr",
       passwordHash: pw,
       role: "SUPER_ADMIN",
       avatarColor: "#0ea5e9",
