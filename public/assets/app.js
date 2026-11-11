@@ -1451,6 +1451,40 @@
   }
   document.addEventListener("DOMContentLoaded", function () { $$("form[data-new-ticket]").forEach(bindNewTicket); });
 
+  // Board on phones: status tabs jump to a column and follow the swipe.
+  function bindBoardTabs(nav) {
+    var board = nav.parentElement.querySelector("[data-board]");
+    if (!board) return;
+    var tabs = $$("[data-board-tab]", nav);
+    function setActive(key) {
+      tabs.forEach(function (t) {
+        var on = t.getAttribute("data-board-tab") === key;
+        t.setAttribute("aria-current", String(on));
+        if (on) nav.scrollTo({ left: t.offsetLeft - 16, behavior: "smooth" });
+      });
+    }
+    tabs.forEach(function (t) {
+      t.addEventListener("click", function () {
+        var col = board.querySelector('[data-board-col="' + t.getAttribute("data-board-tab") + '"]');
+        if (col) board.scrollTo({ left: col.offsetLeft - board.offsetLeft - 16, behavior: "smooth" });
+        setActive(t.getAttribute("data-board-tab"));
+      });
+    });
+    var timer;
+    board.addEventListener("scroll", function () {
+      clearTimeout(timer);
+      timer = setTimeout(function () {
+        var best = null, bestDist = Infinity;
+        $$("[data-board-col]", board).forEach(function (c) {
+          var d = Math.abs(c.offsetLeft - board.offsetLeft - 16 - board.scrollLeft);
+          if (d < bestDist) { bestDist = d; best = c; }
+        });
+        if (best) setActive(best.getAttribute("data-board-col"));
+      }, 80);
+    }, { passive: true });
+  }
+  document.addEventListener("DOMContentLoaded", function () { $$("[data-board-tabs]").forEach(bindBoardTabs); });
+
   // Simple tabs (ticket Conversation / History).
   function showTab(root, key) {
     var btn = root.querySelector('[data-tab="' + key + '"]');

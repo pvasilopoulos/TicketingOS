@@ -105,7 +105,7 @@ $pagerOpts = ['perPageOptions' => [25, 50, 100]];
     <div class="relative flex flex-wrap items-center gap-2" data-live-wrap>
       <div class="relative min-w-0 flex-1 sm:min-w-48">
         <?= icon('search', 16, 'pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted') ?>
-        <input name="q" type="search" data-live-search enterkeyhint="search" value="<?= e($sp['q'] ?? '') ?>" placeholder="Search tickets, people, replies… try status:open" class="h-10 w-full rounded-lg border border-border bg-surface pl-9 pr-3 text-base placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-brand/40 sm:h-9 sm:text-sm">
+        <input name="q" type="search" data-live-search enterkeyhint="search" value="<?= e($sp['q'] ?? '') ?>" placeholder="Search tickets…" title="Search tickets, people and replies — try status:open or assignee:me" class="h-10 w-full rounded-lg border border-border bg-surface pl-9 pr-3 text-base placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-brand/40 sm:h-9 sm:text-sm">
       </div>
       <button type="button" data-filters-toggle aria-expanded="false" class="<?= $chip($activeFilters > 0 && !($activeFilters === 1 && !empty($sp['q']))) ?> h-10 sm:hidden">
         <?= icon('settings', 15) ?> Filters<?php $nf = $activeFilters - (!empty($sp['q']) ? 1 : 0); if ($nf > 0): ?><span class="grid h-5 min-w-5 place-items-center rounded-full bg-brand px-1 text-[11px] font-semibold text-brand-fg"><?= $nf ?></span><?php endif; ?>

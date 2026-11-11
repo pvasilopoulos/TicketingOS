@@ -47,6 +47,8 @@ function send_via_smtp(array $s, array $msg): array
         'subject' => $msg['subject'],
         'html' => $msg['html'],
         'text' => $msg['text'],
+        'messageId' => $msg['messageId'] ?? null,
+        'headers' => $msg['headers'] ?? [],
     ]);
     return ['ok' => true];
 }

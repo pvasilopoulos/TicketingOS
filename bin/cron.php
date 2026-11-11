@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 /*
  * Periodic jobs: scheduled report emails, webhook retries, cleanup.
- * Run every 5 minutes, e.g. crontab:  * /5 * * * *  php /path/to/bin/cron.php
+ * Run every minute, e.g. crontab:  * * * * *  php /path/to/bin/cron.php --log
  * (or call GET /cron?key=CRON_KEY from an external scheduler).
  *   --log  also append the result line to storage/cron.log (used by the Windows task).
  */

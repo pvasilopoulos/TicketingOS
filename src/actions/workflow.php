@@ -162,7 +162,7 @@ function act_ticket_merge(array $in): ?array
     reindex_ticket($src['id']);
 
     dispatch([
-        'tenantId' => $tenantId, 'recipients' => [$src['requesterId']], 'category' => 'status', 'ticket' => ticket_ref($dst),
+        'tenantId' => $tenantId, 'recipients' => [$src['requesterId']], 'category' => 'status', 'ticket' => ticket_ref($dst), 'actor' => $user,
         'inAppType' => 'STATUS_CHANGED',
         'inAppMessage' => "Ticket #{$src['number']} was merged into #{$dst['number']}",
         'pushBody' => "Your request continues in ticket #{$dst['number']}",

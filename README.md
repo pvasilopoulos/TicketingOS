@@ -83,6 +83,13 @@ oversee every tenant and step into any board to manage it.
 - 🏠 **Super admin’s own workspace**: in the platform console, “Make this my workspace” on any workspace makes the super admin work there as an agent (assignee lists, notifications) and land there after sign-in.
 - 👥 **Several assignees per ticket**: the Assignees picker on a ticket takes any number of agents. The first one is the **lead** (used by reports, SLA, satisfaction and auto-assignment); everyone assigned sees the ticket, finds it under “Assigned to me” / `assignee:me`, and is notified about replies. Agents without “assign to others” can only add or remove themselves. Lists show the lead with “+N”. The extra table is created automatically on the first request (no migration step).
 - 📱 **Your devices** (Notifications page): each push device shows as e.g. “iPhone · Safari 27”, with system, browser, push service, date added and a “This device” badge; the raw browser string is under “Technical details”.
+- 🔔 **Notifications** (Settings → Notifications & email):
+  - **Who gets what**: a matrix per role (Customers / Agents / Admins) × event × channel (in-app, push, email). Each box is a default people can change on their Notifications page, or *locked* (amber lock) so nobody can. Workspace-wide switches turn a channel off for everyone.
+  - **Events**: new ticket, request received (confirmation to the customer), reply, @mention, assigned, status changed, added to a ticket, SLA deadline approaching, SLA missed, still unassigned, reminder to the customer, closed automatically.
+  - **Timing & automations**: minutes before the SLA deadline to warn, minutes before “still unassigned”, which status means “waiting on the customer”, reminder after N days, optional automatic close after N days (the customer is told and gets the satisfaction survey). Rules only look at tickets that crossed their limit in the last day, so a first run never floods anyone.
+  - **Reliable delivery**: push and email are queued and sent right after the page answers, retried with back-off (2, 4, 8… minutes, 6 tries), held back during quiet hours instead of dropped, or grouped into an hourly / daily summary per person.
+  - **Emails**: branded (app name and logo), include the reply or description itself, a “View ticket” button and a link to notification settings; all emails about a ticket form one conversation in mail apps. Subject and message of every event can be rewritten with placeholders ({ticket.number}, {actor.name}, {workspace}…).
+  - **Delivery log** with status filters, the reason for every failure or skip (e.g. “No device has push turned on”), Resend / Retry all failed, “Send test to me” and the time the background jobs last ran.
 - 🕓 **Ticket history**: changes to a ticket (status, priority, assignee, category, group, fields, followers, links, merges, macros, ratings) are in their own **History** tab, so the **Conversation** tab holds only messages.
 - 📜 **Audit log** (Settings → Audit log, admins):
   - Records every change to users, roles, groups, organizations, settings, integrations and scheduled reports, plus staff sign-ins (also failed and blocked ones), bulk edits, merges and CSV exports.
@@ -224,13 +231,14 @@ All passwords: `password123`
 
 ## Background jobs
 
-Run `php bin/cron.php` every 5 minutes (scheduled reports, webhook retries, cleanup). Without a CLI cron, set `CRON_KEY` in `.env` and call `GET /cron?key=…` from any external scheduler.
+Run `php bin/cron.php` **every minute**. It sends queued notifications (with retries), hourly/daily summaries, SLA / unassigned / reminder / auto-close alerts, scheduled reports and webhook retries, and cleans up. Without a CLI cron, set `CRON_KEY` in `.env` and call `GET /cron?key=…` from any external scheduler. Settings → Notifications shows when it last ran and has a “Run now” button.
 
-- **Linux:** `*/5 * * * * php /path/to/bin/cron.php`
+- **Plesk:** Scheduled Tasks → Add task → *Run a PHP script* → `httpdocs/bin/cron.php`, arguments `--log`, cron style `* * * * *`.
+- **Linux:** `* * * * * php /path/to/bin/cron.php --log`
 - **Windows** (in an *administrator* PowerShell):
-  `schtasks /Create /TN "TicketingOS cron" /SC MINUTE /MO 5 /TR "\"C:path	ophp-win.exe\" \"C:path	oincron.php\" --log"`
+  `schtasks /Create /TN "TicketingOS cron" /SC MINUTE /MO 1 /TR "\"C:\path\to\php-win.exe\" \"C:\path\to\bin\cron.php\" --log"`
   (`php-win.exe` runs without a console window; `--log` appends each run to `storage/cron.log`).
-- **Development:** `php bin/cron-loop.php` runs it every 5 minutes for as long as it stays open.
+- **Development:** `php bin/cron-loop.php` runs it every minute for as long as it stays open.
 
 ## Email in development
 

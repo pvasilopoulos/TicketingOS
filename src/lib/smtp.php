@@ -76,10 +76,12 @@ function smtp_send(array $cfg, array $m): void
             'From: ' . $from,
             'To: <' . $m['to'] . '>',
             'Subject: ' . $enc($m['subject']),
-            'Message-ID: <' . bin2hex(random_bytes(10)) . '@' . (explode('@', $m['fromEmail'])[1] ?? 'localhost') . '>',
+            'Message-ID: ' . ($m['messageId'] ?? '<' . bin2hex(random_bytes(10)) . '@' . (explode('@', $m['fromEmail'])[1] ?? 'localhost') . '>'),
             'MIME-Version: 1.0',
             'Content-Type: multipart/alternative; boundary="' . $boundary . '"',
         ];
+        // Extra headers (threading: In-Reply-To / References; List-Unsubscribe…), one line each, no line breaks allowed.
+        foreach ((array) ($m['headers'] ?? []) as $h) if (is_string($h) && !preg_match('/[\r\n]/', $h)) $headers[] = $h;
         $body = implode("\r\n", $headers) . "\r\n\r\n"
             . "--$boundary\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n"
             . chunk_split(base64_encode($m['text']))

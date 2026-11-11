@@ -20,11 +20,19 @@ function act_notif_read_all(array $in): ?array
 
 function act_prefs_save(array $in): ?array
 {
-    [$user] = require_tenant_user();
+    [$user, $tenantId] = require_tenant_user();
+    // Only the events of the person's role; locked workspace choices are enforced when sending.
+    $matrix = notify_matrix($tenantId);
+    $role = notify_role($user);
     $prefs = [];
-    foreach (NOTIFY_CATEGORIES as $c) {
-        foreach (CHANNELS as $ch) $prefs[$c][$ch] = ($in["ch_{$c}_{$ch}"] ?? '') === 'on';
+    foreach (EVENT_ROLES[$role] as $c) {
+        foreach (CHANNELS as $ch) {
+            $cell = $matrix[$role][$c][$ch];
+            $prefs[$c][$ch] = $cell['lock'] ? $cell['on'] : ($in["ch_{$c}_{$ch}"] ?? '') === 'on';
+        }
     }
+    $digest = (string) ($in['digest'] ?? '');
+    if (isset(DIGEST_MODES[$digest])) $prefs['_digest'] = $digest;
     $quiet = ($in['quietEnabled'] ?? '') === 'on';
     $scope = in_array($in['scope'] ?? '', ['all', 'assigned', 'watching'], true) ? $in['scope'] : 'all';
     $data = [

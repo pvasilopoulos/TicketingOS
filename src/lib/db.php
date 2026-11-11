@@ -163,7 +163,7 @@ function ts(?string $iso): ?float
  * (hosts like Plesk often have no shell for bin/migrate.php). A marker file in
  * storage/ keeps this to one cheap check per request.
  */
-const RUNTIME_SCHEMA_VERSION = 3;
+const RUNTIME_SCHEMA_VERSION = 4;
 
 /** Does a table have a column? (works for SQLite and MySQL/MariaDB) */
 function db_column_exists(string $table, string $col): bool
@@ -187,9 +187,49 @@ function ensure_runtime_schema(): void
         runtime_schema_v1();
         runtime_schema_v2();
         runtime_schema_v3();
+        runtime_schema_v4();
         @file_put_contents($marker, $sig);
     } catch (Throwable $e) {
         error_log('[schema] ' . $e->getMessage());
+    }
+}
+
+/** v4: notification queue (push/email sent in the background, retried, logged) and rule alerts. */
+function runtime_schema_v4(): void
+{
+    $my = db_driver() === 'mysql';
+    $T = $my ? 'VARCHAR(40)' : 'TEXT';
+    $S = $my ? 'VARCHAR(191)' : 'TEXT';
+    $D = $my ? 'VARCHAR(30)' : 'TEXT';
+    $I = $my ? 'INT' : 'INTEGER';
+    $L = $my ? 'MEDIUMTEXT' : 'TEXT';
+    $engine = $my ? ' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci' : '';
+    db()->exec("CREATE TABLE IF NOT EXISTS \"NotificationJob\" (
+  \"id\" $T NOT NULL PRIMARY KEY,
+  \"tenantId\" $T NOT NULL,
+  \"userId\" $T NOT NULL,
+  \"channel\" $S NOT NULL,
+  \"event\" $S NOT NULL,
+  \"ticketId\" $T NULL,
+  \"payload\" $L NOT NULL,
+  \"status\" $S NOT NULL DEFAULT 'pending',
+  \"attempts\" $I NOT NULL DEFAULT 0,
+  \"sendAfter\" $D NOT NULL,
+  \"lastError\" $L NULL,
+  \"createdAt\" $D NOT NULL,
+  \"sentAt\" $D NULL" . ($my ? ",
+  KEY \"NotificationJob_due_idx\" (\"status\", \"sendAfter\"),
+  KEY \"NotificationJob_tenant_idx\" (\"tenantId\", \"createdAt\")" : '') . "
+)$engine");
+    db()->exec("CREATE TABLE IF NOT EXISTS \"TicketAlert\" (
+  \"ticketId\" $T NOT NULL,
+  \"kind\" $S NOT NULL,
+  \"createdAt\" $D NOT NULL,
+  PRIMARY KEY (\"ticketId\", \"kind\")
+)$engine");
+    if (!$my) {
+        db()->exec('CREATE INDEX IF NOT EXISTS "NotificationJob_due_idx" ON "NotificationJob"("status", "sendAfter")');
+        db()->exec('CREATE INDEX IF NOT EXISTS "NotificationJob_tenant_idx" ON "NotificationJob"("tenantId", "createdAt")');
     }
 }
 

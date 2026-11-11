@@ -540,50 +540,7 @@ $s = fn (string $form) => flash($form);
   <?php if ($sec('notifications')): ?>
   <section id="notifications" data-settings-section="notifications" class="scroll-mt-24 space-y-6">
   <?php if (can($me, 'settings.notifications')): ?>
-  <!-- Notification policy -->
-  <?php $ps = $s('policy'); ?>
-  <div class="rounded-xl border border-border bg-surface">
-    <?= card_header(titled('bell-ring', 'Notification policy')) ?>
-    <form method="post" action="/action/policy-save" class="space-y-5 p-6">
-      <?= form_meta('policy') ?>
-      <div>
-        <p class="text-sm font-semibold">Allowed channels (org-wide)</p>
-        <p class="mb-2 text-xs text-muted">Disabling a channel turns it off for everyone, overriding personal settings.</p>
-        <div class="flex flex-wrap gap-4">
-          <?php foreach ([['allowInApp', 'In-app'], ['allowPush', 'Push'], ['allowEmail', 'Email']] as [$n, $l]): ?>
-            <label class="flex items-center gap-2 text-sm cursor-pointer select-none">
-              <input type="checkbox" name="<?= $n ?>" <?= $policy[$n] ? 'checked' : '' ?> class="h-4 w-4 rounded border-border accent-brand"> <?= $l ?>
-            </label>
-          <?php endforeach; ?>
-        </div>
-      </div>
-      <div>
-        <p class="text-sm font-semibold">Defaults for new users</p>
-        <p class="mb-2 text-xs text-muted">Applied until a user customizes their own preferences.</p>
-        <div class="overflow-x-auto rounded-lg border border-border">
-          <table class="w-full min-w-xl text-sm">
-            <thead><tr class="text-xs text-muted">
-              <th class="px-3 py-2 text-left font-medium">Event</th><th class="px-3 py-2 font-medium">In-app</th><th class="px-3 py-2 font-medium">Push</th><th class="px-3 py-2 font-medium">Email</th>
-            </tr></thead>
-            <tbody>
-              <?php foreach (NOTIFY_CATEGORIES as $c): ?>
-                <tr class="border-t border-border">
-                  <td class="px-3 py-2.5"><?= e(CATEGORY_LABELS[$c]) ?></td>
-                  <?php foreach (CHANNELS as $ch): ?>
-                    <td class="px-3 py-2.5 text-center"><input type="checkbox" name="def_<?= $c ?>_<?= $ch ?>" <?= $policy['defaults'][$c][$ch] ? 'checked' : '' ?> class="h-4 w-4 rounded border-border accent-brand"></td>
-                  <?php endforeach; ?>
-                </tr>
-              <?php endforeach; ?>
-            </tbody>
-          </table>
-        </div>
-      </div>
-      <div class="flex items-center gap-3">
-        <button type="submit" class="<?= btn_cls() ?>">Save policy</button>
-        <?php if (!empty($ps['success'])): ?><span class="inline-flex items-center gap-1.5 text-sm text-emerald-600 dark:text-emerald-400"><?= icon('circle-check', 15) ?> <?= e($ps['success']) ?></span><?php endif; ?>
-      </div>
-    </form>
-  </div>
+  <?php require ROOT . '/src/views/partials/notify_admin.php'; ?>
 
   <?php endif; ?>
   <?php if (can($me, 'settings.email')): ?>

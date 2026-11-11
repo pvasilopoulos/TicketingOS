@@ -53,7 +53,8 @@ $ACTIONS = [
     'report-schedule-save' => 'act_report_schedule_save', 'report-schedule-delete' => 'act_report_schedule_delete', 'report-schedule-send' => 'act_report_schedule_send',
     'apikey-create' => 'act_apikey_create', 'apikey-revoke' => 'act_apikey_revoke',
     'webhook-save' => 'act_webhook_save', 'webhook-delete' => 'act_webhook_delete', 'webhook-test' => 'act_webhook_test', 'webform-save' => 'act_webform_save',
-    'branding-save' => 'act_branding_save', 'template-save' => 'act_template_save', 'ticket-form-save' => 'act_ticket_form_save', 'csat-send' => 'act_csat_send', 'template-delete' => 'act_template_delete',
+    'branding-save' => 'act_branding_save', 'template-save' => 'act_template_save', 'ticket-form-save' => 'act_ticket_form_save', 'csat-send' => 'act_csat_send', 'notify-matrix-save' => 'act_notify_matrix_save', 'notify-rules-save' => 'act_notify_rules_save',
+    'notify-templates-save' => 'act_notify_templates_save', 'notify-retry' => 'act_notify_retry', 'notify-test' => 'act_notify_test', 'notify-run' => 'act_notify_run', 'template-delete' => 'act_template_delete',
     'platform-home' => 'act_platform_home', 'subticket-create' => 'act_subticket_create', 'cc-add' => 'act_cc_add', 'cc-remove' => 'act_cc_remove', 'admin-perms-save' => 'act_admin_perms_save', 'impersonate' => 'act_impersonate', 'impersonate-stop' => 'act_impersonate_stop',
     'role-save' => 'act_role_save', 'role-delete' => 'act_role_delete', 'agent-perms-save' => 'act_agent_perms_save', 'security-save' => 'act_security_save', 'member-role' => 'act_member_role', 'member-remove' => 'act_member_remove',
 ];

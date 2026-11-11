@@ -158,6 +158,12 @@ function run_due_reports(): int
 function run_cron(): array
 {
     $out = ['reports' => run_due_reports(), 'webhooks' => webhook_deliver_due(100)];
+    // Notifications: rules first (they queue messages), then sending and summaries.
+    $out['rules'] = notify_scan_rules();
+    $out['notifications'] = notify_deliver_due(500);
+    $out['digests'] = notify_send_digests();
+    q('DELETE FROM "NotificationJob" WHERE "status" IN (\'sent\', \'skipped\') AND "createdAt" < ?', [now_iso(-30 * 86400)]);
+    @file_put_contents(ROOT . '/storage/.cron-last', now_iso());
     q('DELETE FROM "RateHit" WHERE "createdAt" < ?', [now_iso(-86400)]);
     q('DELETE FROM "WebhookDelivery" WHERE "status" <> \'pending\' AND "createdAt" < ?', [now_iso(-30 * 86400)]);
     return $out;

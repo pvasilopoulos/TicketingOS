@@ -8,6 +8,11 @@ $devices = q_all('SELECT p."id", p."userAgent", p."endpoint", p."createdAt", u."
     FROM "PushSubscription" p JOIN "User" u ON u."id" = p."userId" WHERE p."userId" = ? ORDER BY p."createdAt" DESC', [$user['id']]);
 $myRole = user_role_label($user, $user['customRoleId'] ?? null ? key_by(q_all('SELECT "id","name" FROM "Role" WHERE "id" = ?', [$user['customRoleId']]), 'id') : []);
 $quietOn = $prefs['quietStart'] !== null && $prefs['quietEnd'] !== null;
+$nPolicy = tenant_policy($tenantId);
+$nMatrix = notify_matrix($tenantId);
+$nRole = notify_role($user);
+$staffMe = is_staff($user['role']);
+$myDigest = $prefs['digest'] ?? $nMatrix['_digest'][$nRole];
 ?>
 <div>
   <?= page_header('Notifications', "Choose how and when you're notified.") ?>
@@ -22,12 +27,17 @@ $quietOn = $prefs['quietStart'] !== null && $prefs['quietEnd'] !== null;
               <th class="px-3 py-2 text-left font-medium">Event</th><th class="px-3 py-2 font-medium">In-app</th><th class="px-3 py-2 font-medium">Push</th><th class="px-3 py-2 font-medium">Email</th>
             </tr></thead>
             <tbody>
-              <?php foreach (NOTIFY_CATEGORIES as $c): ?>
+              <?php foreach (EVENT_ROLES[$nRole] as $c): ?>
                 <tr class="border-t border-border">
-                  <td class="px-3 py-2.5"><?= e(CATEGORY_LABELS[$c]) ?></td>
-                  <?php foreach (CHANNELS as $ch): ?>
-                    <td class="px-3 py-2.5"><div class="flex items-center justify-center">
-                      <input type="checkbox" name="ch_<?= $c ?>_<?= $ch ?>" <?= $prefs['channels'][$c][$ch] ? 'checked' : '' ?> class="h-4 w-4 rounded border-border accent-brand">
+                  <td class="px-3 py-2.5"><span class="block"><?= e(CATEGORY_LABELS[$c]) ?></span><span class="block text-xs text-muted"><?= e(CATEGORY_HINTS[$c]) ?></span></td>
+                  <?php foreach (CHANNELS as $ch):
+                      $allowed = ['inApp' => $nPolicy['allowInApp'], 'push' => $nPolicy['allowPush'], 'email' => $nPolicy['allowEmail']][$ch];
+                      $cell = $nMatrix[$nRole][$c][$ch];
+                      $on = channel_on($user, $c, $ch, $prefs, $nMatrix, $nPolicy);
+                      $fixed = !$allowed || $cell['lock']; ?>
+                    <td class="px-3 py-2.5"><div class="flex items-center justify-center gap-1" <?= $fixed ? 'title="' . (!$allowed ? 'Turned off for the whole workspace' : 'Set by your workspace') . '"' : '' ?>>
+                      <input type="checkbox" name="ch_<?= $c ?>_<?= $ch ?>" <?= $on ? 'checked' : '' ?> <?= $fixed ? 'disabled' : '' ?> class="h-4 w-4 rounded border-border accent-brand disabled:opacity-50">
+                      <?php if ($fixed): ?><?= icon('lock', 11, 'text-muted') ?><?php endif; ?>
                     </div></td>
                   <?php endforeach; ?>
                 </tr>
@@ -37,6 +47,12 @@ $quietOn = $prefs['quietStart'] !== null && $prefs['quietEnd'] !== null;
         </div>
 
         <div class="grid gap-5 border-t border-border p-5 sm:grid-cols-2">
+          <div class="sm:col-span-2">
+            <label class="<?= LABEL_CLS ?>">Emails</label>
+            <select name="digest" class="<?= SELECT_CLS ?> sm:w-80"><?= select_options(DIGEST_MODES, $myDigest) ?></select>
+            <p class="mt-1 text-xs text-muted">A summary groups updates into one email instead of one per event.</p>
+          </div>
+          <?php if ($staffMe): ?>
           <div>
             <label class="<?= LABEL_CLS ?>">Only notify for priority ≥</label>
             <select name="priorityThreshold" class="<?= SELECT_CLS ?>">
@@ -51,10 +67,11 @@ $quietOn = $prefs['quietStart'] !== null && $prefs['quietEnd'] !== null;
             </select>
             <p class="mt-1 text-xs text-muted">Limits the broadcast of newly created tickets.</p>
           </div>
+          <?php endif; ?>
           <div class="sm:col-span-2" data-quiet>
             <label class="flex items-center gap-2 text-sm cursor-pointer select-none">
               <input type="checkbox" name="quietEnabled" data-quiet-toggle <?= $quietOn ? 'checked' : '' ?> class="h-4 w-4 rounded border-border accent-brand">
-              Quiet hours (no push)
+              Quiet hours <span class="text-muted">— push waits until they end</span>
             </label>
             <div class="mt-2 flex items-center gap-2 text-sm" <?= $quietOn ? '' : 'hidden' ?> data-quiet-fields>
               <input type="time" name="quietStart" value="<?= e(minutes_to_hhmm($prefs['quietStart']) ?: '22:00') ?>" class="h-9 rounded-lg border border-border bg-surface px-2">

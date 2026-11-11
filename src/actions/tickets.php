@@ -126,7 +126,7 @@ function process_mentions(array $ticket, string $tenantId, array $actor, string 
     }
     $num = (int) $ticket['number'];
     dispatch([
-        'tenantId' => $tenantId, 'recipients' => $added, 'category' => 'mention', 'ticket' => ticket_ref($ticket),
+        'tenantId' => $tenantId, 'recipients' => $added, 'category' => 'mention', 'ticket' => ticket_ref($ticket), 'actor' => $actor, 'bodyHtml' => $html,
         'inAppType' => 'NEW_COMMENT',
         'inAppMessage' => "{$actor['name']} mentioned you on ticket #$num",
         'pushBody' => "{$actor['name']} mentioned you",
@@ -221,11 +221,21 @@ function create_ticket(string $tenantId, array $requester, array $data, ?array $
     $staff = pluck(q_all('SELECT "id" FROM "User" WHERE "tenantId" = ? AND "role" IN (\'SUPER_ADMIN\',\'ADMIN\',\'AGENT\') AND "active" = 1 AND "id" <> ?', [$tenantId, $actor['id']]), 'id');
     if ($staff && empty($data['skipNotify'])) {
         dispatch([
-            'tenantId' => $tenantId, 'recipients' => $staff, 'category' => 'new_ticket', 'ticket' => ticket_ref($ticket),
+            'tenantId' => $tenantId, 'recipients' => $staff, 'category' => 'new_ticket', 'ticket' => ticket_ref($ticket), 'actor' => $actor, 'bodyHtml' => $description,
             'inAppType' => 'NEW_TICKET',
             'inAppMessage' => "New ticket #$number: $subject",
             'pushBody' => "New ticket: $subject",
-            'emailLine' => "New ticket #$number: $subject.",
+            'emailLine' => "New ticket #$number from {$requester['name']}: $subject.",
+        ]);
+    }
+    // The customer who opened it gets a confirmation with their ticket number.
+    if ($actor['id'] === $requester['id'] && $requester['role'] === 'CUSTOMER' && empty($data['skipNotify'])) {
+        dispatch([
+            'tenantId' => $tenantId, 'recipients' => [$requester['id']], 'category' => 'received', 'ticket' => ticket_ref($ticket), 'bodyHtml' => $description,
+            'inAppType' => 'NEW_TICKET',
+            'inAppMessage' => "We received your request #$number",
+            'pushBody' => "We received your request #$number",
+            'emailLine' => "Thanks — we received your request #$number “$subject”. We’ll get back to you as soon as possible.",
         ]);
     }
 
@@ -305,7 +315,7 @@ function act_ticket_create(array $in): ?array
     // Opened for a customer: tell them (in the app, by push and email per their settings).
     if ($requester['id'] !== $user['id']) {
         dispatch([
-            'tenantId' => $tenantId, 'recipients' => [$requester['id']], 'category' => 'team', 'ticket' => ticket_ref($ticket),
+            'tenantId' => $tenantId, 'recipients' => [$requester['id']], 'category' => 'received', 'ticket' => ticket_ref($ticket), 'actor' => $user, 'bodyHtml' => (string) ($in['description'] ?? ''),
             'inAppType' => 'NEW_TICKET',
             'inAppMessage' => "{$user['name']} opened ticket #$number for you: $subject",
             'pushBody' => "{$user['name']} opened this ticket for you",
@@ -359,7 +369,7 @@ function act_ticket_create(array $in): ?array
         }
         if ($rows) {
             dispatch([
-                'tenantId' => $tenantId, 'recipients' => pluck($rows, 'userId'), 'category' => 'team', 'ticket' => ticket_ref($ticket),
+                'tenantId' => $tenantId, 'recipients' => pluck($rows, 'userId'), 'category' => 'team', 'ticket' => ticket_ref($ticket), 'actor' => $user,
                 'inAppType' => 'NEW_TICKET',
                 'inAppMessage' => "You were added to ticket #$number: $subject",
                 'pushBody' => "{$user['name']} added you to this ticket",
@@ -501,7 +511,7 @@ function update_ticket(string $ticketId, array $in, array $user, string $tenantI
         $recipients = [$ticket['requesterId'], ...pluck(q_all('SELECT "userId" FROM "TicketWatcher" WHERE "ticketId" = ?', [$ticketId]), 'userId')];
         $recipients = array_values(array_filter(array_unique($recipients), fn ($id) => $id !== $user['id']));
         dispatch([
-            'tenantId' => $tenantId, 'recipients' => $recipients, 'category' => 'status', 'ticket' => $eff,
+            'tenantId' => $tenantId, 'recipients' => $recipients, 'category' => 'status', 'ticket' => $eff, 'actor' => $user, 'status' => $statusTo,
             'inAppType' => 'STATUS_CHANGED',
             'inAppMessage' => "Ticket #$num is now $statusTo",
             'pushBody' => "Status is now $statusTo",
@@ -512,7 +522,7 @@ function update_ticket(string $ticketId, array $in, array $user, string $tenantI
     $newlyAssigned = $assigneeChanged ? array_values(array_diff($wantList, $curList, [$user['id']])) : [];
     if ($newlyAssigned) {
         dispatch([
-            'tenantId' => $tenantId, 'recipients' => $newlyAssigned, 'category' => 'assigned', 'ticket' => $eff,
+            'tenantId' => $tenantId, 'recipients' => $newlyAssigned, 'category' => 'assigned', 'ticket' => $eff, 'actor' => $user,
             'inAppType' => 'TICKET_ASSIGNED',
             'inAppMessage' => "You were assigned ticket #$num: {$ticket['subject']}",
             'pushBody' => 'You were assigned this ticket',
@@ -650,7 +660,7 @@ function add_comment(array $ticket, array $user, string $tenantId, string $body,
     }
     $num = (int) $ticket['number'];
     dispatch([
-        'tenantId' => $tenantId, 'recipients' => $recipients, 'category' => 'reply', 'ticket' => ticket_ref($ticket),
+        'tenantId' => $tenantId, 'recipients' => $recipients, 'category' => 'reply', 'ticket' => ticket_ref($ticket), 'actor' => $user, 'bodyHtml' => $body,
         'inAppType' => 'NEW_COMMENT',
         'inAppMessage' => ($isInternal ? 'Internal note' : 'New reply') . " on ticket #$num",
         'pushBody' => $user['name'] . ($isInternal ? ' added an internal note' : ' replied'),
@@ -684,7 +694,7 @@ function act_watcher_add(array $in): ?array
     if ($userId !== $user['id']) {
         $num = (int) $ticket['number'];
         dispatch([
-            'tenantId' => $tenantId, 'recipients' => [$userId], 'category' => 'team', 'ticket' => ticket_ref($ticket),
+            'tenantId' => $tenantId, 'recipients' => [$userId], 'category' => 'team', 'ticket' => ticket_ref($ticket), 'actor' => $user,
             'inAppType' => 'NEW_TICKET',
             'inAppMessage' => "You were added to ticket #$num",
             'pushBody' => "{$user['name']} added you to this ticket",
