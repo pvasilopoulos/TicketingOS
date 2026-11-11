@@ -364,10 +364,97 @@
     input.addEventListener("change", render);
   }
 
+  /* ---------- searchable people picker (team / followers) ---------- */
+
+  function bindPeoplePicker(root) {
+    var openBtn = root.querySelector("[data-pp-open]");
+    var panel = root.querySelector("[data-pp-panel]");
+    var input = root.querySelector("[data-pp-search]");
+    var list = root.querySelector("[data-pp-results]");
+    var status = root.querySelector("[data-pp-status]");
+    var multi = root.hasAttribute("data-multi");
+    var ticket = root.getAttribute("data-ticket") || "";
+    var kind = "all", items = [], active = -1, seq = 0, timer;
+    root.ppExclude = root.ppExclude || function () { return []; };
+    var esc = function (s) { var d = document.createElement("div"); d.textContent = s == null ? "" : String(s); return d.innerHTML; };
+    var mark = function (text, q) {
+      var t = esc(text);
+      if (!q) return t;
+      var i = String(text).toLowerCase().indexOf(q.toLowerCase());
+      return i < 0 ? t : esc(text.slice(0, i)) + '<mark class="rounded bg-brand/15 px-0.5 text-fg">' + esc(text.slice(i, i + q.length)) + "</mark>" + esc(text.slice(i + q.length));
+    };
+    var initials = function (n) { return String(n).split(/\s+/).map(function (p) { return p.charAt(0); }).join("").slice(0, 2).toUpperCase(); };
+    var roleCls = { SUPER_ADMIN: "bg-amber-500/15 text-amber-700 dark:text-amber-300", ADMIN: "bg-indigo-500/10 text-indigo-700 dark:text-indigo-300", AGENT: "bg-sky-500/10 text-sky-700 dark:text-sky-300", CUSTOMER: "bg-surface-2 text-muted" };
+
+    function render(q) {
+      if (!items.length) {
+        list.innerHTML = '<li class="px-3 py-8 text-center text-sm text-muted">' + (q ? "Nobody matches “" + esc(q) + "”" : "Nobody else to add") + "</li>";
+        return;
+      }
+      list.innerHTML = items.map(function (p, i) {
+        return '<li role="option" id="pp-' + p.id + '" data-i="' + i + '" aria-selected="' + (i === active) + '" class="flex cursor-pointer items-center gap-3 rounded-lg px-2.5 py-2 aria-selected:bg-brand/10 hover:bg-surface-2">'
+          + '<span class="grid h-8 w-8 shrink-0 place-items-center rounded-full text-[11px] font-semibold text-white" style="background:' + esc(p.color) + '">' + esc(initials(p.name)) + "</span>"
+          + '<span class="min-w-0 flex-1"><span class="block truncate text-sm font-medium">' + mark(p.name, q) + "</span>"
+          + '<span class="block truncate text-xs text-muted">' + [p.email ? mark(p.email, q) : "", p.orgs && p.orgs.length ? "🏢 " + mark(p.orgs.join(", "), q) : ""].filter(Boolean).join(" · ") + "</span></span>"
+          + '<span class="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ' + (roleCls[p.role] || roleCls.CUSTOMER) + '">' + esc(p.roleLabel) + "</span></li>";
+      }).join("");
+    }
+    function load() {
+      var q = input.value.trim(), my = ++seq;
+      status.textContent = "Searching…";
+      var ex = root.ppExclude().join(",");
+      fetch("/api/people?q=" + encodeURIComponent(q) + "&kind=" + kind + (ticket ? "&ticketId=" + encodeURIComponent(ticket) : "") + (ex ? "&exclude=" + encodeURIComponent(ex) : ""), { credentials: "same-origin" })
+        .then(function (r) { return r.json(); }).then(function (j) {
+          if (my !== seq) return; // a newer search already answered
+          items = (j && j.data) || [];
+          active = items.length ? 0 : -1;
+          render(q);
+          var c = (j && j.counts) || {};
+          $$("[data-pp-count]", root).forEach(function (el) { el.textContent = c[el.getAttribute("data-pp-count")] != null ? c[el.getAttribute("data-pp-count")] : "·"; });
+          var total = c[kind] != null ? c[kind] : items.length;
+          status.textContent = total > items.length ? "Showing " + items.length + " of " + total + " — type to narrow" : total + (total === 1 ? " person" : " people");
+        }).catch(function () { status.textContent = "Couldn’t search — check your connection"; });
+    }
+    function open() { panel.hidden = false; openBtn.setAttribute("aria-expanded", "true"); input.value = ""; load(); setTimeout(function () { input.focus(); }, 0); }
+    function close() { panel.hidden = true; openBtn.setAttribute("aria-expanded", "false"); }
+    function move(d) {
+      if (!items.length) return;
+      active = (active + d + items.length) % items.length;
+      $$("[data-i]", list).forEach(function (li) { li.setAttribute("aria-selected", String(+li.getAttribute("data-i") === active)); });
+      var cur = list.querySelector('[data-i="' + active + '"]'); if (cur) cur.scrollIntoView({ block: "nearest" });
+    }
+    function pick(i) {
+      var p = items[i];
+      if (!p) return;
+      root.dispatchEvent(new CustomEvent("people:pick", { detail: p, bubbles: true }));
+      if (multi) { items.splice(i, 1); active = Math.min(active, items.length - 1); render(input.value.trim()); status.textContent = "Added " + p.name; input.focus(); }
+      else close();
+    }
+    openBtn.addEventListener("click", function () { panel.hidden ? open() : close(); });
+    input.addEventListener("input", function () { clearTimeout(timer); timer = setTimeout(load, 150); });
+    input.addEventListener("keydown", function (e) {
+      if (e.key === "ArrowDown") { e.preventDefault(); move(1); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); move(-1); }
+      else if (e.key === "Enter") { e.preventDefault(); pick(active); }
+      else if (e.key === "Escape") { e.preventDefault(); close(); openBtn.focus(); }
+    });
+    list.addEventListener("mousedown", function (e) { var li = e.target.closest("[data-i]"); if (li) { e.preventDefault(); pick(+li.getAttribute("data-i")); } });
+    $$("[data-pp-kind]", root).forEach(function (b) {
+      b.addEventListener("click", function () {
+        kind = b.getAttribute("data-pp-kind");
+        $$("[data-pp-kind]", root).forEach(function (o) { o.setAttribute("aria-selected", String(o === b)); });
+        load(); input.focus();
+      });
+    });
+    document.addEventListener("mousedown", function (e) { if (!panel.hidden && !root.contains(e.target)) close(); });
+  }
+
   /* ---------- team picker (new ticket) ---------- */
 
   function bindTeamPicker(root) {
     var people = JSON.parse(root.getAttribute("data-people") || "[]");
+    var pp = root.querySelector("[data-people-picker]");
+    if (pp) pp.ppExclude = function () { return members.map(function (m) { return m.userId; }); };
     var list = root.querySelector("[data-team-list]");
     var tpl = root.querySelector("template[data-team-row]");
     var value = root.querySelector("[data-team-value]");
@@ -378,27 +465,25 @@
       var chosen = {};
       members.forEach(function (m) { chosen[m.userId] = true; });
       $$("[data-team-add]", root).forEach(function (b) { b.hidden = !!chosen[b.getAttribute("data-team-add")]; });
-      var trigger = root.querySelector("[data-dropdown-trigger]");
-      if (trigger) trigger.hidden = members.length >= people.length;
     }
-    function avatarHtml(name) {
+    function avatarHtml(name, color) {
       var ini = name.split(/\s+/).map(function (p) { return p.charAt(0); }).join("").slice(0, 2).toUpperCase();
       var span = document.createElement("span");
       span.className = "inline-flex shrink-0 items-center justify-center rounded-full font-semibold text-white select-none";
-      span.style.cssText = "background-color:#6366f1;width:28px;height:28px;font-size:10.64px";
+      span.style.cssText = "background-color:" + (color || "#6366f1") + ";width:28px;height:28px;font-size:10.64px";
       span.textContent = ini;
       return span;
     }
-    function add(id) {
-      var p = people.find(function (x) { return x.id === id; });
+    function add(id, person) {
+      var p = person || people.find(function (x) { return x.id === id; });
       if (!p || members.some(function (m) { return m.userId === id; })) return;
-      var m = { userId: id, name: p.name, role: "COLLABORATOR" };
+      var m = { userId: id, name: p.name, role: p.staff === false ? "VIEWER" : "COLLABORATOR" };
       members.push(m);
       var li = tpl.content.firstElementChild.cloneNode(true);
-      li.querySelector('[data-slot="avatar"]').replaceWith(avatarHtml(p.name));
+      li.querySelector('[data-slot="avatar"]').replaceWith(avatarHtml(p.name, p.color));
       li.querySelector('[data-slot="name"]').textContent = p.name;
       var sel = li.querySelector('[data-slot="role"]');
-      sel.value = "COLLABORATOR";
+      sel.value = m.role;
       sel.addEventListener("change", function () { m.role = sel.value; sync(); });
       li.querySelector('[data-slot="remove"]').addEventListener("click", function () {
         members = members.filter(function (x) { return x !== m; });
@@ -412,6 +497,7 @@
       var b = e.target.closest("[data-team-add]");
       if (b) add(b.getAttribute("data-team-add"));
     });
+    root.addEventListener("people:pick", function (e) { add(e.detail.id, e.detail); });
     sync();
   }
 
@@ -1536,7 +1622,20 @@
 
   document.addEventListener("DOMContentLoaded", function () {
     $$("[data-file-input]").forEach(bindFileInput);
+    $$("[data-people-picker]").forEach(bindPeoplePicker);
     $$("[data-team-picker]").forEach(bindTeamPicker);
+    $$("[data-watch-picker]").forEach(function (box) {
+      box.addEventListener("people:pick", function (e) {
+        var fd = new FormData();
+        fd.append("_csrf", APP.csrf || "");
+        fd.append("ticketId", box.getAttribute("data-watch-picker"));
+        fd.append("userId", e.detail.id);
+        fd.append("role", "VIEWER");
+        fetch("/action/watcher-add", { method: "POST", body: fd, credentials: "same-origin", headers: { "Accept": "application/json", "X-Requested-With": "fetch" } })
+          .then(function (r) { return r.json().catch(function () { return {}; }); })
+          .then(function (j) { if (j && j.error) notice(j.error); else location.reload(); });
+      });
+    });
     $$("form[data-reply]").forEach(bindReply);
     $$("[data-bulk]").forEach(bindBulk);
     $$("[data-board]").forEach(bindBoard);

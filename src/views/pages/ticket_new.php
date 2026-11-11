@@ -148,18 +148,10 @@ $sectionTitle = fn (string $ic, string $t, string $sub = '') => '<div class="mb-
       </div>
 
       <?php if ($people): ?>
-        <div class="rounded-lg border border-border bg-surface p-4" data-team-picker data-people="<?= json_attr(array_map(fn ($p) => ['id' => $p['id'], 'name' => $p['name'], 'role' => role_label($p['role'])], $people)) ?>">
+        <div class="rounded-lg border border-border bg-surface p-4" data-team-picker data-people="[]">
           <div class="flex items-center justify-between">
             <span class="text-sm font-medium text-fg">Team</span>
-            <?= dropdown(
-                '<button type="button" data-dropdown-trigger class="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs font-medium text-muted hover:bg-surface-2 hover:text-fg transition-colors cursor-pointer">' . icon('user-plus', 14) . ' Add people</button>',
-                '<div class="max-h-72 overflow-y-auto py-1" data-team-options>'
-                . implode('', array_map(fn ($p) => '<button type="button" data-team-add="' . e($p['id']) . '" data-dropdown-close class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-surface-2 transition-colors cursor-pointer">'
-                    . avatar($p['name'], '#6366f1', 26) . '<span class="min-w-0 flex-1 truncate">' . e($p['name']) . '</span><span class="text-xs text-muted">' . e(role_label($p['role'])) . '</span></button>', $people))
-                . '</div>',
-                250,
-                'left',
-            ) ?>
+            <?= people_picker(['label' => 'Add people', 'staff' => $staff, 'multi' => true]) ?>
           </div>
           <p class="mt-1 text-xs text-muted"><?= $staff ? 'Add teammates who should see this ticket. Collaborators can also manage and reply.' : 'Add colleagues from your organization who should follow this ticket.' ?></p>
           <ul class="mt-3 space-y-2" hidden data-team-list></ul>

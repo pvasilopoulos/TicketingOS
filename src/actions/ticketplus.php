@@ -110,3 +110,21 @@ function api_similar_tickets(): never
     [$user, $tenantId] = require_tenant_user();
     json_out(['data' => similar_open_tickets($user, $tenantId, (string) ($_GET['q'] ?? ''), ($_GET['requesterId'] ?? '') ?: null)]);
 }
+
+/**
+ * GET /api/people?q=&kind=all|staff|customer&ticketId=&exclude=id,id
+ * People that may be added to a ticket's team. With ticketId, the requester and
+ * current followers are left out (and the ticket must be manageable).
+ */
+function api_people_search(): never
+{
+    [$user, $tenantId] = require_tenant_user();
+    $exclude = array_values(array_filter(explode(',', (string) ($_GET['exclude'] ?? ''))));
+    if (($tid = (string) ($_GET['ticketId'] ?? '')) !== '') {
+        $t = find_ticket($tid, $tenantId);
+        if (!$t || !can_manage_ticket($t, $user)) json_out(['error' => 'Not allowed'], 403);
+        $exclude = array_merge($exclude, [$t['requesterId']], pluck(q_all('SELECT "userId" FROM "TicketWatcher" WHERE "ticketId" = ?', [$t['id']]), 'userId'));
+    }
+    $kind = in_array($_GET['kind'] ?? '', ['staff', 'customer'], true) ? $_GET['kind'] : 'all';
+    json_out(search_people($user, $tenantId, (string) ($_GET['q'] ?? ''), $kind, array_slice(array_unique($exclude), 0, 200)));
+}

@@ -390,3 +390,37 @@ function status_pie(array $data): string
     }
     return '<div class="w-full pt-4">' . $svg . $legend . '</div></div>';
 }
+
+/**
+ * Searchable people picker (app.js → bindPeoplePicker). Searches /api/people on the
+ * server, so it stays fast with thousands of users. Options:
+ *  label     button text
+ *  ticketId  leave out the ticket's requester and followers
+ *  staff     show the All / Staff / Customers filter (staff viewers)
+ *  multi     keep the panel open after a pick (adding several people)
+ * The page reacts to the "people:pick" event (detail = person) on the element.
+ */
+function people_picker(array $o = []): string
+{
+    $tabs = '';
+    if (!empty($o['staff'])) {
+        $tabs = '<div class="flex gap-1 border-b border-border px-2 py-1.5" role="tablist">';
+        foreach (['all' => 'All', 'staff' => 'Staff', 'customer' => 'Customers'] as $k => $l) {
+            $tabs .= '<button type="button" role="tab" data-pp-kind="' . $k . '" aria-selected="' . ($k === 'all' ? 'true' : 'false') . '" class="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium text-muted transition hover:bg-surface-2 hover:text-fg aria-selected:bg-brand/10 aria-selected:text-brand cursor-pointer">'
+                . e($l) . '<span class="rounded-full bg-surface-2 px-1.5 text-[10px] tabular-nums" data-pp-count="' . $k . '">·</span></button>';
+        }
+        $tabs .= '</div>';
+    }
+    return '<div class="relative" data-people-picker data-ticket="' . e($o['ticketId'] ?? '') . '"' . (!empty($o['multi']) ? ' data-multi' : '') . '>'
+        . '<button type="button" data-pp-open aria-haspopup="listbox" aria-expanded="false" class="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs font-medium text-muted transition-colors hover:bg-surface-2 hover:text-fg cursor-pointer">'
+        . icon('user-plus', 14) . e($o['label'] ?? 'Add people') . '</button>'
+        . '<div data-pp-panel hidden class="absolute right-0 z-50 mt-2 w-[min(24rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-border bg-surface shadow-2xl shadow-black/10">'
+        . '<div class="relative border-b border-border p-2">'
+        . '<span class="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-muted">' . icon('search', 16) . '</span>'
+        . '<input type="search" data-pp-search autocomplete="off" placeholder="Search name, email or organization…" class="h-10 w-full rounded-lg border border-border bg-surface-2/50 pl-9 pr-3 text-sm focus:border-brand focus:bg-surface focus:outline-none focus:ring-2 focus:ring-brand/30">'
+        . '</div>'
+        . $tabs
+        . '<ul data-pp-results role="listbox" class="max-h-80 overflow-y-auto p-1"></ul>'
+        . '<div class="flex items-center justify-between border-t border-border px-3 py-1.5 text-[11px] text-muted"><span data-pp-status></span><span class="hidden sm:inline">↑↓ move · Enter add · Esc close</span></div>'
+        . '</div></div>';
+}

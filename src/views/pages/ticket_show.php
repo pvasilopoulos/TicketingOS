@@ -95,9 +95,8 @@ $orgAgentIds = $agents && $staff ? array_flip(pluck(q_all('SELECT DISTINCT auo."
 if ($orgAgentIds) usort($agents, fn ($x, $y) => [isset($orgAgentIds[$y['id']]) ? 1 : 0, $x['name']] <=> [isset($orgAgentIds[$x['id']]) ? 1 : 0, $y['name']]);
 $categories = $canManage ? q_all('SELECT "id","name" FROM "Category" WHERE "tenantId" = ? ORDER BY "name" ASC', [$tenantId]) : [];
 $excluded = array_flip([$ticket['requesterId'], ...array_column($watchers, 'id')]);
-$candidates = $canManage
-    ? array_values(array_filter(addable_people($user, $tenantId), fn ($u) => !isset($excluded[$u['id']])))
-    : [];
+// Is there anyone left to add? (The picker itself searches on the server.)
+$candidates = $canManage && search_people($user, $tenantId, '', 'all', array_keys($excluded), 1)['data'];
 
 $replyState = flash('reply');
 
@@ -476,17 +475,9 @@ $row = fn (string $label, string $valueHtml) => '<div class="flex items-center j
       <div class="rounded-xl border border-border bg-surface p-5">
         <div class="mb-3 flex items-center justify-between">
           <h3 class="text-sm font-semibold">Team</h3>
-          <?php if ($canTeam && $candidates):
-              $opts = '';
-              foreach ($candidates as $c) {
-                  $opts .= '<form method="post" action="/action/watcher-add" data-ajax>' . form_meta()
-                      . '<input type="hidden" name="ticketId" value="' . e($ticket['id']) . '"><input type="hidden" name="userId" value="' . e($c['id']) . '"><input type="hidden" name="role" value="VIEWER">'
-                      . '<button type="submit" class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-surface-2 transition-colors cursor-pointer">'
-                      . avatar($c['name'], '#6366f1', 26) . '<span class="min-w-0 flex-1 truncate">' . e($c['name']) . '</span><span class="text-xs text-muted">' . e(role_label($c['role'])) . '</span></button></form>';
-              }
-              echo dropdown('<button type="button" data-dropdown-trigger class="inline-flex items-center gap-1 text-xs font-medium text-brand hover:underline cursor-pointer disabled:opacity-50">' . icon('user-plus', 14) . ' Add</button>',
-                  '<div class="max-h-72 overflow-y-auto py-1">' . (!$staff ? '<p class="px-3 pb-1.5 pt-1 text-[11px] text-muted">Colleagues from your organization</p>' : '') . $opts . '</div>', 240);
-          endif; ?>
+          <?php if ($canTeam && $candidates): ?>
+            <div data-watch-picker="<?= e($ticket['id']) ?>"><?= people_picker(['label' => 'Add', 'ticketId' => $ticket['id'], 'staff' => $staff]) ?></div>
+          <?php endif; ?>
         </div>
         <?php if ($canTeam && !$staff && !$candidates): ?>
           <p class="mb-3 text-xs text-muted"><?= !user_org_ids($user['id']) ? 'You can add colleagues once your account belongs to an organization.' : 'Everyone from your organization is already on this ticket.' ?></p>

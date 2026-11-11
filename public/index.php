@@ -135,6 +135,7 @@ try {
     if ($path === '/api/presence' && $method === 'POST') api_presence();
     if ($path === '/api/kb/suggest' && $method === 'GET') api_kb_suggest();
     if ($path === '/api/customers' && $method === 'GET') api_customers_search();
+    if ($path === '/api/people' && $method === 'GET') api_people_search();
     if ($path === '/api/tickets/similar' && $method === 'GET') api_similar_tickets();
     if ($path === '/manifest.webmanifest') api_manifest();
     if ($path === '/tickets/export' && $method === 'GET') export_tickets_csv();

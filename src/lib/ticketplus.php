@@ -188,3 +188,49 @@ function sla_hours_map(string $tenantId): array
     foreach (tenant_priorities($tenantId) as $p) $map[$p['key']] = (int) ($sla[$p['key']] ?? 0);
     return $map;
 }
+
+/* ---------- People search (team / follower pickers) ---------- */
+
+/**
+ * People the user may add to a ticket, matching $q in name, email or organization.
+ * kind: all | staff | customer. Staff can find anyone in the workspace; customers
+ * only colleagues of their organizations. Returns ['data' => rows, 'counts' => [...]].
+ */
+function search_people(array $user, string $tenantId, string $q, string $kind = 'all', array $exclude = [], int $limit = 30): array
+{
+    $q = trim($q);
+    $staffViewer = is_staff($user['role']);
+    $where = ['u."tenantId" = ?', 'u."active" = 1', 'u."id" <> ?'];
+    $params = [$tenantId, $user['id']];
+    if (!$staffViewer) {
+        // Customers: only colleagues who share one of their organizations.
+        $where[] = 'u."role" = \'CUSTOMER\' AND EXISTS (SELECT 1 FROM "UserOrganization" a JOIN "UserOrganization" b ON b."organizationId" = a."organizationId" WHERE a."userId" = ? AND b."userId" = u."id")';
+        $params[] = $user['id'];
+    }
+    if ($exclude) { $where[] = 'u."id" NOT IN (' . in_ph($exclude) . ')'; array_push($params, ...$exclude); }
+    if ($q !== '') {
+        $like = like_arg(mb_strtolower($q));
+        $where[] = "(LOWER(u.\"name\") LIKE ? ESCAPE '!' OR LOWER(u.\"email\") LIKE ? ESCAPE '!' OR EXISTS (SELECT 1 FROM \"UserOrganization\" so JOIN \"Organization\" o ON o.\"id\" = so.\"organizationId\" WHERE so.\"userId\" = u.\"id\" AND LOWER(o.\"name\") LIKE ? ESCAPE '!'))";
+        array_push($params, $like, $like, $like);
+    }
+    $base = implode(' AND ', $where);
+    $staffSql = 'u."role" IN (\'SUPER_ADMIN\',\'ADMIN\',\'AGENT\')';
+    $counts = ['staff' => 0, 'customer' => 0];
+    foreach (q_all("SELECT CASE WHEN $staffSql THEN 'staff' ELSE 'customer' END AS k, COUNT(*) AS n FROM \"User\" u WHERE $base GROUP BY k", $params) as $r) $counts[$r['k']] = (int) $r['n'];
+    $counts['all'] = $counts['staff'] + $counts['customer'];
+    $kindSql = match ($kind) { 'staff' => " AND $staffSql", 'customer' => ' AND u."role" = \'CUSTOMER\'', default => '' };
+    // Name matches that start with the query first, then staff, then by name.
+    $order = $q !== '' ? "CASE WHEN LOWER(u.\"name\") LIKE ? ESCAPE '!' THEN 0 ELSE 1 END, " : '';
+    $orderParams = $q !== '' ? [str_replace(['!', '%', '_'], ['!!', '!%', '!_'], mb_strtolower($q)) . '%'] : [];
+    $rows = q_all("SELECT u.\"id\", u.\"name\", u.\"email\", u.\"role\", u.\"avatarColor\" FROM \"User\" u WHERE $base$kindSql
+        ORDER BY $order CASE WHEN $staffSql THEN 0 ELSE 1 END, u.\"name\" LIMIT " . max(1, min(50, $limit)), [...$params, ...$orderParams]);
+    $orgs = [];
+    if ($rows) {
+        $ids = array_column($rows, 'id');
+        foreach (q_all('SELECT so."userId", o."name" FROM "UserOrganization" so JOIN "Organization" o ON o."id" = so."organizationId" WHERE so."userId" IN (' . in_ph($ids) . ') ORDER BY o."name"', $ids) as $r) $orgs[$r['userId']][] = $r['name'];
+    }
+    return ['data' => array_map(fn ($r) => [
+        'id' => $r['id'], 'name' => $r['name'], 'email' => $staffViewer ? $r['email'] : '', 'role' => $r['role'], 'roleLabel' => role_label($r['role']),
+        'staff' => is_staff($r['role']), 'color' => safe_color($r['avatarColor'], '#6366f1'), 'orgs' => $orgs[$r['id']] ?? [],
+    ], $rows), 'counts' => $counts];
+}
