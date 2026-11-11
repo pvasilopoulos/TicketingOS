@@ -27,6 +27,7 @@ const PERMISSIONS = [
         'tickets.view_unassigned' => ['See unassigned tickets', 'The shared queue of tickets nobody has taken yet, so they can pick work up.', []],
         'tickets.reply' => ['Reply to customers', 'Send public replies. Without it they can only write internal notes.', []],
         'tickets.internal' => ['Internal notes', 'Read and write notes that customers never see.', []],
+        'chat.answer' => ['Answer live chat', 'See and answer visitors in the website chat, and turn chats into tickets.', []],
         'tickets.ai' => ['AI assistant', 'Summarize tickets, draft replies, fix the tone and translate with Claude (when turned on in Settings → Integrations).', []],
     ]],
     'Ticket details' => ['sliders-horizontal', 'What can be changed on a ticket.', [
@@ -38,6 +39,7 @@ const PERMISSIONS = [
         'tickets.group' => ['Move between groups', 'Route a ticket to another team such as Billing or Technical.', []],
         'tickets.tags' => ['Tag tickets', 'Add and remove tags; new tags can be created while tagging.', []],
         'tickets.team' => ['Manage followers', 'Add viewers and collaborators to a ticket.', []],
+        'time.log' => ['Log time', 'Record time worked on tickets (timer or by hand), billable or not.', []],
         'tickets.delete_files' => ['Delete files', 'Remove anyone’s attachments from a ticket (people can always remove their own within a few minutes). Every deletion is in the audit log.', []],
         'macros.use' => ['Use macros', 'Apply saved replies that can also change status or assignee.', []],
     ]],
@@ -46,6 +48,8 @@ const PERMISSIONS = [
         'tickets.merge' => ['Merge tickets', 'Closes the duplicate and moves its conversation into another ticket.', []],
         'tickets.link' => ['Link tickets', 'Mark tickets as related, without merging them.', []],
         'tickets.export' => ['Export to CSV', 'Download ticket data, including customer emails.', ['sensitive' => true]],
+        'tickets.views_share' => ['Share saved views', 'Make a saved ticket view visible to the whole team, with its count in the menu.', []],
+        'time.manage' => ['Manage everyone’s time', 'Change or delete time entries of other people and see billing reports.', ['sensitive' => true]],
     ]],
     'Knowledge base' => ['book-open', 'Help-center articles.', [
         'kb.edit' => ['Write & edit articles', 'Create drafts and change existing articles; see drafts and article stats.', []],
@@ -63,6 +67,7 @@ const PERMISSIONS = [
         'users.remove' => ['Remove users', 'Permanently delete accounts with their tickets and replies.', ['sensitive' => true]],
         'groups.manage' => ['Manage groups', 'Create agent groups, choose members, auto-assignment and category routing.', ['sensitive' => true]],
         'orgs.manage' => ['Manage organizations', 'Customer companies, their email domains, members and managers.', ['sensitive' => true]],
+        'contracts.manage' => ['Support contracts', 'Hour banks, contract dates and response times per organization.', ['sensitive' => true]],
     ]],
     'Workspace settings' => ['settings', 'Configuration of the workspace. Grant carefully.', [
         'settings.general' => ['Workspace name & menu', 'Rename the workspace and arrange the mobile bottom menu.', ['sensitive' => true]],
@@ -81,9 +86,12 @@ const PERMISSIONS = [
         'settings.webform' => ['Support form & widget', 'The public support form and website widget.', ['sensitive' => true]],
         'settings.attachments' => ['Attachments', 'Maximum size, allowed file types and staff-only files.', ['sensitive' => true]],
         'settings.ai' => ['AI assistant', 'Turn the Claude assistant on, its API key and model.', ['sensitive' => true]],
+        'settings.chat' => ['Live chat', 'Turn the website chat on and set its greeting and timing.', ['sensitive' => true]],
     ]],
     'Oversight' => ['scroll-text', 'Seeing who did what.', [
         'audit.view' => ['View the audit log', 'Every admin change, sign-in and export, with IP addresses; can export it.', ['sensitive' => true]],
+        'data.export' => ['Backups & data export', 'Download full workspace backups and the data of an organization or a person.', ['sensitive' => true]],
+        'data.erase' => ['Erase personal data (GDPR)', 'Permanently anonymize a person and, optionally, their messages and files.', ['sensitive' => true]],
     ]],
 ];
 
@@ -110,7 +118,8 @@ const SETTINGS_SECTIONS = [
     'automations' => ['settings.automations'],
     'notifications' => ['settings.notifications', 'settings.email'],
     'fields' => ['settings.fields', 'settings.csat'],
-    'integrations' => ['settings.api', 'settings.webform', 'settings.ai'],
+    'integrations' => ['settings.api', 'settings.webform', 'settings.ai', 'settings.chat'],
+    'data' => ['data.export', 'data.erase'],
 ];
 
 /** Can the user open this Settings tab? */
@@ -144,7 +153,7 @@ const PERMS_LEGACY = [
 
 /** Default permissions of the built-in Agent role. */
 const AGENT_DEFAULT_PERMISSIONS = [
-    PERMS_MARKER, 'tickets.view_all', 'tickets.view_unassigned', 'tickets.reply', 'tickets.internal', 'tickets.ai',
+    PERMS_MARKER, 'tickets.view_all', 'tickets.view_unassigned', 'tickets.reply', 'tickets.internal', 'tickets.ai', 'chat.answer', 'time.log',
     'tickets.status', 'tickets.priority', 'tickets.category', 'tickets.fields', 'tickets.assign', 'tickets.group', 'tickets.tags', 'tickets.team',
     'macros.use', 'tickets.bulk', 'tickets.merge', 'tickets.link', 'tickets.export', 'kb.edit', 'kb.publish', 'kb.delete', 'reports.view', 'reports.schedule',
 ];

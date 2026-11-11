@@ -200,7 +200,8 @@ function create_ticket(string $tenantId, array $requester, array $data, ?array $
                     'id' => cuid(), 'number' => $number, 'subject' => $subject, 'description' => $description,
                     'status' => initial_status_key($statuses), 'priority' => $priority,
                     'createdAt' => $now, 'updatedAt' => $now, 'closedAt' => null,
-                    'dueAt' => $dueOverride ?? compute_due_at($now, $priority, $sla),
+                    // Support contract of the requester's organization beats the workspace SLA.
+                    'dueAt' => $dueOverride ?? contract_due_at($tenantId, $requester['id'], $now) ?? compute_due_at($now, $priority, $sla),
                     'tenantId' => $tenantId, 'requesterId' => $requester['id'], 'assigneeId' => null, 'categoryId' => $categoryId,
                     'groupId' => $groupId, 'source' => $source, 'parentId' => $parentId,
                 ];
@@ -235,7 +236,7 @@ function create_ticket(string $tenantId, array $requester, array $data, ?array $
             'inAppType' => 'NEW_TICKET',
             'inAppMessage' => "We received your request #$number",
             'pushBody' => "We received your request #$number",
-            'emailLine' => "Thanks — we received your request #$number “$subject”. We’ll get back to you as soon as possible.",
+            'emailLine' => "Thanks — we received your request #$number “{$subject}”. We’ll get back to you as soon as possible.",
         ]);
     }
 
@@ -249,6 +250,7 @@ function create_ticket(string $tenantId, array $requester, array $data, ?array $
     if ($groupId) auto_assign_ticket($ticket['id'], $tenantId);
     reindex_ticket($ticket['id']);
     $fresh = find_ticket($ticket['id'], $tenantId) ?? $ticket;
+    ai_triage_after_response($tenantId, $ticket['id']);
     webhook_emit($tenantId, 'ticket.created', ['ticket' => api_ticket_brief($fresh) + ['fields' => $values ?: (object) []]]);
     return $fresh;
 }
@@ -620,6 +622,10 @@ function act_comment_add(array $in): ?array
     }
     $staffOnlyFiles = $staff && ($in['filesStaffOnly'] ?? '') === 'on' && attachment_settings($tenantId)['staffOnly'];
     $commentId = add_comment($ticket, $user, $tenantId, $body, $isInternal, $hasFiles ? $files : [], $staffOnlyFiles);
+    // "Time spent" next to the reply box.
+    if ($staff && can($user, 'time.log') && ($min = parse_minutes(str_in($in, 'timeSpent'))) && $min > 0) {
+        add_time_entry($tenantId, $ticket['id'], $user['id'], $min, true, $isInternal ? 'Internal note' : 'Reply');
+    }
     return ['ok' => true, 'back' => '/tickets/' . $ticket['id'] . '#c-' . $commentId];
 }
 

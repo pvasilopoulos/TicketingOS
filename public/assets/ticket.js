@@ -410,7 +410,44 @@
     });
   }
 
+  /* ---------- time tracking: a timer per ticket that survives reloads ---------- */
+
+  function bindTimer(card) {
+    var btn = $("[data-timer]", card);
+    if (!btn) return;
+    var key = "tos-timer:" + card.getAttribute("data-ticket");
+    var label = $("[data-timer-label]", btn), ic = $("[data-timer-icon]", btn), out = $("[data-timer-minutes]", card);
+    var tick = null;
+    var pad = function (n) { return (n < 10 ? "0" : "") + n; };
+    function render() {
+      var start = store.get(key);
+      btn.dataset.running = start ? "true" : "false";
+      if (!start) { label.textContent = "Start timer"; ic.innerHTML = APP.icons.play || "▶"; return; }
+      var s = Math.max(0, Math.floor((Date.now() - start) / 1000));
+      label.textContent = Math.floor(s / 3600) + ":" + pad(Math.floor(s / 60) % 60) + ":" + pad(s % 60);
+      ic.innerHTML = APP.icons.stop || "■";
+    }
+    btn.addEventListener("click", function () {
+      var start = store.get(key);
+      if (start) {
+        store.del(key);
+        clearInterval(tick); tick = null;
+        var min = Math.max(1, Math.ceil((Date.now() - start) / 60000));
+        out.value = Math.floor(min / 60) + ":" + pad(min % 60);
+        var note = card.querySelector("input[name=note]");
+        if (note) note.focus();
+      } else {
+        store.set(key, Date.now());
+        tick = setInterval(render, 1000);
+      }
+      render();
+    });
+    if (store.get(key)) tick = setInterval(render, 1000);
+    render();
+  }
+
   document.addEventListener("DOMContentLoaded", function () {
+    $$("[data-time-card]").forEach(bindTimer);
     var form = replyForm();
     if (form) { bindDraft(form); bindUpload(form); bindAi(form); }
     $$("[data-kb-picker]").forEach(bindKbPicker);

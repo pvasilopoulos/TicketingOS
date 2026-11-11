@@ -75,6 +75,11 @@ $custHistory = $staff ? customer_history($ticket, $tenantId) : null;
 $replyVars = $staff ? reply_vars($ticket, $user, $tenantId) : [];
 $mySignature = $staff ? user_signature($user) : '';
 $canUpload = $staff || $attRules['customerUploads'];
+$canLogTime = $staff && can($user, 'time.log');
+$timeInfo = $staff ? ticket_time($ticket['id']) : null;
+$contract = $staff ? requester_contract($tenantId, $ticket['requesterId']) : null;
+$contractState = $contract ? contract_state($contract) : null;
+$orgHasContracts = $staff && !$contract && $requesterOrgs ? (bool) q_val('SELECT 1 FROM "Contract" WHERE "organizationId" IN (' . in_ph(array_column($requesterOrgs, 'id')) . ') LIMIT 1', array_column($requesterOrgs, 'id')) : false;
 
 $canned = $staff ? q_all('SELECT "title","body" FROM "CannedResponse" WHERE "tenantId" = ? ORDER BY "title" ASC', [$tenantId]) : [];
 // Staff can mention anyone; customers only people on this ticket and colleagues of their organization.
@@ -99,6 +104,7 @@ $historyIcons = [
     'MEMBER_ROLE_CHANGED' => ['users-round', 'text-teal-600 bg-teal-500/10'], 'LINKED' => ['link', 'text-blue-600 bg-blue-500/10'],
     'MERGED' => ['git-merge', 'text-fuchsia-600 bg-fuchsia-500/10'], 'MACRO' => ['zap', 'text-yellow-600 bg-yellow-500/10'],
     'CSAT' => ['smile', 'text-pink-600 bg-pink-500/10'], 'PINNED' => ['pin', 'text-brand bg-brand/10'],
+    'AI_TRIAGE' => ['sparkles', 'text-violet-600 bg-violet-500/10'], 'KB_DRAFT' => ['book-open', 'text-violet-600 bg-violet-500/10'],
     'MESSAGE_DELETED' => ['trash-2', 'text-rose-600 bg-rose-500/10'], 'FILE_DELETED' => ['trash-2', 'text-rose-600 bg-rose-500/10'],
 ];
 $replyCount = count($timeline) + 1;
@@ -221,6 +227,7 @@ $row = fn (string $label, string $valueHtml) => '<div class="flex items-center j
       <h1 class="mt-1 text-xl font-bold tracking-tight break-words sm:text-2xl"><?= e($ticket['subject']) ?></h1>
     </div>
     <div class="flex flex-wrap items-center gap-2">
+      <?= $staff ? sentiment_badge($ticket['sentiment'] ?? null) : '' ?>
       <?= due_badge($ticket['dueAt'], $curStatus['isClosed']) ?>
       <?= priority_badge($curPriority['label'], $curPriority['color']) ?>
       <?= status_badge($curStatus['label'], $curStatus['color']) ?>
@@ -281,6 +288,12 @@ $row = fn (string $label, string $valueHtml) => '<div class="flex items-center j
     <?php endif; ?>
     <button type="button" data-share data-share-title="<?= e('#' . $ticket['number'] . ' ' . $ticket['subject']) ?>" class="<?= $quick ?>"><?= icon('link', 15) ?> <span data-share-label>Share link</span></button>
     <a href="/tickets/<?= e($ticket['id']) ?>/print" target="_blank" rel="noopener" class="<?= $quick ?>"><?= icon('printer', 15) ?> Print / PDF</a>
+    <?php if ($aiOn && can($user, 'kb.edit')): ?>
+      <form method="post" action="/action/kb-from-ticket" data-ajax data-confirm="Write a help-center article draft from this ticket with AI? It takes up to a minute; you can edit it before publishing." class="shrink-0">
+        <?= form_meta() ?><input type="hidden" name="ticketId" value="<?= e($ticket['id']) ?>">
+        <button type="submit" class="<?= $quick ?> text-violet-700 dark:text-violet-300"><?= icon('book-open', 15) ?> Article from ticket</button>
+      </form>
+    <?php endif; ?>
     <a href="#reply" data-jump-reply class="<?= $quick ?> lg:hidden"><?= icon('send', 15) ?> Reply</a>
   </div>
 
@@ -398,6 +411,10 @@ $row = fn (string $label, string $valueHtml) => '<div class="flex items-center j
               <?php endif; ?>
               <?php if ($staff && $attRules['staffOnly'] && $canUpload): ?>
                 <label data-staff-files hidden class="inline-flex items-center gap-1.5 cursor-pointer select-none"><input type="checkbox" name="filesStaffOnly" value="on" class="h-3.5 w-3.5 rounded border-border accent-amber-500"> <?= icon('lock', 12) ?> Files visible to staff only</label>
+              <?php endif; ?>
+              <?php if ($canLogTime): ?>
+                <label class="inline-flex items-center gap-1.5" title="Logged as time on this ticket (e.g. 15, 0:30, 1h)"><?= icon('clock', 13) ?> Time spent
+                  <input name="timeSpent" inputmode="text" autocomplete="off" placeholder="0:15" class="h-7 w-16 rounded-md border border-border bg-surface px-2 text-xs text-fg focus:outline-none focus:ring-2 focus:ring-brand/40"></label>
               <?php endif; ?>
               <span data-draft-status class="ml-auto inline-flex items-center gap-1.5" hidden></span>
             </div>
@@ -724,6 +741,50 @@ $row = fn (string $label, string $valueHtml) => '<div class="flex items-center j
       </div>
       <?php endif; ?>
 
+      <!-- Time -->
+      <?php if ($staff && ($canLogTime || $timeInfo['entries'])): $ti = $timeInfo; ?>
+      <div class="rounded-xl border border-border bg-surface" data-time-card data-ticket="<?= e($ticket['id']) ?>">
+        <?= card_header(titled('clock', 'Time'), $ti['total'] ? '<span class="text-sm font-semibold tabular-nums">' . e(fmt_minutes($ti['total'])) . '</span>' : '') ?>
+        <?php if ($ti['total']): ?>
+          <p class="border-b border-border px-5 py-2 text-xs text-muted"><?= e(fmt_minutes($ti['billable'])) ?> billable<?= $ti['other'] ? ' · ' . e(fmt_minutes($ti['other'])) . ' not billable' : '' ?></p>
+        <?php endif; ?>
+        <?php if ($canLogTime): ?>
+          <form method="post" action="/action/time-add" data-ajax class="space-y-2.5 p-4">
+            <?= form_meta() ?><input type="hidden" name="ticketId" value="<?= e($ticket['id']) ?>">
+            <div class="flex items-center gap-2">
+              <button type="button" data-timer class="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-border bg-surface px-3 text-sm font-medium hover:bg-surface-2 cursor-pointer data-[running=true]:border-red-300 data-[running=true]:bg-red-50 data-[running=true]:text-red-700 dark:data-[running=true]:bg-red-500/10 dark:data-[running=true]:text-red-300">
+                <span data-timer-icon><?= icon('play', 14) ?></span><span data-timer-label>Start timer</span>
+              </button>
+              <input name="minutes" required autocomplete="off" placeholder="45 or 1:30" data-timer-minutes class="h-9 min-w-0 flex-1 rounded-lg border border-border bg-surface px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/40">
+            </div>
+            <input name="note" maxlength="500" placeholder="What did you do? (optional)" class="h-9 w-full rounded-lg border border-border bg-surface px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/40">
+            <div class="flex flex-wrap items-center gap-2">
+              <input type="date" name="workedOn" value="<?= date('Y-m-d') ?>" max="<?= date('Y-m-d') ?>" class="h-9 rounded-lg border border-border bg-surface px-2 text-sm">
+              <label class="inline-flex items-center gap-1.5 text-sm"><input type="checkbox" name="billable" checked class="h-4 w-4 rounded border-border accent-brand"> Billable</label>
+              <button type="submit" class="<?= btn_cls('primary', 'sm', 'ml-auto') ?>"><?= icon('plus', 14) ?> Log</button>
+            </div>
+          </form>
+        <?php endif; ?>
+        <?php if ($ti['entries']): ?>
+          <ul class="max-h-72 divide-y divide-border overflow-y-auto border-t border-border">
+            <?php foreach ($ti['entries'] as $te): $mayDel = $te['userId'] === $user['id'] || can($user, 'time.manage'); ?>
+              <li class="flex items-start gap-2.5 px-4 py-2.5">
+                <?= avatar($te['uName'], $te['uColor'], 24) ?>
+                <div class="min-w-0 flex-1">
+                  <p class="text-sm"><span class="font-semibold tabular-nums"><?= e(fmt_minutes((int) $te['minutes'])) ?></span> <span class="text-muted">· <?= e($te['uName']) ?></span><?= (int) $te['billable'] ? '' : ' <span class="rounded bg-surface-2 px-1 text-[10px] uppercase text-muted">not billable</span>' ?></p>
+                  <p class="truncate text-xs text-muted" title="<?= e((string) $te['note']) ?>"><?= e(date('j M', strtotime($te['workedAt']))) ?><?= $te['note'] ? ' · ' . e($te['note']) : '' ?></p>
+                </div>
+                <?php if ($mayDel): ?>
+                  <form method="post" action="/action/time-delete" data-ajax data-confirm="Delete this time entry?"><?= form_meta() ?><input type="hidden" name="id" value="<?= e($te['id']) ?>">
+                    <button type="submit" aria-label="Delete entry" class="grid h-7 w-7 place-items-center rounded-md text-muted hover:bg-red-500/10 hover:text-red-600 cursor-pointer"><?= icon('x', 13) ?></button></form>
+                <?php endif; ?>
+              </li>
+            <?php endforeach; ?>
+          </ul>
+        <?php endif; ?>
+      </div>
+      <?php endif; ?>
+
       <!-- Requester -->
       <div class="rounded-xl border border-border bg-surface">
         <?= card_header('Requester') ?>
@@ -743,6 +804,23 @@ $row = fn (string $label, string $valueHtml) => '<div class="flex items-center j
               <?php if ($staff && $org['notes']): ?><p class="mt-1 whitespace-pre-line text-xs text-muted"><?= e($org['notes']) ?></p><?php endif; ?>
             </div>
           </div>
+        <?php endif; ?>
+        <?php if ($contract): $cs = $contractState; $tone = ['ok' => 'border-emerald-500/30 bg-emerald-500/5', 'low' => 'border-amber-500/40 bg-amber-500/5', 'over' => 'border-red-500/40 bg-red-500/5', 'expired' => 'border-red-500/40 bg-red-500/5'][$cs['level']]; ?>
+          <div class="border-t border-border px-5 py-3 text-sm">
+            <div class="<?= cx('rounded-lg border p-3', $tone) ?>">
+              <p class="flex items-center gap-1.5 font-medium"><?= icon('file-text', 14, 'text-muted') ?> <?= e($contract['name']) ?> <span class="text-xs font-normal text-muted">· <?= e($contract['orgName']) ?></span></p>
+              <?php if ($cs['included'] !== null): ?>
+                <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-2"><div class="h-full rounded-full <?= $cs['level'] === 'ok' ? 'bg-emerald-500' : ($cs['level'] === 'low' ? 'bg-amber-500' : 'bg-red-500') ?>" style="width:<?= (int) $cs['pct'] ?>%"></div></div>
+                <p class="mt-1.5 text-xs <?= $cs['left'] <= 0 ? 'font-medium text-red-600 dark:text-red-400' : 'text-muted' ?>"><?= $cs['left'] > 0 ? e(fmt_minutes($cs['left'])) . ' left of ' . e(fmt_minutes($cs['included'])) : 'Over by ' . e(fmt_minutes(-$cs['left'])) . ' (' . e(fmt_minutes($cs['included'])) . ' included)' ?></p>
+              <?php else: ?>
+                <p class="mt-1 text-xs text-muted">Unlimited support · <?= e(fmt_minutes($cs['used'])) ?> used</p>
+              <?php endif; ?>
+              <p class="mt-1 text-xs text-muted"><?= $contract['endsOn'] ? 'Until ' . e(date('j M Y', strtotime($contract['endsOn']))) . ($cs['daysLeft'] !== null && $cs['daysLeft'] <= 30 ? ' · <span class="font-medium text-amber-700 dark:text-amber-400">' . (int) $cs['daysLeft'] . ' days left</span>' : '') : 'No end date' ?>
+                <?= $contract['firstResponseHours'] ? ' · reply within ' . (int) $contract['firstResponseHours'] . 'h' : '' ?><?= $contract['resolutionHours'] ? ' · solve within ' . (int) $contract['resolutionHours'] . 'h' : '' ?></p>
+            </div>
+          </div>
+        <?php elseif ($orgHasContracts): ?>
+          <div class="border-t border-border px-5 py-3"><p class="flex items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs font-medium text-amber-800 dark:text-amber-300"><?= icon('triangle-alert', 13) ?> No active support contract</p></div>
         <?php endif; ?>
         <div class="space-y-2 border-t border-border px-5 py-4 text-sm">
           <?= $row('Created', e(format_date($ticket['createdAt']))) ?>

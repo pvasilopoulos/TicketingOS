@@ -120,8 +120,27 @@ function act_ai_settings_save(array $in): ?array
     $enc = ($in['clearKey'] ?? '') === 'on' ? null : ($key !== '' ? encrypt_secret($key) : ($cur['apiKey'] ?? null));
     $enabled = ($in['enabled'] ?? '') === 'on';
     if ($enabled && !$enc) return ['error' => 'Add an API key to turn the assistant on'];
-    tenant_setting_set($tenantId, 'ai', ['enabled' => $enabled, 'apiKey' => $enc, 'model' => isset(AI_MODELS[$model]) ? $model : 'claude-opus-5-5']);
+    $triage = ($in['triage'] ?? '') === 'on';
+    tenant_setting_set($tenantId, 'ai', [
+        'enabled' => $enabled, 'apiKey' => $enc, 'model' => isset(AI_MODELS[$model]) ? $model : 'claude-opus-5-5',
+        'triage' => $triage, 'triageApply' => ($in['triageApply'] ?? '') === 'on',
+        // Only tickets created from now on are triaged — never the old backlog.
+        'triageSince' => $triage ? (($cur['triage'] ?? false) ? ($cur['triageSince'] ?? now_iso()) : now_iso()) : '',
+    ]);
     return ['success' => $enabled ? 'AI assistant is on' : 'AI assistant settings saved'];
+}
+
+/** Ticket → help-center article draft (AI). */
+function act_kb_from_ticket(array $in): ?array
+{
+    [$user, $tenantId] = require_tenant_user();
+    if (!ai_available($user, $tenantId) || !can($user, 'kb.edit')) return NOT_ALLOWED;
+    $ticket = find_ticket(str_in($in, 'ticketId'), $tenantId);
+    if (!$ticket || !ticket_visible($ticket, $user)) return ['error' => 'Ticket not found'];
+    $r = ai_kb_from_ticket($ticket, $user, $tenantId);
+    if (isset($r['error'])) return ['error' => $r['error']];
+    log_event($tenantId, $ticket['id'], $user['id'], 'KB_DRAFT', 'created a help-center article draft from this ticket');
+    return ['success' => 'Article draft created — review it before publishing', 'back' => '/kb/' . $r['id'] . '/edit'];
 }
 
 function act_ai_test(array $in): ?array

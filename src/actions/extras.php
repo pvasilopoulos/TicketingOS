@@ -338,21 +338,38 @@ function act_webhook_save(array $in): ?array
     [, $tenantId] = $ctx;
     $id = str_in($in, 'id');
     $name = mb_substr(str_in($in, 'name'), 0, 60) ?: 'Webhook';
-    $url = str_in($in, 'url');
-    if (!filter_var($url, FILTER_VALIDATE_URL) || !preg_match('#^https?://#i', $url)) return ['error' => 'Enter a valid http(s) URL'];
-    if (!webhook_url_allowed($url)) return ['error' => 'That address is not reachable from the internet'];
     $format = isset(WEBHOOK_FORMATS[$in['format'] ?? '']) ? $in['format'] : 'json';
+    $cur = $id ? q_one('SELECT * FROM "Webhook" WHERE "id" = ? AND "tenantId" = ?', [$id, $tenantId]) : null;
+    if ($id && !$cur) return ['error' => 'Webhook not found'];
+    $options = json_decode((string) ($cur['options'] ?? ''), true) ?: [];
+    $options['urgentOnly'] = ($in['urgentOnly'] ?? '') === 'on';
+    $viberToken = null;
+    if ($format === 'viber') {
+        // Viber channels: the token from Viber (Channel → Settings → Developer tools); the post address is fixed.
+        $url = VIBER_POST_URL;
+        $viberToken = str_in($in, 'viberToken') ?: (($cur['format'] ?? '') === 'viber' ? $cur['secret'] : '');
+        if ($viberToken === '') return ['error' => 'Paste the Viber channel token'];
+        if (str_in($in, 'viberToken') !== '' || empty($options['viberFrom'])) {
+            $who = viber_channel_sender($viberToken);
+            if (isset($who['error'])) return ['error' => $who['error']];
+            $options['viberFrom'] = $who['from'];
+        }
+    } else {
+        $url = str_in($in, 'url');
+        if (!filter_var($url, FILTER_VALIDATE_URL) || !preg_match('#^https?://#i', $url)) return ['error' => 'Enter a valid http(s) URL'];
+        if (!webhook_url_allowed($url)) return ['error' => 'That address is not reachable from the internet'];
+    }
     $events = array_values(array_intersect(array_keys(WEBHOOK_EVENTS), array_keys(array_filter((array) ($in['events'] ?? []), fn ($v) => $v === 'on'))));
     if (!$events) return ['error' => 'Pick at least one event'];
-    $data = ['name' => $name, 'url' => $url, 'format' => $format, 'events' => json_encode($events), 'active' => ($in['active'] ?? 'on') === 'on' ? 1 : 0];
+    $data = ['name' => $name, 'url' => $url, 'format' => $format, 'events' => json_encode($events), 'active' => ($in['active'] ?? 'on') === 'on' ? 1 : 0, 'options' => json_encode($options)];
+    if ($viberToken !== null) $data['secret'] = $viberToken;
     if ($id) {
-        if (!q_val('SELECT 1 FROM "Webhook" WHERE "id" = ? AND "tenantId" = ?', [$id, $tenantId])) return ['error' => 'Webhook not found'];
-        if (($in['rotate'] ?? '') === 'on') $data['secret'] = 'whsec_' . bin2hex(random_bytes(20));
+        if (($in['rotate'] ?? '') === 'on' && $format !== 'viber') $data['secret'] = 'whsec_' . bin2hex(random_bytes(20));
         if ($data['active']) $data['failCount'] = 0;
         db_update('Webhook', $data, '"id" = ?', [$id]);
         return ['success' => "Webhook “{$name}” saved" . (isset($data['secret']) ? ' with a new signing secret' : '')];
     }
-    db_insert('Webhook', ['id' => cuid(), 'tenantId' => $tenantId, 'secret' => 'whsec_' . bin2hex(random_bytes(20)), 'failCount' => 0, 'lastStatus' => null, 'lastError' => null, 'lastAt' => null, 'createdAt' => now_iso()] + $data);
+    db_insert('Webhook', ['id' => cuid(), 'tenantId' => $tenantId, 'secret' => $viberToken ?? 'whsec_' . bin2hex(random_bytes(20)), 'failCount' => 0, 'lastStatus' => null, 'lastError' => null, 'lastAt' => null, 'createdAt' => now_iso()] + $data);
     return ['success' => "Webhook “{$name}” added"];
 }
 

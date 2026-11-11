@@ -25,15 +25,19 @@ $hookForm = function (?array $h) use ($toggle): string {
         . ($h ? '<input type="hidden" name="id" value="' . e($h['id']) . '">' : '')
         . '<div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_10rem]">'
         . '<div><label class="mb-1 block text-xs font-medium text-muted">Name</label><input name="name" maxlength="60" value="' . e($h['name'] ?? '') . '" placeholder="Slack #support" class="' . INPUT_CLS . '"></div>'
-        . '<div><label class="mb-1 block text-xs font-medium text-muted">Endpoint URL</label><input name="url" type="url" required value="' . e($h['url'] ?? '') . '" placeholder="https://hooks.slack.com/services/…" class="' . INPUT_CLS . '"></div>'
+        . '<div><label class="mb-1 block text-xs font-medium text-muted">Endpoint URL <span class="font-normal">(Slack, Teams, JSON)</span></label><input name="url" type="url" value="' . e(($h['format'] ?? '') === 'viber' ? '' : ($h['url'] ?? '')) . '" placeholder="https://hooks.slack.com/services/… or a Teams Workflows URL" class="' . INPUT_CLS . '"></div>'
         . '<div><label class="mb-1 block text-xs font-medium text-muted">Format</label><select name="format" class="' . SELECT_CLS . '">' . select_options(WEBHOOK_FORMATS, $h['format'] ?? 'json') . '</select></div></div>'
         . '<div><span class="mb-1.5 block text-xs font-medium text-muted">Events</span><div class="grid gap-1.5 sm:grid-cols-2">';
     foreach (WEBHOOK_EVENTS as $k => $label) {
         $out .= '<label class="flex items-center gap-2 text-sm"><input type="checkbox" name="events[' . $k . ']" ' . (in_array($k, $events, true) ? 'checked' : '') . ' class="h-4 w-4 rounded border-border accent-brand">'
             . e($label) . ' <code class="text-[11px] text-muted">' . e($k) . '</code></label>';
     }
-    $out .= '</div></div><div class="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">'
+    $opt = $h ? (json_decode((string) ($h['options'] ?? ''), true) ?: []) : [];
+    $out .= '</div></div>'
+        . '<div><label class="mb-1 block text-xs font-medium text-muted">Viber channel token <span class="font-normal">(only for the Viber format)</span></label><input name="viberToken" type="password" autocomplete="off" placeholder="' . (($h['format'] ?? '') === 'viber' ? '•••••• saved — paste to replace' : 'From Viber: your channel → Settings → Developer tools') . '" class="' . INPUT_CLS . '"></div>'
+        . '<div class="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">'
         . '<label class="flex items-center gap-2">' . $toggle('active', !$h || (int) $h['active']) . ' Active</label>'
+        . '<label class="flex items-center gap-2"><input type="checkbox" name="urgentOnly" ' . (!empty($opt['urgentOnly']) ? 'checked' : '') . ' class="h-4 w-4 rounded border-border accent-brand"> Only high and urgent tickets</label>'
         . ($h ? '<label class="flex items-center gap-2"><input type="checkbox" name="rotate" class="h-4 w-4 rounded border-border accent-brand"> Generate a new signing secret</label>' : '')
         . '</div><div class="flex flex-wrap gap-2"><button type="submit" class="' . btn_cls('primary', 'sm') . '">' . icon('check', 14) . ($h ? ' Save' : ' Add webhook') . '</button>';
     if ($h) {

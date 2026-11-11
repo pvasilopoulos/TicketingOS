@@ -103,6 +103,7 @@ function ticket_view_row(array $t, array $statuses, array $priorities): array
         'createdAt' => $t['createdAt'],
         'dueAt' => $t['dueAt'],
         'commentCount' => (int) $t['commentCount'],
+        'sentiment' => $t['sentiment'] ?? null,
         'requester' => ['name' => $t['rName'], 'color' => $t['rColor']],
         'assignee' => $t['aName'] !== null ? ['name' => $t['aName'], 'color' => $t['aColor'], 'more' => (int) ($t['coCount'] ?? 0)] : null,
         'category' => $t['cName'] !== null ? ['name' => $t['cName'], 'color' => $t['cColor']] : null,

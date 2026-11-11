@@ -116,6 +116,7 @@ CREATE TABLE IF NOT EXISTS `SavedView` (
   `name` varchar(191) NOT NULL,
   `query` mediumtext NOT NULL,
   `createdAt` varchar(30) NOT NULL,
+  `shared` int(11) NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),
   KEY `SavedView_userId_idx` (`userId`),
   FOREIGN KEY (`userId`) REFERENCES `User` (`id`) ON DELETE CASCADE
@@ -162,6 +163,8 @@ CREATE TABLE IF NOT EXISTS `Ticket` (
   `status` varchar(64) NOT NULL DEFAULT 'OPEN',
   `priority` varchar(64) NOT NULL DEFAULT 'MEDIUM',
   `createdAt` varchar(30) NOT NULL,
+  `sentiment` varchar(20) DEFAULT NULL,
+  `aiTriagedAt` varchar(30) DEFAULT NULL,
   `updatedAt` varchar(30) NOT NULL,
   `closedAt` varchar(30) DEFAULT NULL,
   `dueAt` varchar(30) DEFAULT NULL,
@@ -605,6 +608,7 @@ CREATE TABLE IF NOT EXISTS `Webhook` (
   `lastError` varchar(4000) DEFAULT NULL,
   `lastAt` varchar(30) DEFAULT NULL,
   `createdAt` varchar(30) NOT NULL,
+  `options` mediumtext DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `tenantId` (`tenantId`),
   FOREIGN KEY (`tenantId`) REFERENCES `Tenant` (`id`) ON DELETE CASCADE
@@ -703,4 +707,70 @@ CREATE TABLE IF NOT EXISTS `CommentRevision` (
   `createdAt` varchar(30) NOT NULL,
   PRIMARY KEY (`id`),
   KEY `CommentRevision_comment_idx` (`commentId`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Time tracking.
+CREATE TABLE IF NOT EXISTS `TimeEntry` (
+  `id` varchar(40) NOT NULL,
+  `tenantId` varchar(40) NOT NULL,
+  `ticketId` varchar(40) NOT NULL,
+  `userId` varchar(40) NOT NULL,
+  `minutes` int(11) NOT NULL DEFAULT 0,
+  `billable` int(11) NOT NULL DEFAULT 1,
+  `note` varchar(500) DEFAULT NULL,
+  `workedAt` varchar(30) NOT NULL,
+  `createdAt` varchar(30) NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `TimeEntry_ticket_idx` (`ticketId`),
+  KEY `TimeEntry_tenant_day_idx` (`tenantId`,`workedAt`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Support contracts per organization.
+CREATE TABLE IF NOT EXISTS `Contract` (
+  `id` varchar(40) NOT NULL,
+  `tenantId` varchar(40) NOT NULL,
+  `organizationId` varchar(40) NOT NULL,
+  `name` varchar(120) NOT NULL,
+  `minutesIncluded` int(11) DEFAULT NULL,
+  `startsOn` varchar(10) NOT NULL,
+  `endsOn` varchar(10) DEFAULT NULL,
+  `firstResponseHours` int(11) DEFAULT NULL,
+  `resolutionHours` int(11) DEFAULT NULL,
+  `notes` text DEFAULT NULL,
+  `active` int(11) NOT NULL DEFAULT 1,
+  `createdAt` varchar(30) NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `Contract_org_idx` (`organizationId`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Live chat.
+CREATE TABLE IF NOT EXISTS `ChatSession` (
+  `id` varchar(40) NOT NULL,
+  `tenantId` varchar(40) NOT NULL,
+  `tokenHash` varchar(64) NOT NULL,
+  `visitorName` varchar(120) NOT NULL,
+  `visitorEmail` varchar(191) NOT NULL,
+  `status` varchar(20) NOT NULL DEFAULT 'open',
+  `agentId` varchar(40) DEFAULT NULL,
+  `ticketId` varchar(40) DEFAULT NULL,
+  `pageUrl` varchar(500) DEFAULT NULL,
+  `lastVisitorAt` varchar(30) DEFAULT NULL,
+  `lastAgentAt` varchar(30) DEFAULT NULL,
+  `agentSeenAt` varchar(30) DEFAULT NULL,
+  `createdAt` varchar(30) NOT NULL,
+  `closedAt` varchar(30) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `ChatSession_tenant_idx` (`tenantId`,`status`),
+  KEY `ChatSession_token_idx` (`tokenHash`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `ChatMessage` (
+  `id` varchar(40) NOT NULL,
+  `sessionId` varchar(40) NOT NULL,
+  `sender` varchar(10) NOT NULL,
+  `authorId` varchar(40) DEFAULT NULL,
+  `body` text NOT NULL,
+  `createdAt` varchar(30) NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `ChatMessage_session_idx` (`sessionId`,`createdAt`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

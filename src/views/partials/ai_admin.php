@@ -23,6 +23,12 @@ $ai = ai_settings($tenantId);
           <select id="ai-model" name="model" class="<?= SELECT_CLS ?>"><?= select_options(AI_MODELS, $ai['model']) ?></select>
         </div>
       </div>
+      <div class="space-y-2 rounded-xl border border-border p-4">
+        <label class="flex cursor-pointer items-start gap-2.5 text-sm"><input type="checkbox" name="triage" <?= $ai['triage'] ? 'checked' : '' ?> class="mt-0.5 h-4 w-4 rounded border-border accent-brand">
+          <span><span class="font-medium">Triage new tickets automatically</span><span class="block text-xs text-muted">Detects the customer’s mood (a “Frustrated” or “Angry” badge on the ticket) and suggests category and priority in the ticket history. Only tickets created after you turn this on.</span></span></label>
+        <label class="ml-6 flex cursor-pointer items-start gap-2.5 text-sm"><input type="checkbox" name="triageApply" <?= $ai['triageApply'] ? 'checked' : '' ?> class="mt-0.5 h-4 w-4 rounded border-border accent-brand">
+          <span><span class="font-medium">Also set category and priority</span><span class="block text-xs text-muted">The category only when the customer left it empty; the priority can change the deadline.</span></span></label>
+      </div>
       <p class="text-xs text-muted">Who can use it: roles with the “AI assistant” permission (Settings → Users &amp; roles). Each person can make up to 30 requests per 10 minutes.</p>
       <div class="flex flex-wrap gap-2">
         <button type="submit" class="<?= btn_cls() ?>">Save</button>

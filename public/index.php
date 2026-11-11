@@ -26,6 +26,7 @@ $ACTIONS = [
     'ticket-create' => 'act_ticket_create', 'ticket-update' => 'act_ticket_update', 'ticket-bulk' => 'act_ticket_bulk',
     'comment-add' => 'act_comment_add', 'comment-edit' => 'act_comment_edit', 'comment-delete' => 'act_comment_delete', 'comment-pin' => 'act_comment_pin',
     'attachment-delete' => 'act_attachment_delete', 'signature-save' => 'act_signature_save',
+    'kb-from-ticket' => 'act_kb_from_ticket', 'person-erase' => 'act_person_erase', 'chat-settings-save' => 'act_chat_settings_save', 'backup-settings-save' => 'act_backup_settings_save', 'time-add' => 'act_time_add', 'time-delete' => 'act_time_delete', 'contract-save' => 'act_contract_save', 'contract-delete' => 'act_contract_delete', 'view-share' => 'act_view_share',
     'attachment-settings-save' => 'act_attachment_settings_save', 'ai-settings-save' => 'act_ai_settings_save', 'ai-test' => 'act_ai_test',
     'watcher-add' => 'act_watcher_add', 'watcher-role' => 'act_watcher_role', 'watcher-remove' => 'act_watcher_remove',
     'ticket-tag-add' => 'act_ticket_tag_add', 'ticket-tag-remove' => 'act_ticket_tag_remove',
@@ -82,6 +83,11 @@ try {
     }
     if ($path === '/widget.js') public_widget_js();
     if ($path === '/brand/logo') brand_logo_out();
+    if (preg_match('#^/support/([a-z0-9-]+)/chat(?:/(start|send|poll|close))?$#', $path, $m)) {
+        $tenant = q_one('SELECT * FROM "Tenant" WHERE "slug" = ?', [$m[1]]);
+        if (!$tenant) abort(404);
+        public_chat($tenant, $m[2] ?? '');
+    }
     if (preg_match('#^/support/([a-z0-9-]+)(/kb)?$#', $path, $m)) {
         $tenant = q_one('SELECT * FROM "Tenant" WHERE "slug" = ?', [$m[1]]);
         if (!$tenant || !webform_settings($tenant['id'])['enabled']) abort(404);
@@ -138,6 +144,16 @@ try {
     if ($path === '/api/presence' && $method === 'POST') api_presence();
     if ($path === '/api/kb/suggest' && $method === 'GET') api_kb_suggest();
     if ($path === '/api/ai' && $method === 'POST') api_ai();
+    if ($path === '/api/chat/list' && $method === 'GET') api_chat_list();
+    if ($path === '/api/chat/messages' && $method === 'GET') api_chat_messages();
+    if ($path === '/api/chat/reply' && $method === 'POST') api_chat_reply();
+    if ($path === '/api/chat/action' && $method === 'POST') api_chat_action();
+    if ($path === '/reports/export.xlsx' && $method === 'GET') report_export_xlsx();
+    if ($path === '/settings/backup.zip' && $method === 'GET') backup_download_now();
+    if (preg_match('#^/settings/backups/([A-Za-z0-9._-]+)$#', $path, $m) && $method === 'GET') backup_file_download($m[1]);
+    if ($path === '/settings/export/org.zip' && $method === 'GET') org_export_download();
+    if ($path === '/settings/export/person.json' && $method === 'GET') person_export_download();
+    if ($path === '/reports/billing.xlsx' && $method === 'GET') billing_export_xlsx();
     if (preg_match('#^/tickets/([A-Za-z0-9]+)/files.zip$#', $path, $m) && $method === 'GET') ticket_files_zip($m[1]);
     if ($path === '/api/customers' && $method === 'GET') api_customers_search();
     if ($path === '/api/people' && $method === 'GET') api_people_search();
@@ -205,6 +221,8 @@ try {
             view('pages/kb_show', ['id' => $m[1]], 'app');
         case $path === '/reports':
             view('pages/reports', [], 'app');
+        case $path === '/chat':
+            view('pages/chat', [], 'app');
         case $path === '/notifications':
             view('pages/notifications', [], 'app');
 

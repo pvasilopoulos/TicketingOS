@@ -237,3 +237,11 @@ body { overscroll-behavior-y: none; }
 .auth-btn:hover svg { transform: translateX(3px); }
 .auth-field:focus-within .auth-ic { color: var(--brand); }
 @media (prefers-reduced-motion: reduce) { .auth-blob, .auth-btn, .auth-btn svg { animation: none; transition: none; } }
+
+/* Printing a page (Reports → Print / PDF): only the content. */
+@media print {
+  aside, header, nav, [data-no-print], [data-toasts], [data-drawer] { display: none !important; }
+  html, body, [data-main], [data-app-shell], [data-app-shell] > * { overflow: visible !important; height: auto !important; background: #fff !important; }
+  [data-main] { position: static !important; }
+  .rounded-xl { break-inside: avoid; }
+}

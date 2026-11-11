@@ -153,7 +153,7 @@ function ticket_list_item(array $t): string
 {
     $h = '<a href="/tickets/' . e($t['id']) . '" class="flex items-center gap-3 px-4 py-3.5 hover:bg-surface-2 active:bg-surface-2 transition-colors sm:gap-4 sm:px-5">';
     $h .= avatar($t['requester']['name'], $t['requester']['color'], 38, 'max-sm:self-start');
-    $h .= '<div class="min-w-0 flex-1"><div class="flex items-center gap-2"><span class="truncate font-medium text-fg">' . e($t['subject']) . '</span></div>';
+    $h .= '<div class="min-w-0 flex-1"><div class="flex items-center gap-2"><span class="truncate font-medium text-fg">' . e($t['subject']) . '</span>' . (is_staff(current_user()['role'] ?? '') ? sentiment_badge($t['sentiment'] ?? null) : '') . '</div>';
     $h .= '<div class="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">';
     $h .= '<span class="font-mono">#' . (int) $t['number'] . '</span><span>·</span><span>' . e($t['requester']['name']) . '</span>';
     if ($t['category']) {

@@ -123,7 +123,7 @@ function parse_cc_list(string $raw): array|string
     $out = [];
     foreach (preg_split('/[\s,;]+/', strtolower(trim($raw))) ?: [] as $e) {
         if ($e === '') continue;
-        if (!is_valid_email($e)) return "“$e” is not a valid email address";
+        if (!is_valid_email($e)) return "“{$e}” is not a valid email address";
         $out[$e] = true;
     }
     if (count($out) > 10) return 'Up to 10 CC addresses per ticket';

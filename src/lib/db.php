@@ -163,7 +163,7 @@ function ts(?string $iso): ?float
  * (hosts like Plesk often have no shell for bin/migrate.php). A marker file in
  * storage/ keeps this to one cheap check per request.
  */
-const RUNTIME_SCHEMA_VERSION = 5;
+const RUNTIME_SCHEMA_VERSION = 6;
 
 /** Does a table have a column? (works for SQLite and MySQL/MariaDB) */
 function db_column_exists(string $table, string $col): bool
@@ -189,6 +189,7 @@ function ensure_runtime_schema(): void
         runtime_schema_v3();
         runtime_schema_v4();
         runtime_schema_v5();
+        runtime_schema_v6();
         @file_put_contents($marker, $sig);
     } catch (Throwable $e) {
         error_log('[schema] ' . $e->getMessage());
@@ -224,6 +225,55 @@ function runtime_schema_v5(): void
   KEY "CommentRevision_comment_idx" ("commentId")' : '') . '
 )' . ($my ? ' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci' : ''));
     if (!$my) db()->exec('CREATE INDEX IF NOT EXISTS "CommentRevision_comment_idx" ON "CommentRevision"("commentId")');
+}
+
+/** Create a table (MySQL or SQLite) from [column => [mysqlType, sqliteType]] plus extra indexes. */
+function db_create_table(string $table, array $cols, array $indexes = []): void
+{
+    $my = db_driver() === 'mysql';
+    $defs = [];
+    foreach ($cols as $c => [$mt, $st]) $defs[] = '  ' . qi($c) . ' ' . ($my ? $mt : $st);
+    $defs[0] .= ' NOT NULL PRIMARY KEY';
+    if ($my) foreach ($indexes as $name => $on) $defs[] = '  KEY ' . qi($name) . ' (' . implode(',', array_map('qi', $on)) . ')';
+    db()->exec('CREATE TABLE IF NOT EXISTS ' . qi($table) . " (\n" . implode(",\n", $defs) . "\n)" . ($my ? ' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci' : ''));
+    if (!$my) foreach ($indexes as $name => $on) db()->exec('CREATE INDEX IF NOT EXISTS ' . qi($name) . ' ON ' . qi($table) . '(' . implode(',', array_map('qi', $on)) . ')');
+}
+
+/** v6: time tracking, support contracts, live chat, shared views, AI triage, webhook options. */
+function runtime_schema_v6(): void
+{
+    $id = ['VARCHAR(40)', 'TEXT'];
+    $idn = ['VARCHAR(40) NULL', 'TEXT'];
+    $ts = ['VARCHAR(30) NOT NULL', 'TEXT NOT NULL'];
+    $tsn = ['VARCHAR(30) NULL', 'TEXT'];
+    $int0 = ['INT NOT NULL DEFAULT 0', 'INTEGER NOT NULL DEFAULT 0'];
+    db_create_table('TimeEntry', [
+        'id' => $id, 'tenantId' => ['VARCHAR(40) NOT NULL', 'TEXT NOT NULL'], 'ticketId' => ['VARCHAR(40) NOT NULL', 'TEXT NOT NULL'],
+        'userId' => ['VARCHAR(40) NOT NULL', 'TEXT NOT NULL'], 'minutes' => $int0, 'billable' => ['INT NOT NULL DEFAULT 1', 'INTEGER NOT NULL DEFAULT 1'],
+        'note' => ['VARCHAR(500) NULL', 'TEXT'], 'workedAt' => $ts, 'createdAt' => $ts,
+    ], ['TimeEntry_ticket_idx' => ['ticketId'], 'TimeEntry_tenant_day_idx' => ['tenantId', 'workedAt']]);
+    db_create_table('Contract', [
+        'id' => $id, 'tenantId' => ['VARCHAR(40) NOT NULL', 'TEXT NOT NULL'], 'organizationId' => ['VARCHAR(40) NOT NULL', 'TEXT NOT NULL'],
+        'name' => ['VARCHAR(120) NOT NULL', 'TEXT NOT NULL'], 'minutesIncluded' => ['INT NULL', 'INTEGER'],
+        'startsOn' => ['VARCHAR(10) NOT NULL', 'TEXT NOT NULL'], 'endsOn' => ['VARCHAR(10) NULL', 'TEXT'],
+        'firstResponseHours' => ['INT NULL', 'INTEGER'], 'resolutionHours' => ['INT NULL', 'INTEGER'],
+        'notes' => ['TEXT NULL', 'TEXT'], 'active' => ['INT NOT NULL DEFAULT 1', 'INTEGER NOT NULL DEFAULT 1'], 'createdAt' => $ts,
+    ], ['Contract_org_idx' => ['organizationId']]);
+    db_create_table('ChatSession', [
+        'id' => $id, 'tenantId' => ['VARCHAR(40) NOT NULL', 'TEXT NOT NULL'], 'tokenHash' => ['VARCHAR(64) NOT NULL', 'TEXT NOT NULL'],
+        'visitorName' => ['VARCHAR(120) NOT NULL', 'TEXT NOT NULL'], 'visitorEmail' => ['VARCHAR(191) NOT NULL', 'TEXT NOT NULL'],
+        'status' => ["VARCHAR(20) NOT NULL DEFAULT 'open'", "TEXT NOT NULL DEFAULT 'open'"], 'agentId' => $idn, 'ticketId' => $idn,
+        'pageUrl' => ['VARCHAR(500) NULL', 'TEXT'], 'lastVisitorAt' => $tsn, 'lastAgentAt' => $tsn, 'agentSeenAt' => $tsn,
+        'createdAt' => $ts, 'closedAt' => $tsn,
+    ], ['ChatSession_tenant_idx' => ['tenantId', 'status'], 'ChatSession_token_idx' => ['tokenHash']]);
+    db_create_table('ChatMessage', [
+        'id' => $id, 'sessionId' => ['VARCHAR(40) NOT NULL', 'TEXT NOT NULL'], 'sender' => ['VARCHAR(10) NOT NULL', 'TEXT NOT NULL'],
+        'authorId' => $idn, 'body' => ['TEXT NOT NULL', 'TEXT NOT NULL'], 'createdAt' => $ts,
+    ], ['ChatMessage_session_idx' => ['sessionId', 'createdAt']]);
+    db_add_column('SavedView', 'shared', 'INT NOT NULL DEFAULT 0', 'INTEGER NOT NULL DEFAULT 0');
+    db_add_column('Ticket', 'sentiment', 'VARCHAR(20) NULL', 'TEXT');
+    db_add_column('Ticket', 'aiTriagedAt', 'VARCHAR(30) NULL', 'TEXT');
+    db_add_column('Webhook', 'options', 'MEDIUMTEXT NULL', 'TEXT');
 }
 
 /** v4: notification queue (push/email sent in the background, retried, logged) and rule alerts. */

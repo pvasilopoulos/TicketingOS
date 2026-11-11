@@ -13,12 +13,19 @@ $path = request_path();
 $isActive = fn (string $href) => $path === $href || str_starts_with($path, $href . '/');
 
 $nav = [['/dashboard', 'Dashboard', 'layout-dashboard'], ['/tickets', 'Tickets', 'ticket']];
+if (is_staff($user['role']) && can($user, 'chat.answer') && chat_settings($tenantId)['enabled']) {
+    $chatWaiting = chat_waiting_count($tenantId);
+    $nav[] = ['/chat', 'Live chat' . ($chatWaiting ? " ($chatWaiting)" : ''), 'messages-square'];
+}
 $nav[] = ['/kb', 'Knowledge base', 'book-open'];
 if (can($user, 'reports.view')) $nav[] = ['/reports', 'Reports', 'chart-column'];
 // Users & roles live inside Settings (Users / Roles tabs), not in the menu.
 if (can($user, 'settings.*')) $nav[] = ['/settings', 'Settings', 'settings'];
 
-$sidebar = function (bool $drawer = false) use ($nav, $isActive, $tenantName, $isStaffUser): string {
+// Saved ticket views (own + shared with the team) with live counts.
+$menuViews = menu_views($user, $tenantId);
+$curQuery = $_SERVER['QUERY_STRING'] ?? '';
+$sidebar = function (bool $drawer = false) use ($nav, $isActive, $tenantName, $isStaffUser, $menuViews, $path, $curQuery): string {
     $h = '<aside class="flex h-full w-72 max-w-[85vw] flex-col border-r border-border bg-surface lg:w-64">';
     $h .= '<div class="flex h-16 items-center gap-2.5 border-b border-border px-5">' . brand_mark(36, 'rounded-lg')
         . '<div class="min-w-0"><p class="truncate text-sm font-semibold leading-tight">' . e(app_name()) . '</p><p class="truncate text-xs text-muted">' . e($tenantName ?? 'Helpdesk') . '</p></div>'
@@ -30,6 +37,15 @@ $sidebar = function (bool $drawer = false) use ($nav, $isActive, $tenantName, $i
     if ($drawer) $links[] = ['/notifications', 'Notification settings', 'bell'];
     foreach ($links as [$href, $label, $ic]) {
         $h .= '<a href="' . $href . '" class="' . cx('flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors lg:py-2', $isActive($href) ? 'bg-brand/10 text-brand' : 'text-muted hover:bg-surface-2 hover:text-fg') . '">' . icon($ic, 18) . e($label) . '</a>';
+    }
+    if ($menuViews) {
+        $h .= '<p class="px-3 pb-1 pt-4 text-[11px] font-semibold uppercase tracking-wider text-muted">Views</p>';
+        foreach ($menuViews as $v) {
+            $on = $path === '/tickets' && $curQuery === $v['query'];
+            $h .= '<a href="/tickets' . ($v['query'] !== '' ? '?' . e($v['query']) : '') . '" title="' . ((int) $v['shared'] ? 'Shared with the team' : 'Only you') . '" class="' . cx('flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors', $on ? 'bg-brand/10 font-medium text-brand' : 'text-muted hover:bg-surface-2 hover:text-fg') . '">'
+                . icon((int) $v['shared'] ? 'users' : 'bookmark', 16) . '<span class="min-w-0 flex-1 truncate">' . e($v['name']) . '</span>'
+                . ($v['count'] !== null ? '<span class="' . cx('rounded-full px-1.5 text-[11px] tabular-nums', $v['count'] ? 'bg-surface-2 font-medium text-fg' : 'text-muted') . '">' . number_format($v['count']) . '</span>' : '') . '</a>';
+        }
     }
     $h .= '</nav>';
     // Install-app entry (shown by app.js when the browser offers it).

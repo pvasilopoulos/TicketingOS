@@ -138,12 +138,23 @@ foreach ($created as $t) {
     if ($t['firstResponseAt'] && isset($perAgent[$t['assigneeId'] ?? ''])) $perAgent[$t['assigneeId']]['frt'][] = $sec($t['firstResponseAt']) - $sec($t['createdAt']);
 }
 uasort($perAgent, fn ($a, $b) => $b['resolved'] <=> $a['resolved']);
+// Time logged per agent, organizations table, busy hours, billing.
+$fromDay = date('Y-m-d', time() - $days * 86400);
+$agentMinutes = report_agent_minutes($tenantId, $fromDay);
+$orgReport = report_orgs($tenantId, $from, $closedKeys);
+$heat = report_heatmap($tenantId, $from);
+$heatMax = max(1, max(array_map('max', $heat)));
+$canBilling = can($user, 'time.manage');
+$billMonth = preg_match('/^\d{4}-\d{2}$/', (string) ($_GET['month'] ?? '')) ? $_GET['month'] : date('Y-m');
+$billing = $canBilling ? billing_report($tenantId, $billMonth) : null;
 $bar = fn (int $n, int $max, string $color) => '<span class="block h-2 rounded-full" style="width:' . max(2, round($n / max(1, $max) * 100)) . '%;background:' . safe_color($color) . '"></span>';
 ?>
 <div>
   <?= page_header('Reports', 'Volume, response times and SLA performance for your helpdesk.',
-      '<div class="inline-flex rounded-lg border border-border bg-surface p-0.5">' . implode('', array_map(fn ($d, $l) =>
-          '<a href="/reports?days=' . $d . '" class="' . cx('rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors', $d === $days ? 'bg-surface-2 text-fg' : 'text-muted hover:text-fg') . '">' . ($d === 365 ? '12m' : $d . 'd') . '</a>', array_keys($ranges), $ranges)) . '</div>') ?>
+      '<div class="flex flex-wrap items-center gap-2" data-no-print><a href="/reports/export.xlsx?days=' . $days . '" class="' . btn_cls('outline', 'sm') . '">' . icon('file-spreadsheet', 14) . ' Excel</a>'
+      . '<button type="button" onclick="window.print()" class="' . btn_cls('outline', 'sm') . '">' . icon('printer', 14) . ' PDF</button>'
+      . '<div class="inline-flex rounded-lg border border-border bg-surface p-0.5">' . implode('', array_map(fn ($d, $l) =>
+          '<a href="/reports?days=' . $d . '" class="' . cx('rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors', $d === $days ? 'bg-surface-2 text-fg' : 'text-muted hover:text-fg') . '">' . ($d === 365 ? '12m' : $d . 'd') . '</a>', array_keys($ranges), $ranges)) . '</div></div>') ?>
 
   <div class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
     <?php foreach ($kpis as [$label, $value, $trend, $ic, $sub]): ?>
@@ -202,7 +213,7 @@ $bar = fn (int $n, int $max, string $color) => '<span class="block h-2 rounded-f
       <table class="w-full min-w-[36rem] text-sm">
         <thead><tr class="border-b border-border text-left text-xs text-muted">
           <th class="px-5 py-2.5 font-medium">Agent</th><th class="px-3 py-2.5 text-right font-medium">Open now</th><th class="px-3 py-2.5 text-right font-medium">Resolved</th>
-          <th class="px-3 py-2.5 text-right font-medium">Median 1st response</th><th class="px-3 py-2.5 text-right font-medium">SLA met</th><th class="px-5 py-2.5 text-right font-medium">Satisfaction</th>
+          <th class="px-3 py-2.5 text-right font-medium">Median 1st response</th><th class="px-3 py-2.5 text-right font-medium">SLA met</th><th class="px-3 py-2.5 text-right font-medium">Satisfaction</th><th class="px-5 py-2.5 text-right font-medium">Time logged</th>
         </tr></thead>
         <tbody class="divide-y divide-border">
           <?php foreach ($perAgent as $id => $p): $a = $agents[$id]; ?>
@@ -215,12 +226,90 @@ $bar = fn (int $n, int $max, string $color) => '<span class="block h-2 rounded-f
                 <span class="<?= $pc >= 90 ? 'text-emerald-600 dark:text-emerald-400' : ($pc >= 70 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400') ?> font-medium"><?= $pc ?>%</span>
               <?php else: ?>—<?php endif; ?></td>
               <td class="px-5 py-2.5 text-right tabular-nums"><?php if (isset($csatByAgent[$id])): $c = $csatByAgent[$id]; ?><span class="font-medium <?= $c['pct'] >= 80 ? 'text-emerald-600 dark:text-emerald-400' : ($c['pct'] >= 60 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400') ?>"><?= $c['pct'] ?>%</span> <span class="text-xs text-muted">(<?= $c['n'] ?>)</span><?php else: ?>—<?php endif; ?></td>
+              <td class="px-5 py-2.5 text-right tabular-nums"><?php $am = $agentMinutes[$id] ?? null; ?><?= $am ? e(fmt_minutes($am['total'])) . ' <span class="text-xs text-muted">(' . e(fmt_minutes($am['billable'])) . ' bill.)</span>' : '—' ?></td>
             </tr>
           <?php endforeach; ?>
         </tbody>
       </table>
     </div>
   </div>
+  <?php if ($orgReport): ?>
+  <div class="mt-6 rounded-xl border border-border bg-surface">
+    <?= card_header(titled('building-2', 'Organizations · ' . $ranges[$days])) ?>
+    <div class="overflow-x-auto">
+      <table class="w-full min-w-[44rem] text-sm">
+        <thead><tr class="border-b border-border text-left text-xs text-muted">
+          <th class="px-5 py-2.5 font-medium">Organization</th><th class="px-3 py-2.5 text-right font-medium">Created</th><th class="px-3 py-2.5 text-right font-medium">Resolved</th><th class="px-3 py-2.5 text-right font-medium">Open now</th>
+          <th class="px-3 py-2.5 text-right font-medium">Median 1st response</th><th class="px-3 py-2.5 text-right font-medium">SLA met</th><th class="px-3 py-2.5 text-right font-medium">Satisfaction</th><th class="px-5 py-2.5 text-right font-medium">Time</th>
+        </tr></thead>
+        <tbody class="divide-y divide-border">
+          <?php foreach (array_slice($orgReport, 0, 50, true) as $oid => $o): ?>
+            <tr>
+              <td class="px-5 py-2.5"><a href="/tickets?org=<?= e($oid) ?>" class="font-medium hover:text-brand"><?= e($o['name']) ?></a></td>
+              <td class="px-3 py-2.5 text-right tabular-nums"><?= number_format($o['created']) ?></td>
+              <td class="px-3 py-2.5 text-right tabular-nums"><?= number_format($o['resolved']) ?></td>
+              <td class="px-3 py-2.5 text-right tabular-nums"><?= number_format($o['open']) ?></td>
+              <td class="px-3 py-2.5 text-right tabular-nums"><?= e($dur($o['frtMedian'])) ?></td>
+              <td class="px-3 py-2.5 text-right tabular-nums"><?php if ($o['slaPct'] !== null): ?><span class="font-medium <?= $o['slaPct'] >= 90 ? 'text-emerald-600 dark:text-emerald-400' : ($o['slaPct'] >= 70 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400') ?>"><?= $o['slaPct'] ?>%</span><?php else: ?>—<?php endif; ?></td>
+              <td class="px-3 py-2.5 text-right tabular-nums"><?= $o['csat'] === null ? '—' : $o['csat'] . '%' ?></td>
+              <td class="px-5 py-2.5 text-right tabular-nums"><?= $o['billable'] + $o['other'] ? e(fmt_minutes($o['billable'] + $o['other'])) : '—' ?></td>
+            </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <?php endif; ?>
+
+  <div class="mt-6 rounded-xl border border-border bg-surface">
+    <?= card_header(titled('calendar-days', 'Busy hours · new tickets'), '<span class="text-xs text-muted">' . e(date_default_timezone_get()) . '</span>') ?>
+    <div class="overflow-x-auto p-4 sm:p-5">
+      <table class="w-full min-w-[40rem] table-fixed border-separate border-spacing-[3px] text-[11px]">
+        <thead><tr><th class="w-10"></th><?php for ($hh = 0; $hh < 24; $hh++): ?><th class="font-normal text-muted"><?= $hh % 3 === 0 ? sprintf('%02d', $hh) : '' ?></th><?php endfor; ?></tr></thead>
+        <tbody>
+          <?php foreach ([1 => 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as $d => $dl): ?>
+            <tr><th class="pr-2 text-left font-normal text-muted"><?= $dl ?></th>
+              <?php for ($hh = 0; $hh < 24; $hh++): $n = $heat[$d][$hh]; $op = $n ? 0.12 + 0.88 * $n / $heatMax : 0; ?>
+                <td title="<?= e($dl . ' ' . sprintf('%02d:00', $hh) . ' — ' . $n . ' ticket' . ($n === 1 ? '' : 's')) ?>" class="h-6 rounded-[4px] <?= $n ? '' : 'bg-surface-2' ?>" style="<?= $n ? 'background:rgb(79 70 229 / ' . round($op, 2) . ')' : '' ?>"></td>
+              <?php endfor; ?>
+            </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+      <p class="mt-2 text-xs text-muted">Darker = more new tickets. Useful for planning who is on duty when.</p>
+    </div>
+  </div>
+
+  <?php if ($billing): ?>
+  <div class="mt-6 rounded-xl border border-border bg-surface" id="billing">
+    <?= card_header(titled('receipt', 'Time & billing'), '<form method="get" action="/reports#billing" class="flex items-center gap-2" data-no-print><input type="hidden" name="days" value="' . $days . '"><input type="month" name="month" value="' . e($billMonth) . '" onchange="this.form.submit()" class="h-8 rounded-lg border border-border bg-surface px-2 text-sm">'
+        . '<a href="/reports/billing.xlsx?month=' . e($billMonth) . '" class="' . btn_cls('outline', 'sm') . '">' . icon('file-spreadsheet', 14) . ' Excel</a></form>') ?>
+    <?php if (!$billing['rows']): ?>
+      <p class="px-5 py-8 text-center text-sm text-muted">No time logged in <?= e(date('F Y', strtotime($billing['from']))) ?>. Agents log time from the Time card on a ticket or the “Time spent” box next to Send reply.</p>
+    <?php else: ?>
+      <div class="overflow-x-auto">
+        <table class="w-full min-w-[40rem] text-sm">
+          <thead><tr class="border-b border-border text-left text-xs text-muted">
+            <th class="px-5 py-2.5 font-medium">Organization</th><th class="px-3 py-2.5 text-right font-medium">Tickets</th><th class="px-3 py-2.5 text-right font-medium">Billable</th><th class="px-3 py-2.5 text-right font-medium">Not billable</th><th class="px-5 py-2.5 font-medium">Contract</th>
+          </tr></thead>
+          <tbody class="divide-y divide-border">
+            <?php foreach ($billing['rows'] as $br): $bc = $br['contract']; ?>
+              <tr>
+                <td class="px-5 py-2.5 font-medium"><?= $br['id'] !== '' ? '<a href="/tickets?org=' . e($br['id']) . '" class="hover:text-brand">' . e($br['name']) . '</a>' : '<span class="text-muted">' . e($br['name']) . '</span>' ?></td>
+                <td class="px-3 py-2.5 text-right tabular-nums"><?= (int) $br['tickets'] ?></td>
+                <td class="px-3 py-2.5 text-right font-semibold tabular-nums"><?= e(fmt_minutes($br['billable'])) ?></td>
+                <td class="px-3 py-2.5 text-right tabular-nums text-muted"><?= $br['other'] ? e(fmt_minutes($br['other'])) : '—' ?></td>
+                <td class="px-5 py-2.5 text-xs"><?php if ($bc): ?><span class="font-medium"><?= e($bc['name']) ?></span> · <?= $bc['included'] !== null ? ($bc['left'] >= 0 ? e(fmt_minutes($bc['left'])) . ' left' : '<span class="font-medium text-red-600 dark:text-red-400">over by ' . e(fmt_minutes(-$bc['left'])) . '</span>') : 'unlimited' ?><?php else: ?><span class="text-muted">—</span><?php endif; ?></td>
+              </tr>
+            <?php endforeach; ?>
+            <tr class="bg-surface-2/50 font-semibold"><td class="px-5 py-2.5">Total</td><td></td><td class="px-3 py-2.5 text-right tabular-nums"><?= e(fmt_minutes($billing['billable'])) ?></td><td class="px-3 py-2.5 text-right tabular-nums"><?= e(fmt_minutes($billing['other'])) ?></td><td></td></tr>
+          </tbody>
+        </table>
+      </div>
+    <?php endif; ?>
+  </div>
+  <?php endif; ?>
+
   <?php if ($byGroup || $byOrg || $recentComments): ?>
   <div class="mt-6 grid gap-6 lg:grid-cols-2">
     <?php if ($byGroup): ?>

@@ -85,6 +85,7 @@ $orgForm = fn (?array $o) => '<form method="post" action="/action/org-save" clas
         <?php endif; ?>
       </div>
     </div>
+    <?php require ROOT . '/src/views/partials/contracts_admin.php'; ?>
   </div>
 <?php endif; ?>
 

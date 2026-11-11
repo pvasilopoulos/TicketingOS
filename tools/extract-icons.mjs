@@ -11,7 +11,7 @@ const NAMES = [
   "layout-grid", "inbox", "message-square", "message-square-plus", "clock", "bookmark",
   "bookmark-plus", "loader-circle", "arrow-left", "arrow-right", "lock", "user-plus",
   "plus", "hash", "send", "paperclip", "file-text", "download", "image", "image-plus",
-  "circle-check", "play", "phone", "house", "list-tree", "at-sign", "monitor", "tablet", "laptop", "user-round", "eye-off", "sparkles", "lock-keyhole", "mail-check", "history", "folder", "user-minus", "circle-dot", "list-checks", "smartphone", "trash-2", "flag", "pencil", "zap", "mail", "building-2", "pin", "pin-off", "printer", "languages", "file-archive", "file-image", "file-spreadsheet", "file-video", "file", "upload", "signature", "maximize-2", "external-link",
+  "circle-check", "play", "phone", "house", "list-tree", "at-sign", "monitor", "tablet", "laptop", "user-round", "eye-off", "sparkles", "lock-keyhole", "mail-check", "history", "folder", "user-minus", "circle-dot", "list-checks", "smartphone", "trash-2", "flag", "pencil", "zap", "mail", "building-2", "pin", "pin-off", "printer", "languages", "file-archive", "file-image", "file-spreadsheet", "file-video", "file", "upload", "signature", "maximize-2", "external-link", "square", "headset", "message-circle", "messages-square", "database", "user-x", "share-2", "frown", "angry", "receipt", "archive", "calendar-days", "bot", "send-horizontal", "meh",
   "triangle-alert", "moon", "sun", "bold", "italic", "underline", "strikethrough",
   "baseline", "highlighter", "code", "code-xml", "list-ordered", "list-todo", "quote",
   "minus", "link", "table", "rows-3", "columns-3", "align-left", "align-center",

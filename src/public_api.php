@@ -25,7 +25,7 @@ function public_widget_js(): never
   btn.addEventListener('click', function () {
     if (frame) { var open = frame.style.display !== 'none'; frame.style.display = open ? 'none' : 'block'; btn.textContent = open ? label : '✕'; return; }
     frame = document.createElement('iframe');
-    frame.src = base + '/support/' + encodeURIComponent(slug) + '?embed=1';
+    frame.src = base + '/support/' + encodeURIComponent(slug) + '/chat?embed=1';
     frame.title = label;
     frame.style.cssText = 'position:fixed;right:20px;bottom:76px;z-index:2147483000;width:min(400px,calc(100vw - 40px));height:min(620px,calc(100vh - 110px));border:0;border-radius:16px;box-shadow:0 16px 48px rgba(0,0,0,.25);background:#fff';
     document.body.appendChild(frame);

@@ -48,7 +48,8 @@ if ($view === 'board') {
 
 $categories = q_all('SELECT "id","name" FROM "Category" WHERE "tenantId" = ? ORDER BY "name" ASC', [$tenantId]);
 $tags = q_all('SELECT "id","name" FROM "Tag" WHERE "tenantId" = ? ORDER BY "name" ASC', [$tenantId]);
-$savedViews = q_all('SELECT "id","name","query" FROM "SavedView" WHERE "userId" = ? ORDER BY "createdAt" ASC', [$user['id']]);
+$savedViews = q_all('SELECT "id","name","query","shared","userId" FROM "SavedView" WHERE "tenantId" = ? AND ("userId" = ?' . ($staff ? ' OR "shared" = 1' : '') . ') ORDER BY "shared" DESC, "createdAt" ASC', [$tenantId, $user['id']]);
+$canShareViews = $staff && can($user, 'tickets.views_share');
 $agents = $staff ? q_all('SELECT "id","name" FROM "User" WHERE "tenantId" = ? AND "role" IN (\'SUPER_ADMIN\',\'ADMIN\',\'AGENT\') ORDER BY "name" ASC', [$tenantId]) : [];
 
 // Links preserve the current filters.
@@ -84,12 +85,20 @@ $pagerOpts = ['perPageOptions' => [25, 50, 100]];
     <div class="-mx-4 mb-3 flex items-center gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0" data-saved-views data-query="<?= e($qs) ?>">
       <?= icon('bookmark', 15, 'text-muted') ?>
       <?php foreach ($savedViews as $v): ?>
-        <span class="group inline-flex shrink-0 items-center gap-1 rounded-full border border-border bg-surface px-2.5 py-1 text-xs hover:border-brand/50">
+        <?php $mine = $v['userId'] === $user['id']; ?>
+        <span class="<?= cx('group inline-flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-xs hover:border-brand/50', (int) $v['shared'] ? 'border-sky-500/40 bg-sky-500/5' : 'border-border bg-surface') ?>">
+          <?= (int) $v['shared'] ? '<span title="Shared with the team" class="text-sky-600 dark:text-sky-400">' . icon('users', 12) . '</span>' : '' ?>
           <a href="/tickets<?= $v['query'] ? '?' . e($v['query']) : '' ?>" class="font-medium cursor-pointer"><?= e($v['name']) ?></a>
+          <?php if ($canShareViews && ($mine || (int) $v['shared'])): ?>
+            <form method="post" action="/action/view-share" data-ajax class="inline-flex"><?= form_meta() ?><input type="hidden" name="id" value="<?= e($v['id']) ?>"><input type="hidden" name="shared" value="<?= (int) $v['shared'] ? '0' : '1' ?>">
+              <button type="submit" title="<?= (int) $v['shared'] ? 'Make personal' : 'Share with the team' ?>" aria-label="<?= (int) $v['shared'] ? 'Make personal' : 'Share with the team' ?>" class="text-muted hover:text-sky-600 cursor-pointer"><?= icon('share-2', 12) ?></button></form>
+          <?php endif; ?>
+          <?php if ($mine || $canShareViews): ?>
           <form method="post" action="/action/view-delete" data-ajax class="inline-flex">
             <?= form_meta() ?><input type="hidden" name="id" value="<?= e($v['id']) ?>">
             <button type="submit" aria-label="Delete <?= e($v['name']) ?>" class="text-muted hover:text-red-600 cursor-pointer"><?= icon('x', 12) ?></button>
           </form>
+          <?php endif; ?>
         </span>
       <?php endforeach; ?>
       <?php if ($hasFilters): ?>

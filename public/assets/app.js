@@ -197,13 +197,28 @@
   function closeAllDropdowns(except) {
     $$("[data-dropdown-menu]").forEach(function (m) { if (m !== except) m.hidden = true; });
   }
+  // A phone sheet menu doesn't move with the page: close it when the page scrolls.
+  document.addEventListener("scroll", function (e) {
+    if (e.target.closest && e.target.closest("[data-dropdown-menu]")) return;
+    $$("[data-dropdown-menu]:not([hidden])").forEach(function (m) { if (m.style.top) m.hidden = true; });
+  }, { passive: true, capture: true });
   document.addEventListener("click", function (e) {
     var trigger = e.target.closest("[data-dropdown-trigger]");
     if (trigger) {
       var menu = trigger.closest("[data-dropdown]").querySelector("[data-dropdown-menu]");
       closeAllDropdowns(menu);
       menu.hidden = !menu.hidden;
+      menu.style.top = menu.style.bottom = "";
       if (!menu.hidden) {
+        // Phone "sheet" menus are position:fixed: place them from where the button is on screen
+        // (inside the scrolled page their automatic spot can be far below the screen).
+        if (getComputedStyle(menu).position === "fixed") {
+          var r = trigger.getBoundingClientRect(), h = menu.offsetHeight, vh = window.innerHeight;
+          var below = vh - r.bottom - 76, above = r.top - 12;
+          if (h <= below || below >= above) menu.style.top = Math.round(r.bottom + 8) + "px";
+          else menu.style.top = Math.max(12, Math.round(r.top - 8 - Math.min(h, above))) + "px";
+          menu.style.maxHeight = Math.max(160, Math.round((h <= below || below >= above) ? below : above)) + "px";
+        } else menu.style.maxHeight = "";
         var input = menu.querySelector("input:not([type=hidden])");
         if (input) setTimeout(function () { input.focus(); }, 0);
       }

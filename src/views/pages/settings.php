@@ -51,7 +51,7 @@ $s = fn (string $form) => flash($form);
       'Workspace' => array_filter([
           ['general', 'General', 'settings'], ['workflow', 'Workflow', 'flag'], ['replies', 'Tags & replies', 'hash'],
           ['fields', 'Ticket fields & CSAT', 'sliders-horizontal'], ['automations', 'Automations', 'zap'],
-          ['notifications', 'Notifications & email', 'mail'], ['integrations', 'Integrations', 'globe'],
+          ['notifications', 'Notifications & email', 'mail'], ['integrations', 'Integrations', 'globe'], ['data', 'Backups & data', 'database'],
       ], fn ($t) => $sec($t[0])),
       'People & access' => array_filter([
           $canUsers ? ['users', 'Users', 'users'] : null,
@@ -661,6 +661,12 @@ $s = fn (string $form) => flash($form);
   <section id="integrations" data-settings-section="integrations" class="scroll-mt-24 space-y-6">
     <?php require ROOT . '/src/views/partials/integrations_admin.php'; ?>
     <?php require ROOT . '/src/views/partials/ai_admin.php'; ?>
+    <?php require ROOT . '/src/views/partials/chat_admin.php'; ?>
+  </section>
+  <?php endif; ?>
+  <?php if ($sec('data')): ?>
+  <section id="data" data-settings-section="data" class="scroll-mt-24 space-y-6">
+    <?php require ROOT . '/src/views/partials/data_admin.php'; ?>
   </section>
   <?php endif; ?>
 

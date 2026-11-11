@@ -2,7 +2,7 @@
 /** @var string $content */
 $pageTitle = page_title() ? page_title() . ' · ' . app_name() : app_name() . ' — Helpdesk';
 $assetV = @filemtime(ROOT . '/public/assets/app.css') ?: 1;
-$jsIcons = ['bell' => icon('bell', 16), 'x' => icon('x', 15), 'x-sm' => icon('x', 14), 'file-text' => icon('file-text', 15, 'shrink-0 text-muted'), 'loader' => icon('loader-circle', 13, 'animate-spin'), 'file-image' => icon('file-image', 16), 'file-video' => icon('file-video', 16), 'file-spreadsheet' => icon('file-spreadsheet', 16), 'file-archive' => icon('file-archive', 16), 'chevron-left' => icon('chevron-left', 22), 'chevron-right' => icon('chevron-right', 22), 'download' => icon('download', 18), 'external-link' => icon('external-link', 18), 'x-lg' => icon('x', 20), 'copy' => icon('copy', 14), 'check' => icon('check', 14)];
+$jsIcons = ['bell' => icon('bell', 16), 'x' => icon('x', 15), 'x-sm' => icon('x', 14), 'file-text' => icon('file-text', 15, 'shrink-0 text-muted'), 'loader' => icon('loader-circle', 13, 'animate-spin'), 'file-image' => icon('file-image', 16), 'file-video' => icon('file-video', 16), 'file-spreadsheet' => icon('file-spreadsheet', 16), 'file-archive' => icon('file-archive', 16), 'chevron-left' => icon('chevron-left', 22), 'chevron-right' => icon('chevron-right', 22), 'download' => icon('download', 18), 'external-link' => icon('external-link', 18), 'x-lg' => icon('x', 20), 'copy' => icon('copy', 14), 'check' => icon('check', 14), 'play' => icon('play', 14), 'stop' => icon('square', 13)];
 ?><!DOCTYPE html>
 <html lang="en" class="h-full">
 <head>

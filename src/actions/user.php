@@ -70,8 +70,10 @@ function act_view_create(array $in): ?array
 
 function act_view_delete(array $in): ?array
 {
-    [$user] = require_tenant_user();
-    q('DELETE FROM "SavedView" WHERE "id" = ? AND "userId" = ?', [str_in($in, 'id'), $user['id']]);
+    [$user, $tenantId] = require_tenant_user();
+    // Shared views can also be removed by people allowed to share views.
+    $mayShared = is_staff($user['role']) && can($user, 'tickets.views_share');
+    q('DELETE FROM "SavedView" WHERE "id" = ? AND "tenantId" = ? AND ("userId" = ?' . ($mayShared ? ' OR "shared" = 1' : '') . ')', [str_in($in, 'id'), $tenantId, $user['id']]);
     return ['ok' => true];
 }
 

@@ -171,6 +171,9 @@ function run_cron(): array
     $out['rules'] = notify_scan_rules();
     $out['notifications'] = notify_deliver_due(500);
     $out['digests'] = notify_send_digests();
+    $out['aiTriage'] = ai_triage_due(5);
+    $out['backups'] = backup_run_daily();
+    $out['chats'] = chat_maintenance();
     q('DELETE FROM "NotificationJob" WHERE "status" IN (\'sent\', \'skipped\') AND "createdAt" < ?', [now_iso(-30 * 86400)]);
     @file_put_contents(ROOT . '/storage/.cron-last', now_iso());
     q('DELETE FROM "RateHit" WHERE "createdAt" < ?', [now_iso(-86400)]);
