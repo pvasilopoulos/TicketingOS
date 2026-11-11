@@ -662,6 +662,7 @@ $s = fn (string $form) => flash($form);
     <?php require ROOT . '/src/views/partials/integrations_admin.php'; ?>
     <?php require ROOT . '/src/views/partials/ai_admin.php'; ?>
     <?php require ROOT . '/src/views/partials/chat_admin.php'; ?>
+    <?php require ROOT . '/src/views/partials/messaging_admin.php'; ?>
   </section>
   <?php endif; ?>
   <?php if ($sec('data')): ?>

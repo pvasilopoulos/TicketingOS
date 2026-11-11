@@ -8,7 +8,7 @@ declare(strict_types=1);
 
 /** Where a ticket came from. web/api/form are set by the app; the rest are picked by staff. */
 const TICKET_CHANNELS = ['web' => 'Web', 'phone' => 'Phone', 'email' => 'Email', 'walkin' => 'In person', 'chat' => 'Chat'];
-const TICKET_SOURCES = ['web', 'api', 'form', 'email', 'phone', 'walkin', 'chat'];
+const TICKET_SOURCES = ['web', 'api', 'form', 'email', 'phone', 'walkin', 'chat', 'viber', 'whatsapp'];
 
 /* ---------- Customers ---------- */
 

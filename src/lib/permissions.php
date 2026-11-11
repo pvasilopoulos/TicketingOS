@@ -87,6 +87,7 @@ const PERMISSIONS = [
         'settings.attachments' => ['Attachments', 'Maximum size, allowed file types and staff-only files.', ['sensitive' => true]],
         'settings.ai' => ['AI assistant', 'Turn the Claude assistant on, its API key and model.', ['sensitive' => true]],
         'settings.chat' => ['Live chat', 'Turn the website chat on and set its greeting and timing.', ['sensitive' => true]],
+        'settings.messaging' => ['SMS, Viber & WhatsApp', 'SMS gateway, Viber bot and WhatsApp number, and which messages are sent.', ['sensitive' => true]],
     ]],
     'Oversight' => ['scroll-text', 'Seeing who did what.', [
         'audit.view' => ['View the audit log', 'Every admin change, sign-in and export, with IP addresses; can export it.', ['sensitive' => true]],
@@ -118,7 +119,7 @@ const SETTINGS_SECTIONS = [
     'automations' => ['settings.automations'],
     'notifications' => ['settings.notifications', 'settings.email'],
     'fields' => ['settings.fields', 'settings.csat'],
-    'integrations' => ['settings.api', 'settings.webform', 'settings.ai', 'settings.chat'],
+    'integrations' => ['settings.api', 'settings.webform', 'settings.ai', 'settings.chat', 'settings.messaging'],
     'data' => ['data.export', 'data.erase'],
 ];
 

@@ -26,7 +26,7 @@ $ACTIONS = [
     'ticket-create' => 'act_ticket_create', 'ticket-update' => 'act_ticket_update', 'ticket-bulk' => 'act_ticket_bulk',
     'comment-add' => 'act_comment_add', 'comment-edit' => 'act_comment_edit', 'comment-delete' => 'act_comment_delete', 'comment-pin' => 'act_comment_pin',
     'attachment-delete' => 'act_attachment_delete', 'signature-save' => 'act_signature_save',
-    'kb-from-ticket' => 'act_kb_from_ticket', 'person-erase' => 'act_person_erase', 'chat-settings-save' => 'act_chat_settings_save', 'ai-assist-save' => 'act_ai_assist_save', 'backup-settings-save' => 'act_backup_settings_save', 'time-add' => 'act_time_add', 'org-rate-save' => 'act_org_rate_save', 'billing-settings-save' => 'act_billing_settings_save', 'time-delete' => 'act_time_delete', 'contract-save' => 'act_contract_save', 'contract-delete' => 'act_contract_delete', 'view-share' => 'act_view_share',
+    'kb-from-ticket' => 'act_kb_from_ticket', 'person-erase' => 'act_person_erase', 'chat-settings-save' => 'act_chat_settings_save', 'ai-assist-save' => 'act_ai_assist_save', 'sms-settings-save' => 'act_sms_settings_save', 'sms-test' => 'act_sms_test', 'channel-settings-save' => 'act_channel_settings_save', 'viber-connect' => 'act_viber_connect', 'my-phone-save' => 'act_my_phone_save', 'backup-settings-save' => 'act_backup_settings_save', 'time-add' => 'act_time_add', 'org-rate-save' => 'act_org_rate_save', 'billing-settings-save' => 'act_billing_settings_save', 'time-delete' => 'act_time_delete', 'contract-save' => 'act_contract_save', 'contract-delete' => 'act_contract_delete', 'view-share' => 'act_view_share',
     'attachment-settings-save' => 'act_attachment_settings_save', 'ai-settings-save' => 'act_ai_settings_save', 'ai-test' => 'act_ai_test',
     'watcher-add' => 'act_watcher_add', 'watcher-role' => 'act_watcher_role', 'watcher-remove' => 'act_watcher_remove',
     'ticket-tag-add' => 'act_ticket_tag_add', 'ticket-tag-remove' => 'act_ticket_tag_remove',
@@ -83,6 +83,12 @@ try {
     }
     if ($path === '/widget.js') public_widget_js();
     if ($path === '/brand/logo') brand_logo_out();
+    // Viber / WhatsApp webhooks (signed by the app; no session).
+    if (preg_match('#^/hooks/(viber|whatsapp)/([a-z0-9-]+)$#', $path, $m)) {
+        $tenant = q_one('SELECT * FROM "Tenant" WHERE "slug" = ?', [$m[2]]);
+        if (!$tenant) abort(404);
+        $m[1] === 'viber' ? public_viber_hook($tenant) : public_whatsapp_hook($tenant);
+    }
     if (preg_match('#^/support/([a-z0-9-]+)/chat(?:/(start|send|poll|close|typing|rate|upload|file|human))?$#', $path, $m)) {
         $tenant = q_one('SELECT * FROM "Tenant" WHERE "slug" = ?', [$m[1]]);
         if (!$tenant) abort(404);

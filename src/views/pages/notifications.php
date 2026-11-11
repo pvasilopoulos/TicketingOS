@@ -17,6 +17,16 @@ $myDigest = $prefs['digest'] ?? $nMatrix['_digest'][$nRole];
 <div>
   <?= page_header('Notifications', "Choose how and when you're notified.") ?>
   <div class="space-y-6">
+    <?php $smsOn = sms_settings($tenantId)['enabled']; ?>
+    <form method="post" action="/action/my-phone-save" data-ajax class="flex flex-wrap items-end gap-3 rounded-xl border border-border bg-surface p-5">
+      <?= form_meta() ?>
+      <div class="min-w-0 flex-1">
+        <label for="my-phone" class="<?= LABEL_CLS ?>">Mobile number</label>
+        <input id="my-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" value="<?= e((string) ($user['phone'] ?? '')) ?>" placeholder="69XXXXXXXX" class="<?= INPUT_CLS ?> max-w-xs">
+        <p class="mt-1 text-xs text-muted"><?= $smsOn ? 'Used for SMS about your tickets. Leave empty for no SMS.' : 'For SMS notifications, when your workspace turns them on.' ?></p>
+      </div>
+      <button type="submit" class="<?= btn_cls('outline') ?>">Save number</button>
+    </form>
     <form method="post" action="/action/prefs-save">
       <?= form_meta('prefs') ?>
       <div class="rounded-xl border border-border bg-surface">

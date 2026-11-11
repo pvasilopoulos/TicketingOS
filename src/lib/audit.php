@@ -38,7 +38,7 @@ const AUDITED_ACTIONS = [
     'csat-settings' => ['settings', 'Changed satisfaction surveys'],
     'attachment-settings-save' => ['settings', 'Changed attachment settings'], 'ai-settings-save' => ['settings', 'Changed the AI assistant'],
     'attachment-delete' => ['tickets', 'Deleted a file'], 'contract-save' => ['users', 'Saved a support contract'], 'org-rate-save' => ['users', 'Changed an hourly rate'], 'billing-settings-save' => ['settings', 'Changed billing settings'], 'contract-delete' => ['users', 'Deleted a support contract'],
-    'time-delete' => ['tickets', 'Deleted a time entry'], 'backup-settings-save' => ['settings', 'Changed automatic backups'], 'chat-settings-save' => ['settings', 'Changed live chat'], 'ai-assist-save' => ['settings', 'Changed the AI assistant for customers'], 'comment-delete' => ['tickets', 'Deleted a message'],
+    'time-delete' => ['tickets', 'Deleted a time entry'], 'backup-settings-save' => ['settings', 'Changed automatic backups'], 'chat-settings-save' => ['settings', 'Changed live chat'], 'ai-assist-save' => ['settings', 'Changed the AI assistant for customers'], 'sms-settings-save' => ['settings', 'Changed SMS settings'], 'channel-settings-save' => ['settings', 'Changed Viber / WhatsApp settings'], 'viber-connect' => ['settings', 'Connected the Viber bot'], 'comment-delete' => ['tickets', 'Deleted a message'],
     'kb-save' => ['content', 'Saved an article'], 'kb-delete' => ['content', 'Deleted an article'],
     // Integrations
     'apikey-create' => ['integrations', 'Created an API key'], 'apikey-revoke' => ['integrations', 'Revoked an API key'],

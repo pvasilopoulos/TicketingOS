@@ -248,6 +248,14 @@ function runtime_schema_v11(): void
 {
     db_add_column('ChatSession', 'aiActive', 'INT NOT NULL DEFAULT 0', 'INTEGER NOT NULL DEFAULT 0');
     db_add_column('ChatSession', 'handoffAt', 'VARCHAR(30) NULL', 'TEXT');
+    db_add_column('User', 'phone', 'VARCHAR(32) NULL', 'TEXT');
+    db_add_index('User', 'User_tenant_phone_idx', ['tenantId', 'phone']);
+    $s = ['VARCHAR(40) NOT NULL', 'TEXT NOT NULL'];
+    db_create_table('ChannelContact', [
+        'id' => $s, 'tenantId' => $s, 'channel' => ['VARCHAR(20) NOT NULL', 'TEXT NOT NULL'], 'externalId' => ['VARCHAR(191) NOT NULL', 'TEXT NOT NULL'],
+        'userId' => $s, 'name' => ['VARCHAR(120) NULL', 'TEXT'], 'phone' => ['VARCHAR(32) NULL', 'TEXT'],
+        'createdAt' => ['VARCHAR(30) NOT NULL', 'TEXT NOT NULL'], 'lastInboundAt' => ['VARCHAR(30) NULL', 'TEXT'],
+    ], ['ChannelContact_ext_idx' => ['tenantId', 'channel', 'externalId'], 'ChannelContact_user_idx' => ['userId']]);
 }
 
 /** Add an index if it's missing (MySQL/MariaDB and SQLite). */

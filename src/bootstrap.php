@@ -25,7 +25,7 @@ if (env('APP_DEBUG', '0') === '1') {
 foreach ([
     'constants', 'version', 'db', 'helpers', 'http', 'session', 'auth', 'crypto', 'sanitize',
     'storage', 'tenant', 'email', 'smtp', 'push', 'notify', 'search', 'queries', 'nav', 'permissions', 'view', 'icons', 'branding',
-    'audit', 'groups', 'fields', 'csat', 'webhooks', 'reporting', 'ticketplus', 'notifyrules', 'ticketextras', 'billing', 'dataexport', 'chat', 'aiassist',
+    'audit', 'groups', 'fields', 'csat', 'webhooks', 'reporting', 'ticketplus', 'notifyrules', 'ticketextras', 'billing', 'dataexport', 'chat', 'aiassist', 'messaging',
 ] as $mod) {
     require SRC . "/lib/{$mod}.php";
 }

@@ -52,7 +52,7 @@ $hookForm = function (?array $h) use ($toggle): string {
 <div class="rounded-xl border border-border bg-surface">
   <div class="flex flex-wrap items-start gap-4 p-5 sm:p-6">
     <span class="hidden h-11 w-11 shrink-0 place-items-center rounded-xl bg-emerald-500/10 text-emerald-600 sm:grid"><?= icon('globe', 22) ?></span>
-    <div class="min-w-0 flex-1">
+    <div class="min-w-0 flex-1 basis-72">
       <h2 class="flex flex-wrap items-center gap-2 font-semibold">Support form & website widget <?= $wf['enabled'] ? '<span class="rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-400">Live</span>' : '<span class="rounded-full bg-surface-2 px-2 py-0.5 text-xs font-medium text-muted">Off</span>' ?></h2>
       <p class="mt-0.5 text-sm text-muted">Let anyone open a ticket without an account. New senders become customers (joined to their organization by email domain) and get a link to follow their ticket. Protected against spam with a hidden field, timing and rate limits.</p>
     </div>

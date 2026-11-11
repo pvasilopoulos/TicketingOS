@@ -197,7 +197,14 @@ function dispatch(array $o): void
     };
     $t = $o['ticket'];
     $ticketOrder = $orderOf((string) ($t['priority'] ?? ''));
-    $users = key_by(q_all('SELECT "id","name","email","role","active" FROM "User" WHERE "id" IN (' . in_ph($recipients) . ')', $recipients), 'id');
+    $users = key_by(q_all('SELECT "id","name","email","role","active","phone" FROM "User" WHERE "id" IN (' . in_ph($recipients) . ')', $recipients), 'id');
+    // "High" for SMS to staff: the HIGH priority, or the second-highest one.
+    $orders = array_column($priorities, 'order');
+    rsort($orders);
+    $highOrder = $orderOf('HIGH') ?: ($orders[1] ?? ($orders[0] ?? 0));
+    // Tickets from Viber / WhatsApp: the customer hears from us on that app, not by email / SMS / push.
+    $tRow = !empty($t['id']) ? q_one('SELECT "source","requesterId","closedAt" FROM "Ticket" WHERE "id" = ?', [$t['id']]) : null;
+    $viaApp = $tRow && isset(CHAT_CHANNELS[$tRow['source'] ?? '']);
     $tenantName = (string) q_val('SELECT "name" FROM "Tenant" WHERE "id" = ?', [$tenantId]);
     $tpl = notify_templates($tenantId)[$event] ?? [];
     $now = now_iso();
@@ -226,6 +233,7 @@ function dispatch(array $o): void
             ]);
         }
         if (!$meets) continue;
+        if ($viaApp && $userId === $tRow['requesterId']) continue;
         if (channel_on($u, $event, 'push', $prefs, $matrix, $policy)) {
             notify_queue($tenantId, $userId, 'push', $event, $t['id'], [
                 'title' => mb_substr("#{$t['number']} · {$t['subject']}", 0, 80), 'body' => (string) $o['pushBody'],
@@ -240,6 +248,12 @@ function dispatch(array $o): void
                 'ticket' => ['id' => $t['id'], 'number' => (int) ($t['number'] ?? 0), 'subject' => (string) ($t['subject'] ?? '')],
                 'actor' => (string) ($o['actor']['name'] ?? ''), 'customer' => $u['role'] === 'CUSTOMER',
             ], $digest === 'instant' ? $now : next_digest_at($digest), $digest === 'instant' ? 'pending' : 'digest');
+            $queued = true;
+        }
+        if (sms_wanted($tenantId, $u, $event, $tRow ?? [], $ticketOrder, $highOrder)) {
+            notify_queue($tenantId, $userId, 'sms', $event, $t['id'], [
+                'line' => $line, 'ticket' => ['id' => $t['id'], 'number' => (int) ($t['number'] ?? 0), 'subject' => (string) ($t['subject'] ?? '')],
+            ], in_quiet_hours($prefs) ? quiet_hours_end($prefs) : $now);
             $queued = true;
         }
     }
@@ -301,6 +315,11 @@ function notify_send_job(array $j): array
     $u = q_one('SELECT * FROM "User" WHERE "id" = ?', [$j['userId']]);
     if (!$u || !(int) ($u['active'] ?? 1)) return ['ok' => false, 'skip' => true, 'error' => 'Person no longer active'];
     $p = json_decode((string) $j['payload'], true) ?: [];
+    if ($j['channel'] === 'sms') {
+        if (empty($u['phone'])) return ['ok' => false, 'skip' => true, 'error' => 'No mobile number'];
+        return sms_send($j['tenantId'], (string) $u['phone'], sms_text($j['tenantId'], $p));
+    }
+    if (isset(CHAT_CHANNELS[$j['channel']])) return channel_send($j['tenantId'], $j['channel'], (string) ($p['externalId'] ?? ''), (string) ($p['text'] ?? ''));
     if ($j['channel'] === 'push') {
         if (!vapid_configured()) return ['ok' => false, 'skip' => true, 'error' => 'Push isn’t set up on the server (VAPID keys)'];
         $subs = q_all('SELECT * FROM "PushSubscription" WHERE "userId" = ?', [$u['id']]);
@@ -320,7 +339,8 @@ function notify_send_job(array $j): array
         if ($sent) return ['ok' => true, 'note' => "$sent device(s)" . ($errors ? '; ' . implode(', ', $errors) : '')];
         return ['ok' => false, 'error' => $errors ? implode(', ', array_unique($errors)) : 'Push failed'];
     }
-    // Email
+    // Email (never to the placeholder addresses of Viber / WhatsApp customers).
+    if (str_ends_with(strtolower((string) $u['email']), '.invalid')) return ['ok' => false, 'skip' => true, 'error' => 'No email address (Viber / WhatsApp customer)'];
     $s = email_settings($j['tenantId']);
     if (!$s || !$s['enabled']) return ['ok' => false, 'skip' => true, 'error' => 'Email isn’t set up for this workspace'];
     $r = send_tenant_email($j['tenantId'], notify_email_message($j['tenantId'], $u, $p, $j['id']));

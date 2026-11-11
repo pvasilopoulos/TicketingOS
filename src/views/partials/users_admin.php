@@ -282,6 +282,7 @@ $tile = function (string $label, int $n, string $key, string $ic, string $tone) 
             <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <div><label class="mb-1 block text-xs font-medium text-muted">Name</label><input name="name" value="<?= e($u['name']) ?>" required class="<?= INPUT_CLS ?>"></div>
               <div><label class="mb-1 block text-xs font-medium text-muted">Email</label><input name="email" type="email" value="<?= e($u['email']) ?>" required class="<?= INPUT_CLS ?>"></div>
+              <div><label class="mb-1 block text-xs font-medium text-muted">Mobile <span class="font-normal">(SMS)</span></label><input name="phone" type="tel" value="<?= e((string) ($u['phone'] ?? '')) ?>" placeholder="69XXXXXXXX" class="<?= INPUT_CLS ?>"></div>
               <div><label class="mb-1 block text-xs font-medium text-muted">Role</label>
                 <select name="role" data-role-select class="<?= SELECT_CLS ?>"><?= select_options($roleOptions + ($u['role'] === 'ADMIN' ? ['ADMIN' => 'Administrator'] : []), $u['role']) ?></select></div>
               <div data-custom-role-wrap><label class="mb-1 block text-xs font-medium text-muted">Permissions</label>

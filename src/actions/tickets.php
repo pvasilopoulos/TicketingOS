@@ -683,6 +683,8 @@ function add_comment(array $ticket, array $user, string $tenantId, string $body,
         'pushBody' => $user['name'] . ($isInternal ? ' added an internal note' : ' replied'),
         'emailLine' => $user['name'] . ($isInternal ? ' added an internal note' : ' replied') . " on ticket #$num.",
     ]);
+    // Viber / WhatsApp tickets: public staff replies go back to the customer on that app.
+    channel_reply_hook($ticket, $user, $tenantId, $body, $isInternal);
     webhook_emit($tenantId, 'comment.created', ['ticket' => api_ticket_brief(find_ticket($ticketId, $tenantId) ?? $ticket), 'comment' => ['id' => $commentId, 'internal' => $isInternal, 'body' => $body, 'text' => html_to_text($body), 'author' => ['id' => $user['id'], 'name' => $user['name'], 'role' => $user['role']], 'createdAt' => $now]]);
     return $commentId;
 }

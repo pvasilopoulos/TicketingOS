@@ -828,7 +828,7 @@ $row = fn (string $label, string $valueHtml) => '<div class="flex items-center j
         <div class="space-y-2 border-t border-border px-5 py-4 text-sm">
           <?= $row('Created', e(format_date($ticket['createdAt']))) ?>
           <?= $row('Updated', e(time_ago($ticket['updatedAt']))) ?>
-          <?php if ($staff && ($ticket['source'] ?? 'web') !== 'web'): ?><?= $row('Received via', e((['api' => 'API', 'form' => 'Support form'] + TICKET_CHANNELS)[$ticket['source']] ?? $ticket['source'])) ?><?php endif; ?>
+          <?php if ($staff && ($ticket['source'] ?? 'web') !== 'web'): ?><?= $row('Received via', e((['api' => 'API', 'form' => 'Support form'] + TICKET_CHANNELS + CHAT_CHANNELS)[$ticket['source']] ?? $ticket['source'])) ?><?php endif; ?>
           <?php if ($ticket['closedAt']) echo $row('Closed', e(time_ago($ticket['closedAt']))); ?>
         </div>
       </div>

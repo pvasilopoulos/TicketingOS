@@ -493,6 +493,12 @@ function act_member_update(array $in): ?array
         if (q_val('SELECT 1 FROM "User" WHERE "email" = ? AND "id" <> ?', [$email, $target['id']])) return ['error' => 'Email already in use'];
         $data['email'] = $email;
     }
+    if (array_key_exists('phone', $in)) {
+        $raw = str_in($in, 'phone');
+        $phone = $raw === '' ? null : phone_normalize($raw);
+        if ($raw !== '' && !$phone) return ['error' => 'That doesn’t look like a mobile number (e.g. 6912345678 or +306912345678)'];
+        $data['phone'] = $phone;
+    }
     if (array_key_exists('role', $in)) {
         $roles = pick_role($user, $tenantId, $in);
         if (is_string($roles)) return ['error' => $roles];

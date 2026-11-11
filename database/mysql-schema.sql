@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS `User` (
   `organizationId` varchar(40) DEFAULT NULL,
   `orgManager` int(11) NOT NULL DEFAULT 0,
   `signature` mediumtext DEFAULT NULL,
+  `phone` varchar(32) DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `email` (`email`),
   KEY `User_role_idx` (`role`),
@@ -791,4 +792,20 @@ CREATE TABLE IF NOT EXISTS `ChatMessage` (
   `createdAt` varchar(30) NOT NULL,
   PRIMARY KEY (`id`),
   KEY `ChatMessage_session_idx` (`sessionId`,`createdAt`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Viber / WhatsApp contacts (who wrote from which app).
+CREATE TABLE IF NOT EXISTS `ChannelContact` (
+  `id` varchar(40) NOT NULL,
+  `tenantId` varchar(40) NOT NULL,
+  `channel` varchar(20) NOT NULL,
+  `externalId` varchar(191) NOT NULL,
+  `userId` varchar(40) NOT NULL,
+  `name` varchar(120) DEFAULT NULL,
+  `phone` varchar(32) DEFAULT NULL,
+  `createdAt` varchar(30) NOT NULL,
+  `lastInboundAt` varchar(30) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `ChannelContact_ext_idx` (`tenantId`,`channel`,`externalId`),
+  KEY `ChannelContact_user_idx` (`userId`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
