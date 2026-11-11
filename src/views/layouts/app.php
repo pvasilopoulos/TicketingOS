@@ -188,6 +188,38 @@ ob_start(); ?>
 <div data-offline-banner hidden class="fixed inset-x-0 top-0 z-[90] flex items-center justify-center gap-2 bg-amber-500 px-3 py-1.5 pt-[max(0.375rem,env(safe-area-inset-top))] text-xs font-medium text-white">
   You're offline — showing the last saved copy. Changes will fail until you reconnect.
 </div>
+<?php if ($role === 'CUSTOMER' && chat_settings($tenantId)['enabled']): ?>
+<div data-app-chat-panel hidden class="fixed right-4 bottom-[calc(9rem+env(safe-area-inset-bottom))] z-40 h-[min(600px,calc(100dvh-12rem))] w-[min(400px,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-border bg-surface shadow-2xl lg:bottom-24 lg:h-[min(620px,calc(100dvh-8rem))]"></div>
+<button type="button" data-app-chat-btn aria-label="Chat with us" aria-expanded="false" class="fixed right-4 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-40 grid h-14 w-14 cursor-pointer place-items-center rounded-full bg-brand text-white shadow-xl transition-transform hover:scale-105 lg:bottom-6">
+  <span data-icon-open><?= icon('messages-square', 24) ?></span><span data-chat-dot hidden class="absolute right-0.5 top-0.5 h-3.5 w-3.5 rounded-full border-2 border-white bg-red-500"></span><span data-icon-close hidden><?= icon('x', 24) ?></span>
+</button>
+<script>
+(function () {
+  var btn = document.querySelector("[data-app-chat-btn]"), panel = document.querySelector("[data-app-chat-panel]");
+  var src = <?= json_encode('/support/' . $tenant['slug'] . '/chat?embed=1&app=1') ?>;
+  function set(open) {
+    if (open && !panel.firstChild) {
+      var f = document.createElement("iframe");
+      f.src = src; f.title = "Chat"; f.className = "h-full w-full border-0";
+      panel.appendChild(f);
+    }
+    panel.hidden = !open;
+    if (open) btn.querySelector("[data-chat-dot]").hidden = true;
+    btn.setAttribute("aria-expanded", open ? "true" : "false");
+    btn.querySelector("[data-icon-open]").hidden = open;
+    btn.querySelector("[data-icon-close]").hidden = !open;
+    try { sessionStorage.setItem("tos-app-chat", open ? "1" : ""); } catch (e) {}
+  }
+  btn.addEventListener("click", function () { set(panel.hidden); });
+  window.addEventListener("message", function (e) { if (e.origin === location.origin && e.data && e.data.tosChat === "message" && panel.hidden) btn.querySelector("[data-chat-dot]").hidden = false; });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !panel.hidden) set(false); });
+  // Load the chat quietly so new replies show a dot even while it is closed.
+  setTimeout(function () { if (!panel.firstChild) { var f = document.createElement("iframe"); f.src = src; f.title = "Chat"; f.className = "h-full w-full border-0"; panel.appendChild(f); } }, 1500);
+  // Keep the chat open while moving between pages.
+  try { if (sessionStorage.getItem("tos-app-chat") === "1") set(true); } catch (e) {}
+})();
+</script>
+<?php endif; ?>
 <div class="pointer-events-none fixed inset-x-3 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-[100] flex flex-col items-center gap-2 sm:inset-x-auto sm:right-4 sm:items-end lg:bottom-4" data-toasts data-realtime></div>
 <?php
 echo render_partial('layouts/base', ['content' => ob_get_clean()]);

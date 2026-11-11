@@ -19,6 +19,7 @@ const NAMES = [
   "book-open", "git-merge", "arrow-up-down", "chart-column", "eye", "wand-sparkles", "unlink", "timer", "link-2", "pen-line", "external-link", "thumbs-up",
   "type", "smile", "frown", "scroll-text", "globe", "route", "webhook", "plug", "calendar-clock", "building", "star", "activity", "message-circle",
   "layers", "copy", "crown", "user-round-check", "user-x", "key-round", "shield", "shield-alert", "sliders-horizontal", "circle-user-round", "info", "rotate-ccw", "users-round", "ellipsis",
+  "volume-2", "arrow-right-left", "circle-x", "user",
 ];
 
 const nm = process.argv[2] ?? "node_modules";

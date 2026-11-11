@@ -19,6 +19,16 @@ function chat_settings(string $tenantId): array
     ];
 }
 
+/** Agents a signed-in customer can pick in the chat: active staff who answer chats. */
+function chat_agents(string $tenantId): array
+{
+    $out = [];
+    foreach (q_all('SELECT * FROM "User" WHERE "tenantId" = ? AND "active" = 1 AND "role" IN (\'ADMIN\',\'AGENT\') ORDER BY "name"', [$tenantId]) as $u) {
+        if (can($u, 'chat.answer')) $out[] = ['id' => $u['id'], 'name' => $u['name']];
+    }
+    return $out;
+}
+
 function chat_session_by_token(string $tenantId, string $token): ?array
 {
     if (strlen($token) < 20) return null;
@@ -43,23 +53,26 @@ function chat_messages(string $sessionId, string $after = ''): array
 }
 
 /** Start a chat (visitor). Returns [session, token] or an error string. */
-function chat_start(array $tenant, string $name, string $email, string $message, string $page): array|string
+function chat_start(array $tenant, string $name, string $email, string $message, string $page, ?string $requestedAgentId = null): array|string
 {
     $tenantId = $tenant['id'];
     $token = bin2hex(random_bytes(24));
     $now = now_iso();
     $s = [
         'id' => cuid(), 'tenantId' => $tenantId, 'tokenHash' => hash('sha256', $token), 'visitorName' => mb_substr($name, 0, 120), 'visitorEmail' => strtolower($email),
-        'status' => 'open', 'agentId' => null, 'ticketId' => null, 'pageUrl' => mb_substr($page, 0, 500) ?: null,
+        'status' => 'open', 'agentId' => null, 'requestedAgentId' => $requestedAgentId, 'ticketId' => null, 'pageUrl' => mb_substr($page, 0, 500) ?: null,
         'lastVisitorAt' => $now, 'lastAgentAt' => null, 'agentSeenAt' => null, 'createdAt' => $now, 'closedAt' => null,
     ];
     db_insert('ChatSession', $s);
     chat_add($s, 'system', null, chat_settings($tenantId)['greeting']);
+    $wanted = $requestedAgentId ? q_one('SELECT "name" FROM "User" WHERE "id" = ?', [$requestedAgentId]) : null;
+    if ($wanted) chat_add($s, 'system', null, 'You asked to talk to ' . first_name($wanted['name']) . '. They’ll be with you shortly.');
     chat_add($s, 'visitor', null, $message);
     // Tell the agents who answer chats (in-app; the live stream shows it as a toast).
+    // A chat for one agent goes to that agent only; the others still see it on the Live chat page.
     foreach (q_all('SELECT * FROM "User" WHERE "tenantId" = ? AND "active" = 1 AND "role" IN (\'SUPER_ADMIN\',\'ADMIN\',\'AGENT\')', [$tenantId]) as $u) {
-        if (!can($u, 'chat.answer')) continue;
-        db_insert('Notification', ['id' => cuid(), 'type' => 'CHAT', 'message' => 'New chat from ' . $s['visitorName'] . ': ' . mb_substr($message, 0, 120), 'read' => 0, 'createdAt' => $now, 'tenantId' => $tenantId, 'userId' => $u['id'], 'ticketId' => null]);
+        if (!can($u, 'chat.answer') || ($wanted && $u['id'] !== $requestedAgentId)) continue;
+        db_insert('Notification', ['id' => cuid(), 'type' => 'CHAT', 'message' => ($wanted ? $s['visitorName'] . ' wants to chat with you: ' : 'New chat from ' . $s['visitorName'] . ': ') . mb_substr($message, 0, 120), 'read' => 0, 'createdAt' => $now, 'tenantId' => $tenantId, 'userId' => $u['id'], 'ticketId' => null]);
     }
     return [$s, $token];
 }
@@ -103,8 +116,8 @@ function chat_to_ticket(array $session, ?array $agent, bool $close = false): ?ar
     if (is_string($t)) return null;
     db_update('ChatSession', ['ticketId' => $t['id']], '"id" = ?', [$session['id']]);
     log_event($tenantId, $t['id'], $agent['id'] ?? null, 'CHAT_SYNC', 'created from a live chat');
-    if ($agent || $session['agentId']) {
-        $aid = $agent['id'] ?? $session['agentId'];
+    if ($agent || $session['agentId'] || !empty($session['requestedAgentId'])) {
+        $aid = $agent['id'] ?? $session['agentId'] ?? $session['requestedAgentId'];
         db_update('Ticket', ['assigneeId' => $aid, 'firstResponseAt' => $session['lastAgentAt'] ?: null], '"id" = ?', [$t['id']]);
     }
     if ($close) {

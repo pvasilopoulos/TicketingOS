@@ -83,7 +83,7 @@ try {
     }
     if ($path === '/widget.js') public_widget_js();
     if ($path === '/brand/logo') brand_logo_out();
-    if (preg_match('#^/support/([a-z0-9-]+)/chat(?:/(start|send|poll|close))?$#', $path, $m)) {
+    if (preg_match('#^/support/([a-z0-9-]+)/chat(?:/(start|send|poll|close|typing|rate))?$#', $path, $m)) {
         $tenant = q_one('SELECT * FROM "Tenant" WHERE "slug" = ?', [$m[1]]);
         if (!$tenant) abort(404);
         public_chat($tenant, $m[2] ?? '');
