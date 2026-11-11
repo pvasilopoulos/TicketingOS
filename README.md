@@ -227,6 +227,7 @@ and must **not** be web-accessible (it lives outside `public/`).
 
 **MySQL / MariaDB**: set `DB_DRIVER=mysql` and the `DB_*` keys, create the database,
 then run `php bin/migrate.php`. The SQLite DDL is translated automatically.
+Without shell access, import `database/mysql-schema.sql` into the empty database instead (phpMyAdmin → Import).
 
 ## How it maps to the original
 
