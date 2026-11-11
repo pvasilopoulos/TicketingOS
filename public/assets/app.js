@@ -1525,22 +1525,27 @@
     tabs.forEach(function (t) {
       t.addEventListener("click", function () {
         var col = board.querySelector('[data-board-col="' + t.getAttribute("data-board-tab") + '"]');
-        if (col) board.scrollTo({ left: col.offsetLeft - board.offsetLeft - 16, behavior: "smooth" });
+        // Phones show the columns one under another: scroll the page to the section.
+        if (col) col.scrollIntoView({ behavior: "smooth", block: "start" });
+        lockUntil = Date.now() + 900;
         setActive(t.getAttribute("data-board-tab"));
       });
     });
-    var timer;
-    board.addEventListener("scroll", function () {
+    // Highlight the status whose section is under the sticky tabs while scrolling.
+    var timer, lockUntil = 0;
+    document.addEventListener("scroll", function (e) {
+      if (nav.offsetParent === null || Date.now() < lockUntil) return;
       clearTimeout(timer);
       timer = setTimeout(function () {
-        var best = null, bestDist = Infinity;
-        $$("[data-board-col]", board).forEach(function (c) {
-          var d = Math.abs(c.offsetLeft - board.offsetLeft - 16 - board.scrollLeft);
-          if (d < bestDist) { bestDist = d; best = c; }
-        });
-        if (best) setActive(best.getAttribute("data-board-col"));
-      }, 80);
-    }, { passive: true });
+        var line = nav.getBoundingClientRect().bottom + 12, cur = null;
+        var sc = e.target === document ? document.scrollingElement : e.target;
+        // At the very bottom the last sections can't reach the top: take the last one in view.
+        if (sc && sc.scrollTop + sc.clientHeight >= sc.scrollHeight - 4) line = window.innerHeight - 80;
+        $$("[data-board-col]", board).forEach(function (c) { if (c.getBoundingClientRect().top <= line) cur = c; });
+        if (!cur) cur = board.querySelector("[data-board-col]");
+        if (cur) setActive(cur.getAttribute("data-board-col"));
+      }, 60);
+    }, { passive: true, capture: true });
   }
   document.addEventListener("DOMContentLoaded", function () { $$("[data-board-tabs]").forEach(bindBoardTabs); });
 
