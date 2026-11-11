@@ -4,12 +4,27 @@
  * @var array $me @var string $tenantId @var callable $s
  */
 $closed = closed_status_keys(tenant_statuses($tenantId));
-$orgs = q_all('SELECT o.*,
-    (SELECT COUNT(*) FROM "UserOrganization" uo WHERE uo."organizationId" = o."id") AS "people",
-    (SELECT COUNT(*) FROM "UserOrganization" uo WHERE uo."organizationId" = o."id" AND uo."isManager" = 1) AS "managers"
-  FROM "Organization" o WHERE o."tenantId" = ? ORDER BY o."name"', [$tenantId]);
-$openByOrg = array_column(q_all('SELECT uo."organizationId" AS org, COUNT(*) AS n FROM "Ticket" t JOIN "UserOrganization" uo ON uo."userId" = t."requesterId"
-    WHERE t."tenantId" = ?' . ($closed ? ' AND t."status" NOT IN (' . in_ph($closed) . ')' : '') . ' GROUP BY uo."organizationId"', [$tenantId, ...$closed]), 'n', 'org');
+// Search and pages keep the list light for workspaces with many organizations.
+$oq = mb_substr(trim((string) ($_GET['oq'] ?? '')), 0, 100);
+$oper = 50;
+$ow = 'o."tenantId" = ?';
+$op = [$tenantId];
+if ($oq !== '') {
+    $ow .= " AND (LOWER(o.\"name\") LIKE ? ESCAPE '!' OR LOWER(COALESCE(o.\"domain\", '')) LIKE ? ESCAPE '!')";
+    array_push($op, like_arg(mb_strtolower($oq)), like_arg(mb_strtolower($oq)));
+}
+$orgTotalAll = (int) q_val('SELECT COUNT(*) FROM "Organization" WHERE "tenantId" = ?', [$tenantId]);
+$ototal = $oq === '' ? $orgTotalAll : (int) q_val("SELECT COUNT(*) FROM \"Organization\" o WHERE $ow", $op);
+$opages = max(1, (int) ceil($ototal / $oper));
+$opage = min(max(1, (int) ($_GET['opage'] ?? 1)), $opages);
+$orgs = q_all("SELECT o.*,
+    (SELECT COUNT(*) FROM \"UserOrganization\" uo WHERE uo.\"organizationId\" = o.\"id\") AS \"people\",
+    (SELECT COUNT(*) FROM \"UserOrganization\" uo WHERE uo.\"organizationId\" = o.\"id\" AND uo.\"isManager\" = 1) AS \"managers\"
+  FROM \"Organization\" o WHERE $ow ORDER BY o.\"name\" LIMIT $oper OFFSET " . (($opage - 1) * $oper), $op);
+$oids = array_column($orgs, 'id');
+$openByOrg = $oids ? array_column(q_all('SELECT uo."organizationId" AS org, COUNT(*) AS n FROM "Ticket" t JOIN "UserOrganization" uo ON uo."userId" = t."requesterId"
+    WHERE t."tenantId" = ? AND uo."organizationId" IN (' . in_ph($oids) . ')' . ($closed ? ' AND t."status" NOT IN (' . in_ph($closed) . ')' : '') . ' GROUP BY uo."organizationId"', [$tenantId, ...$oids, ...$closed]), 'n', 'org') : [];
+$ourl = fn (array $c) => '/settings?' . http_build_query(array_filter(['oq' => $oq, 'opage' => ($c['page'] ?? 1) > 1 ? $c['page'] : null])) . '#orgs';
 $os = $s('orgs');
 $openOrg = (string) ($_GET['org'] ?? '');
 $sel = $openOrg !== '' && $openOrg !== 'new' ? q_one('SELECT * FROM "Organization" WHERE "id" = ? AND "tenantId" = ?', [$openOrg, $tenantId]) : null;
@@ -90,7 +105,19 @@ $orgForm = fn (?array $o) => '<form method="post" action="/action/org-save" clas
 <?php endif; ?>
 
 <div class="rounded-xl border border-border bg-surface">
-  <?php if (!$orgs): ?>
+  <?php if ($orgTotalAll > 10): ?>
+    <form method="get" action="/settings#orgs" class="flex items-center gap-2 border-b border-border px-4 py-3 sm:px-5">
+      <label class="relative min-w-0 flex-1">
+        <span class="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted"><?= icon('search', 15) ?></span>
+        <input type="search" name="oq" value="<?= e($oq) ?>" placeholder="Search <?= $orgTotalAll ?> organizations by name or domain" class="h-9 w-full rounded-lg border border-border bg-surface pl-8 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/40">
+      </label>
+      <button type="submit" class="<?= btn_cls('outline', 'sm') ?>">Search</button>
+      <?php if ($oq !== ''): ?><a href="/settings#orgs" class="<?= btn_cls('ghost', 'sm') ?>">Clear</a><?php endif; ?>
+    </form>
+  <?php endif; ?>
+  <?php if (!$orgs && $oq !== ''): ?>
+    <p class="p-8 text-center text-sm text-muted">No organization matches “<?= e($oq) ?>”.</p>
+  <?php elseif (!$orgs): ?>
     <div class="p-10 text-center">
       <span class="mx-auto grid h-11 w-11 place-items-center rounded-full bg-surface-2 text-muted"><?= icon('building-2', 20) ?></span>
       <p class="mt-3 text-sm font-medium">No organizations yet</p>
@@ -110,5 +137,8 @@ $orgForm = fn (?array $o) => '<form method="post" action="/action/org-save" clas
         </a>
       <?php endforeach; ?>
     </div>
+    <?php if ($opages > 1): ?>
+      <?= pager($opage, $opages, $ototal, $oper, $ourl, ['noun' => ['organization', 'organizations'], 'class' => 'border-t border-border px-4 py-3 sm:px-5']) ?>
+    <?php endif; ?>
   <?php endif; ?>
 </div>

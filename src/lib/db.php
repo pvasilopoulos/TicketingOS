@@ -48,8 +48,35 @@ function db_driver(): string
     return env('DB_DRIVER', 'sqlite') === 'mysql' ? 'mysql' : 'sqlite';
 }
 
+/**
+ * Optional query profiler: with DB_PROFILE=1 in .env, requests that run many or slow
+ * queries are written to storage/logs/queries.log (count, total time, slowest queries).
+ */
+function db_profile(?string $sql = null, float $ms = 0.0): void
+{
+    static $on = null, $log = [];
+    if ($on === null) {
+        $on = env('DB_PROFILE', '') === '1';
+        if ($on) register_shutdown_function(function () use (&$log) {
+            $total = array_sum(array_column($log, 1));
+            if (count($log) < 40 && $total < 150) return;
+            usort($log, fn ($a, $b) => $b[1] <=> $a[1]);
+            $lines = sprintf("%s %s %s — %d queries, %.0f ms\n", gmdate('c'), $_SERVER['REQUEST_METHOD'] ?? 'CLI', $_SERVER['REQUEST_URI'] ?? '', count($log), $total);
+            foreach (array_slice($log, 0, 5) as [$q, $t]) $lines .= sprintf("  %6.1f ms  %s\n", $t, preg_replace('/\s+/', ' ', mb_substr($q, 0, 300)));
+            // The same query run again and again usually means a query per row (N+1).
+            $rep = array_count_values(array_column($log, 0));
+            arsort($rep);
+            foreach (array_slice($rep, 0, 3, true) as $q => $n) if ($n > 5) $lines .= sprintf("  repeated %dx: %s\n", $n, preg_replace('/\s+/', ' ', mb_substr($q, 0, 200)));
+            @mkdir(ROOT . '/storage/logs', 0775, true);
+            @file_put_contents(ROOT . '/storage/logs/queries.log', $lines, FILE_APPEND);
+        });
+    }
+    if ($on && $sql !== null) $log[] = [$sql, $ms];
+}
+
 function q(string $sql, array $params = []): PDOStatement
 {
+    $t0 = microtime(true);
     $st = db()->prepare($sql);
     foreach (array_values($params) as $i => $v) {
         $type = match (true) {
@@ -61,6 +88,7 @@ function q(string $sql, array $params = []): PDOStatement
         $st->bindValue($i + 1, is_bool($v) ? (int) $v : $v, $type);
     }
     $st->execute();
+    db_profile($sql, (microtime(true) - $t0) * 1000);
     return $st;
 }
 
@@ -163,7 +191,7 @@ function ts(?string $iso): ?float
  * (hosts like Plesk often have no shell for bin/migrate.php). A marker file in
  * storage/ keeps this to one cheap check per request.
  */
-const RUNTIME_SCHEMA_VERSION = 9;
+const RUNTIME_SCHEMA_VERSION = 10;
 
 /** Does a table have a column? (works for SQLite and MySQL/MariaDB) */
 function db_column_exists(string $table, string $col): bool
@@ -201,10 +229,29 @@ function ensure_runtime_schema(): void
         db_add_column('ChatSession', 'visitorSeenAt', 'VARCHAR(30) NULL', 'TEXT');
         db_add_column('ChatMessage', 'attachmentId', 'VARCHAR(40) NULL', 'TEXT');
         db_add_column('Attachment', 'chatSessionId', 'VARCHAR(40) NULL', 'TEXT');
+        // v10: indexes for big workspaces (many chats, customers and tickets).
+        db_add_index('ChatSession', 'ChatSession_visitorUser_idx', ['visitorUserId', 'status']);
+        db_add_index('ChatSession', 'ChatSession_requested_idx', ['requestedAgentId']);
+        db_add_index('ChatSession', 'ChatSession_tenant_closed_idx', ['tenantId', 'closedAt']);
+        db_add_index('Attachment', 'Attachment_chat_idx', ['chatSessionId']);
+        db_add_index('Ticket', 'Ticket_tenant_assignee_idx', ['tenantId', 'assigneeId', 'status']);
+        db_add_index('Notification', 'Notification_user_tenant_read_idx', ['userId', 'tenantId', 'read']);
         @file_put_contents($marker, $sig);
     } catch (Throwable $e) {
         error_log('[schema] ' . $e->getMessage());
     }
+}
+
+/** Add an index if it's missing (MySQL/MariaDB and SQLite). */
+function db_add_index(string $table, string $name, array $cols): void
+{
+    $list = implode(', ', array_map('qi', $cols));
+    if (db_driver() === 'mysql') {
+        if (q_val('SELECT 1 FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND LOWER(TABLE_NAME) = LOWER(?) AND INDEX_NAME = ? LIMIT 1', [$table, $name])) return;
+        db()->exec('CREATE INDEX ' . qi($name) . ' ON ' . qi($table) . ' (' . $list . ')');
+        return;
+    }
+    db()->exec('CREATE INDEX IF NOT EXISTS ' . qi($name) . ' ON ' . qi($table) . ' (' . $list . ')');
 }
 
 /** Add a column if it's missing. */

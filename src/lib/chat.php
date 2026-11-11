@@ -163,6 +163,19 @@ function chat_maintenance(?string $tenantId = null): int
     return $n;
 }
 
+/** The newest non-system message of each chat, in one query: [sessionId => row]. */
+function chat_last_messages(array $sessionIds): array
+{
+    if (!$sessionIds) return [];
+    $ph = in_ph($sessionIds);
+    $out = [];
+    foreach (q_all('SELECT m."sessionId", m."sender", m."authorId", m."body", m."createdAt", m."attachmentId" FROM "ChatMessage" m
+                    JOIN (SELECT "sessionId", MAX("createdAt") AS mx FROM "ChatMessage" WHERE "sessionId" IN (' . $ph . ') AND "sender" <> \'system\' GROUP BY "sessionId") l
+                      ON l."sessionId" = m."sessionId" AND l.mx = m."createdAt"
+                    WHERE m."sender" <> \'system\'', $sessionIds) as $r) $out[$r['sessionId']] = $r;
+    return $out;
+}
+
 /** Chats waiting for an agent (for the menu badge). */
 function chat_waiting_count(string $tenantId): int
 {

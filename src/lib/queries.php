@@ -17,6 +17,18 @@ function ticket_scope_sql(array $user, string $tenantId, array &$params): string
 {
     $params[] = $tenantId;
     if (is_staff($user['role']) && can($user, 'tickets.view_all')) return 't."tenantId" = ?';
+    if (!is_staff($user['role']) && !user_manages_any_org($user['id'])) {
+        // Customers see a handful of tickets (requested, assigned or followed): build that short id
+        // list from indexes instead of checking every ticket of the board. Organization managers can
+        // see thousands, where the plain OR below is faster, so they keep it.
+        array_push($params, $tenantId, $user['id'], $tenantId, $user['id'], $user['id'], $user['id']);
+        // Wrapped in a derived table so MySQL builds the id list once instead of once per row.
+        return 't."tenantId" = ? AND t."id" IN (SELECT v."id" FROM (
+            SELECT t1."id" FROM "Ticket" t1 WHERE t1."tenantId" = ? AND t1."requesterId" = ?
+            UNION SELECT t2."id" FROM "Ticket" t2 WHERE t2."tenantId" = ? AND t2."assigneeId" = ?
+            UNION SELECT ta."ticketId" FROM "TicketAssignee" ta WHERE ta."userId" = ?
+            UNION SELECT w."ticketId" FROM "TicketWatcher" w WHERE w."userId" = ?) v)';
+    }
     array_push($params, $user['id'], $user['id'], $user['id'], $user['id']);
     // Customers and restricted agents: requested, assigned to them (lead or co-assignee), or followed…
     $or = ['t."requesterId" = ?', ASSIGNED_TO_SQL, 'EXISTS (SELECT 1 FROM "TicketWatcher" w WHERE w."ticketId" = t."id" AND w."userId" = ?)'];

@@ -184,11 +184,16 @@ function report_orgs(string $tenantId, string $fromIso, array $closedKeys): arra
     foreach (q_all('SELECT t."requesterId", te."minutes", te."billable" FROM "TimeEntry" te JOIN "Ticket" t ON t."id" = te."ticketId" WHERE te."tenantId" = ? AND te."workedAt" >= ?', [$tenantId, $fromDay]) as $r) {
         $each($r['requesterId'], function (&$o) use ($r) { if ((int) $r['billable']) $o['billable'] += (int) $r['minutes']; else $o['other'] += (int) $r['minutes']; });
     }
+    $csat = [];
+    foreach (q_all('SELECT uo."organizationId" AS org, COUNT(*) AS n, SUM(CASE WHEN cs."rating" >= 4 THEN 1 ELSE 0 END) AS good
+                    FROM "CsatSurvey" cs JOIN "UserOrganization" uo ON uo."userId" = cs."requesterId"
+                    WHERE cs."tenantId" = ? AND cs."answeredAt" >= ? GROUP BY uo."organizationId"', [$tenantId, $fromIso]) as $r) {
+        $csat[$r['org']] = (int) $r['n'] ? (int) round($r['good'] / $r['n'] * 100) : null;
+    }
     foreach ($out as $id => &$o) {
         $o['frtMedian'] = median_of($o['frt']);
         $o['slaPct'] = $o['withSla'] ? (int) round($o['met'] / $o['withSla'] * 100) : null;
-        $cs = csat_stats($tenantId, $fromIso, null, $id);
-        $o['csat'] = $cs['pct'];
+        $o['csat'] = $csat[$id] ?? null;
         unset($o['frt']);
     }
     unset($o);

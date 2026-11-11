@@ -192,6 +192,7 @@ CREATE TABLE IF NOT EXISTS `Ticket` (
   KEY `Ticket_tenant_group_idx` (`tenantId`,`groupId`),
   KEY `Ticket_tenant_updated_idx` (`tenantId`,`updatedAt`),
   KEY `Ticket_tenant_closed_idx` (`tenantId`,`closedAt`),
+  KEY `Ticket_tenant_assignee_idx` (`tenantId`,`assigneeId`,`status`),
   FULLTEXT KEY `Ticket_search_ft` (`searchText`),
   FOREIGN KEY (`tenantId`) REFERENCES `Tenant` (`id`) ON DELETE CASCADE,
   FOREIGN KEY (`requesterId`) REFERENCES `User` (`id`) ON DELETE CASCADE,
@@ -334,6 +335,7 @@ CREATE TABLE IF NOT EXISTS `Attachment` (
   KEY `commentId` (`commentId`),
   KEY `uploaderId` (`uploaderId`),
   KEY `Attachment_ticketId_idx` (`ticketId`),
+  KEY `Attachment_chat_idx` (`chatSessionId`),
   FOREIGN KEY (`tenantId`) REFERENCES `Tenant` (`id`) ON DELETE CASCADE,
   FOREIGN KEY (`ticketId`) REFERENCES `Ticket` (`id`) ON DELETE CASCADE,
   FOREIGN KEY (`commentId`) REFERENCES `Comment` (`id`) ON DELETE CASCADE,
@@ -354,6 +356,7 @@ CREATE TABLE IF NOT EXISTS `Notification` (
   KEY `ticketId` (`ticketId`),
   KEY `Notification_user_read_idx` (`userId`,`read`),
   KEY `Notification_user_createdAt_idx` (`userId`,`createdAt`),
+  KEY `Notification_user_tenant_read_idx` (`userId`,`tenantId`,`read`),
   FOREIGN KEY (`tenantId`) REFERENCES `Tenant` (`id`) ON DELETE CASCADE,
   FOREIGN KEY (`userId`) REFERENCES `User` (`id`) ON DELETE CASCADE,
   FOREIGN KEY (`ticketId`) REFERENCES `Ticket` (`id`) ON DELETE CASCADE
@@ -770,7 +773,10 @@ CREATE TABLE IF NOT EXISTS `ChatSession` (
   `closedAt` varchar(30) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `ChatSession_tenant_idx` (`tenantId`,`status`),
-  KEY `ChatSession_token_idx` (`tokenHash`)
+  KEY `ChatSession_token_idx` (`tokenHash`),
+  KEY `ChatSession_visitorUser_idx` (`visitorUserId`,`status`),
+  KEY `ChatSession_requested_idx` (`requestedAgentId`),
+  KEY `ChatSession_tenant_closed_idx` (`tenantId`,`closedAt`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `ChatMessage` (

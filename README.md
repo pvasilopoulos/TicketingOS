@@ -172,6 +172,18 @@ MariaDB 13, 33 tenants / 35,012 tickets / ~70,000 replies, one tenant with 20,00
 | Sorted list (priority / due) | ~0.10 s |
 | Reports, 30 days / 12 months | ~0.10 s / ~0.34 s |
 
+## Large workspaces
+
+Tested locally with a workspace of **20,000 tickets, 70,000 messages, 2,000 users, 300 organizations and 6,000 chats (60,000 chat messages)**: ticket list ~70 ms, dashboard ~100 ms, reports and settings ~200 ms, live chat polling ~50 ms. What keeps it fast:
+
+- Indexes for every list and filter (added automatically on the first request after an update).
+- Lists are paged (tickets, users, organizations); the organization picker is sent once as compact data.
+- Customers’ ticket visibility is built from indexes, not by checking every ticket.
+- Reports and chat lists use one grouped query instead of one per row; workspace settings load in one query.
+- To find a slow page on your server, set `DB_PROFILE="1"` in `.env` for a while: requests with many or slow queries are written to `storage/logs/queries.log` with the slowest and most repeated queries.
+
+Use MySQL/MariaDB (not SQLite) for big workspaces.
+
 ## Requirements
 
 - PHP **8.1+** with `pdo_sqlite` (or `pdo_mysql`), `openssl`, `mbstring`, `curl`

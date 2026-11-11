@@ -70,9 +70,10 @@ function api_messenger_list(): never
     $rows = q_all('SELECT * FROM "ChatSession" WHERE "tenantId" = ? AND ("visitorUserId" = ? OR ("kind" = ? AND "requestedAgentId" = ?)) AND ("status" = ? OR "closedAt" >= ?)
                    ORDER BY "status" DESC, COALESCE("lastAgentAt", "lastVisitorAt", "createdAt") DESC LIMIT 50', [$tenantId, $me['id'], 'peer', $me['id'], 'open', now_iso(-7 * 86400)]);
     $unread = 0;
-    $items = array_map(function ($s) use ($me, &$unread) {
+    $lasts = chat_last_messages(array_column($rows, 'id'));
+    $items = array_map(function ($s) use ($me, &$unread, $lasts) {
         $side = msgr_side($s, $me);
-        $last = q_one('SELECT "sender","authorId","body","attachmentId","createdAt" FROM "ChatMessage" WHERE "sessionId" = ? AND "sender" <> ? ORDER BY "createdAt" DESC LIMIT 1', [$s['id'], 'system']);
+        $last = $lasts[$s['id']] ?? null;
         $u = msgr_unread($s, $side);
         if ($u && $s['status'] === 'open') $unread++;
         $mine = $last && (($last['sender'] === 'visitor' && $side === 'starter') || ($last['sender'] === 'agent' && $last['authorId'] === $me['id']));

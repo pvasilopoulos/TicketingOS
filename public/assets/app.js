@@ -134,8 +134,42 @@
     var el = $(t.getAttribute("data-toggle-target"));
     if (!el) return;
     el.hidden = !el.hidden;
+    if (!el.hidden) fillOrgPickers(el);
     if (!el.hidden) { var f = el.querySelector("input:not([type=hidden]), select"); if (f) setTimeout(function () { f.focus(); }, 0); }
   });
+
+  // Settings → Users: the organization checklist is copied from one <template> when a form opens
+  // (instead of being repeated for every user), with that user's memberships ticked.
+  var orgList = null;
+  function fillOrgPickers(scope) {
+    if (orgList === null) {
+      var src = document.getElementById("org-picker-data");
+      try { orgList = src ? JSON.parse(src.textContent) : []; } catch (e) { orgList = []; }
+    }
+    if (!orgList.length) return;
+    var escH = function (s) { return String(s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); };
+    $$("[data-org-picker]", scope).forEach(function (box) {
+      if (box.hasAttribute("data-filled")) return;
+      box.setAttribute("data-filled", "");
+      var mine = {}; try { mine = JSON.parse(box.getAttribute("data-orgs") || "{}"); } catch (e) {}
+      var has = function (id) { return Object.prototype.hasOwnProperty.call(mine, id); };
+      // Their organizations first, then the rest.
+      var rows = orgList.slice().sort(function (a, b) { return (has(b[0]) ? 1 : 0) - (has(a[0]) ? 1 : 0); }).map(function (o) {
+        var id = escH(o[0]);
+        return '<div data-org-item class="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-surface-2">' +
+          '<label class="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-sm"><input type="checkbox" name="orgs[]" value="' + id + '"' + (has(o[0]) ? " checked" : "") + ' class="h-4 w-4 rounded border-border accent-brand"><span class="truncate">' + escH(o[1]) + "</span></label>" +
+          '<label data-org-wrap class="flex shrink-0 cursor-pointer items-center gap-1 text-[11px] text-muted" title="Manager: sees all of this organization’s tickets"><input type="checkbox" name="orgManagers[]" value="' + id + '"' + (mine[o[0]] === true ? " checked" : "") + ' class="h-3.5 w-3.5 rounded border-border accent-brand">👑</label></div>';
+      }).join("");
+      box.innerHTML = (orgList.length > 8 ? '<input type="search" data-org-filter placeholder="Search ' + orgList.length + ' organizations" class="mb-1.5 h-8 w-full rounded-lg border border-border bg-surface px-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/40">' : "") +
+        '<div class="grid max-h-44 gap-1 overflow-y-auto rounded-lg border border-border p-1 sm:grid-cols-2 xl:grid-cols-3">' + rows + "</div>";
+      var f = box.querySelector("[data-org-filter]");
+      if (f) f.addEventListener("input", function () {
+        var q = fold(f.value.trim());
+        $$("[data-org-item]", box).forEach(function (it) { it.hidden = q && fold(it.textContent).indexOf(q) < 0; });
+      });
+      syncUserForm(box.closest("form"));
+    });
+  }
 
   // User forms: custom-role picker only for agents; temp password only without an invite.
   function syncUserForm(form) {
@@ -152,6 +186,7 @@
   });
   document.addEventListener("DOMContentLoaded", function () {
     $$("[data-role-select]").forEach(function (s) { syncUserForm(s.form); });
+    $$("form:not([hidden]) [data-org-picker]").forEach(function (b) { fillOrgPickers(b.parentNode); });
     try {
       var t = sessionStorage.getItem("tos_toast");
       if (t) { sessionStorage.removeItem("tos_toast"); setTimeout(function () { toast(t); }, 50); }

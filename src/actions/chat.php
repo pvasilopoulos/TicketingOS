@@ -125,8 +125,9 @@ function api_chat_list(): never
     chat_maintenance($tenantId);
     $rows = q_all('SELECT s.*, u."name" AS "agentName", r."name" AS "requestedName" FROM "ChatSession" s LEFT JOIN "User" u ON u."id" = s."agentId" LEFT JOIN "User" r ON r."id" = s."requestedAgentId"
                    WHERE s."tenantId" = ? AND (s."kind" IS NULL OR s."kind" <> \'peer\') AND (s."status" = ? OR s."closedAt" >= ?) ORDER BY s."status" DESC, COALESCE(s."lastVisitorAt", s."createdAt") DESC LIMIT 60', [$tenantId, 'open', now_iso(-86400)]);
-    json_out(['items' => array_map(function ($s) use ($me) {
-        $last = q_one('SELECT "sender","body","createdAt","attachmentId" FROM "ChatMessage" WHERE "sessionId" = ? AND "sender" <> ? ORDER BY "createdAt" DESC LIMIT 1', [$s['id'], 'system']);
+    $lasts = chat_last_messages(array_column($rows, 'id'));
+    json_out(['items' => array_map(function ($s) use ($me, $lasts) {
+        $last = $lasts[$s['id']] ?? null;
         return [
             'id' => $s['id'], 'name' => $s['visitorName'], 'email' => $s['visitorEmail'], 'status' => $s['status'], 'agent' => $s['agentName'], 'requested' => $s['requestedName'], 'forMe' => ($s['requestedAgentId'] ?? null) === $me['id'], 'mine' => $s['agentId'] === $me['id'],
             'rating' => $s['rating'] !== null ? (int) $s['rating'] : null, 'waitingSince' => $s['lastVisitorAt'],

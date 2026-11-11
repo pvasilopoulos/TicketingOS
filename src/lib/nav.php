@@ -3,19 +3,28 @@ declare(strict_types=1);
 
 /* Per-tenant settings store + the configurable mobile bottom menu. */
 
-function tenant_setting(string $tenantId, string $key, mixed $default = null): mixed
+/** Per-request cache of a workspace's settings: the first read loads all of them in one query. */
+function &tenant_settings_cache(string $tenantId): array
 {
     static $cache = [];
-    $ck = "$tenantId:$key";
-    if (!array_key_exists($ck, $cache)) {
-        $raw = q_val('SELECT "value" FROM "TenantSetting" WHERE "tenantId" = ? AND "key" = ?', [$tenantId, $key]);
-        $cache[$ck] = $raw === null ? null : json_decode((string) $raw, true);
+    if (!isset($cache[$tenantId])) {
+        $cache[$tenantId] = [];
+        foreach (q_all('SELECT "key", "value" FROM "TenantSetting" WHERE "tenantId" = ?', [$tenantId]) as $r) {
+            $cache[$tenantId][$r['key']] = $r['value'] === null ? null : json_decode((string) $r['value'], true);
+        }
     }
-    return $cache[$ck] ?? $default;
+    return $cache[$tenantId];
+}
+
+function tenant_setting(string $tenantId, string $key, mixed $default = null): mixed
+{
+    return tenant_settings_cache($tenantId)[$key] ?? $default;
 }
 
 function tenant_setting_set(string $tenantId, string $key, mixed $value): void
 {
+    $c = &tenant_settings_cache($tenantId);
+    $c[$key] = $value;
     $json = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     $now = now_iso();
     if (q_val('SELECT 1 FROM "TenantSetting" WHERE "tenantId" = ? AND "key" = ?', [$tenantId, $key])) {
