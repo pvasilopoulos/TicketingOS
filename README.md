@@ -9,6 +9,8 @@ Every customer organization gets a **fully isolated board**: its own users, agen
 categories, statuses, priorities and tickets. A platform operator (super admin) can
 oversee every tenant and step into any board to manage it.
 
+📘 **User manual (Greek):** [docs/manual.md](docs/manual.md) — every feature with examples, and a guide for each role (Customer, Agent, Admin, Super Admin).
+
 ## Features (same as the original)
 
 - 🔐 **Auth & roles**: HS256 JWT session in an httpOnly cookie, bcrypt passwords. Roles: `SUPER_ADMIN`, `ADMIN`, `AGENT`, `CUSTOMER`
