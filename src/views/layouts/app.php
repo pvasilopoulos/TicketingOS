@@ -15,7 +15,7 @@ $isActive = fn (string $href) => $path === $href || str_starts_with($path, $href
 $nav = [['/dashboard', 'Dashboard', 'layout-dashboard'], ['/tickets', 'Tickets', 'ticket']];
 $nav[] = ['/kb', 'Knowledge base', 'book-open'];
 if (can($user, 'reports.view')) $nav[] = ['/reports', 'Reports', 'chart-column'];
-if (can($user, 'users.*')) $nav[] = ['/settings#users', 'Users & roles', 'users'];
+// Users & roles live inside Settings (Users / Roles tabs), not in the menu.
 if (can($user, 'settings.*')) $nav[] = ['/settings', 'Settings', 'settings'];
 
 $sidebar = function (bool $drawer = false) use ($nav, $isActive, $tenantName, $isStaffUser): string {
