@@ -221,6 +221,9 @@ try {
             view('pages/kb_show', ['id' => $m[1]], 'app');
         case $path === '/reports':
             view('pages/reports', [], 'app');
+        case $path === '/widget-preview':
+            require SRC . '/views/pages/widget_preview.php';
+            throw new HttpExit();
         case $path === '/chat':
             view('pages/chat', [], 'app');
         case $path === '/notifications':

@@ -56,7 +56,7 @@ $hookForm = function (?array $h) use ($toggle): string {
       <h2 class="flex flex-wrap items-center gap-2 font-semibold">Support form & website widget <?= $wf['enabled'] ? '<span class="rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-400">Live</span>' : '<span class="rounded-full bg-surface-2 px-2 py-0.5 text-xs font-medium text-muted">Off</span>' ?></h2>
       <p class="mt-0.5 text-sm text-muted">Let anyone open a ticket without an account. New senders become customers (joined to their organization by email domain) and get a link to follow their ticket. Protected against spam with a hidden field, timing and rate limits.</p>
     </div>
-    <?php if ($wf['enabled']): ?><a href="<?= e($formUrl) ?>" target="_blank" rel="noopener" class="<?= btn_cls('outline', 'sm') ?>"><?= icon('external-link', 14) ?> Open form</a><?php endif; ?>
+    <?php if ($wf['enabled']): ?><a href="<?= e($formUrl) ?>" target="_blank" rel="noopener" class="<?= btn_cls('outline', 'sm') ?>"><?= icon('external-link', 14) ?> Open form</a><a href="/widget-preview" target="_blank" rel="noopener" class="<?= btn_cls('outline', 'sm') ?>"><?= icon('eye', 14) ?> Preview widget</a><?php endif; ?>
   </div>
   <form method="post" action="/action/webform-save" class="space-y-4 border-t border-border p-5 sm:p-6">
     <?= form_meta('webform', '/settings#integrations') ?>
