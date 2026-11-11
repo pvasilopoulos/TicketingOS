@@ -30,14 +30,17 @@ function human_duration(?float $sec): string
     return intdiv($h, 24) . 'd ' . ($h % 24) . 'h';
 }
 
-/** Headline numbers for the last $days days (with the previous period for trends). */
-function report_summary(string $tenantId, int $days): array
+/** Headline numbers for the last $days days (with the previous period for trends), optionally for one organization. */
+function report_summary(string $tenantId, int $days, ?string $orgId = null): array
 {
     $from = now_iso(-$days * 86400);
     $prevFrom = now_iso(-2 * $days * 86400);
     $closed = closed_status_keys(tenant_statuses($tenantId));
-    $created = q_all('SELECT "createdAt","firstResponseAt","assigneeId" FROM "Ticket" WHERE "tenantId" = ? AND "createdAt" >= ?', [$tenantId, $from]);
-    $resolved = q_all('SELECT "createdAt","closedAt","dueAt","assigneeId" FROM "Ticket" WHERE "tenantId" = ? AND "closedAt" >= ? AND "mergedIntoId" IS NULL', [$tenantId, $from]);
+    // Organization filter: tickets requested by its members.
+    $of = $orgId ? ' AND "requesterId" IN (SELECT "userId" FROM "UserOrganization" WHERE "organizationId" = ?)' : '';
+    $op = $orgId ? [$orgId] : [];
+    $created = q_all('SELECT "createdAt","firstResponseAt","assigneeId" FROM "Ticket" WHERE "tenantId" = ? AND "createdAt" >= ?' . $of, [$tenantId, $from, ...$op]);
+    $resolved = q_all('SELECT "createdAt","closedAt","dueAt","assigneeId" FROM "Ticket" WHERE "tenantId" = ? AND "closedAt" >= ? AND "mergedIntoId" IS NULL' . $of, [$tenantId, $from, ...$op]);
     $frt = $res = [];
     $met = $withSla = 0;
     $agents = [];
@@ -54,15 +57,15 @@ function report_summary(string $tenantId, int $days): array
     return [
         'days' => $days,
         'created' => count($created),
-        'prevCreated' => (int) q_val('SELECT COUNT(*) FROM "Ticket" WHERE "tenantId" = ? AND "createdAt" >= ? AND "createdAt" < ?', [$tenantId, $prevFrom, $from]),
+        'prevCreated' => (int) q_val('SELECT COUNT(*) FROM "Ticket" WHERE "tenantId" = ? AND "createdAt" >= ? AND "createdAt" < ?' . $of, [$tenantId, $prevFrom, $from, ...$op]),
         'resolved' => count($resolved),
-        'prevResolved' => (int) q_val('SELECT COUNT(*) FROM "Ticket" WHERE "tenantId" = ? AND "closedAt" >= ? AND "closedAt" < ? AND "mergedIntoId" IS NULL', [$tenantId, $prevFrom, $from]),
+        'prevResolved' => (int) q_val('SELECT COUNT(*) FROM "Ticket" WHERE "tenantId" = ? AND "closedAt" >= ? AND "closedAt" < ? AND "mergedIntoId" IS NULL' . $of, [$tenantId, $prevFrom, $from, ...$op]),
         'medianFirstResponse' => median_of($frt),
         'medianResolution' => median_of($res),
         'slaPct' => $withSla ? (int) round($met / $withSla * 100) : null,
-        'backlog' => (int) q_val('SELECT COUNT(*) FROM "Ticket" WHERE "tenantId" = ?' . ($closed ? ' AND "status" NOT IN (' . in_ph($closed) . ')' : ''), [$tenantId, ...$closed]),
-        'overdue' => (int) q_val('SELECT COUNT(*) FROM "Ticket" WHERE "tenantId" = ? AND "dueAt" < ?' . ($closed ? ' AND "status" NOT IN (' . in_ph($closed) . ')' : ''), [$tenantId, now_iso(), ...$closed]),
-        'csat' => csat_stats($tenantId, $from),
+        'backlog' => (int) q_val('SELECT COUNT(*) FROM "Ticket" WHERE "tenantId" = ?' . ($closed ? ' AND "status" NOT IN (' . in_ph($closed) . ')' : '') . $of, [$tenantId, ...$closed, ...$op]),
+        'overdue' => (int) q_val('SELECT COUNT(*) FROM "Ticket" WHERE "tenantId" = ? AND "dueAt" < ?' . ($closed ? ' AND "status" NOT IN (' . in_ph($closed) . ')' : '') . $of, [$tenantId, now_iso(), ...$closed, ...$op]),
+        'csat' => csat_stats($tenantId, $from, null, $orgId),
         'topAgents' => $top,
     ];
 }
@@ -70,8 +73,10 @@ function report_summary(string $tenantId, int $days): array
 /** HTML email body for a scheduled report. */
 function report_email_html(string $tenantId, array $sched): string
 {
-    $s = report_summary($tenantId, (int) $sched['days']);
+    $orgId = ($sched['organizationId'] ?? '') ?: null;
+    $s = report_summary($tenantId, (int) $sched['days'], $orgId);
     $tenant = q_one('SELECT "name" FROM "Tenant" WHERE "id" = ?', [$tenantId]);
+    $orgName = $orgId ? (string) q_val('SELECT "name" FROM "Organization" WHERE "id" = ? AND "tenantId" = ?', [$orgId, $tenantId]) : '';
     $trend = function (int $now, int $prev): string {
         if (!$prev) return '';
         $p = (int) round(($now - $prev) / $prev * 100);
@@ -82,7 +87,7 @@ function report_email_html(string $tenantId, array $sched): string
         . ($sub ? '<div style="color:#64748b;font-size:11px;margin-top:2px">' . e($sub) . '</div>' : '') . '</td>';
     $h = '<div style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;max-width:620px;color:#0f172a">'
         . '<h2 style="margin:0 0 4px">' . e($sched['name']) . '</h2>'
-        . '<p style="margin:0 0 16px;color:#64748b">' . e($tenant['name'] ?? '') . ' · last ' . (int) $sched['days'] . ' days</p>'
+        . '<p style="margin:0 0 16px;color:#64748b">' . e($tenant['name'] ?? '') . ($orgName !== '' ? ' · ' . e($orgName) : '') . ' · last ' . (int) $sched['days'] . ' days</p>'
         . '<table style="width:100%;border-collapse:separate;border-spacing:6px"><tr>'
         . $cell('Created', number_format($s['created']) . $trend($s['created'], $s['prevCreated']))
         . $cell('Resolved', number_format($s['resolved']) . $trend($s['resolved'], $s['prevResolved']))
@@ -100,7 +105,7 @@ function report_email_html(string $tenantId, array $sched): string
         $h .= '</table>';
     }
     $h .= '<p style="margin-top:20px"><a href="' . e(app_url() . '/reports?days=' . min(365, max(7, (int) $sched['days']))) . '" style="background:#4f46e5;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;font-weight:600">Open full report</a></p>'
-        . '<p style="color:#94a3b8;font-size:11px">You get this because you are a recipient of “' . e($sched['name']) . '”. Change it under Reports → Scheduled emails.</p></div>';
+        . '<p style="color:#94a3b8;font-size:11px">You get this because you are a recipient of “' . e($sched['name']) . '”.</p></div>';
     return $h;
 }
 
@@ -131,13 +136,17 @@ function report_send(array $sched): array
     $users = $ids ? q_all('SELECT * FROM "User" WHERE "id" IN (' . in_ph($ids) . ') AND "tenantId" = ? AND "active" = 1', [...$ids, $sched['tenantId']]) : [];
     // Recipients must still be allowed to see reports.
     $users = array_values(array_filter($users, fn ($u) => can($u, 'reports.view')));
+    // Plus outside addresses (e.g. a customer's manager), typed in when scheduling.
+    $to = array_column($users, 'email');
+    foreach (json_decode((string) ($sched['emails'] ?? ''), true) ?: [] as $addr) if (is_string($addr) && is_valid_email($addr)) $to[] = $addr;
+    $to = array_values(array_unique(array_map('strtolower', $to)));
     $email = email_settings($sched['tenantId']);
     if (!$email || !$email['enabled']) return ['sent' => 0, 'skipped' => 'Email is not set up'];
-    if (!$users) return ['sent' => 0, 'skipped' => 'No recipients'];
+    if (!$to) return ['sent' => 0, 'skipped' => 'No recipients'];
     $html = report_email_html($sched['tenantId'], $sched);
     $n = 0;
-    foreach ($users as $u) {
-        $r = send_tenant_email($sched['tenantId'], ['to' => $u['email'], 'subject' => $sched['name'], 'html' => $html]);
+    foreach ($to as $addr) {
+        $r = send_tenant_email($sched['tenantId'], ['to' => $addr, 'subject' => $sched['name'], 'html' => $html]);
         if ($r['ok'] ?? false) $n++;
     }
     return ['sent' => $n, 'skipped' => null];

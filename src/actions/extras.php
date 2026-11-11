@@ -261,10 +261,20 @@ function act_report_schedule_save(array $in): ?array
     $want = array_values(array_unique(array_filter((array) ($in['recipients'] ?? []), 'is_string')));
     $staff = $want ? q_all('SELECT * FROM "User" WHERE "tenantId" = ? AND "active" = 1 AND "role" IN (\'SUPER_ADMIN\',\'ADMIN\',\'AGENT\') AND "id" IN (' . in_ph($want) . ')', [$tenantId, ...$want]) : [];
     $recips = pluck(array_filter($staff, fn ($u) => can($u, 'reports.view')), 'id');
-    if (!$recips) return ['error' => 'Pick at least one recipient who can view reports'];
+    // Other email addresses: comma, semicolon, space or one per line.
+    $emails = [];
+    foreach (preg_split('/[\s,;]+/', str_in($in, 'emails'), -1, PREG_SPLIT_NO_EMPTY) as $addr) {
+        if (!is_valid_email($addr)) return ['error' => "“{$addr}” is not a valid email address"];
+        $emails[strtolower($addr)] = $addr;
+    }
+    if (count($emails) > 20) return ['error' => 'Up to 20 other email addresses'];
+    if (!$recips && !$emails) return ['error' => 'Pick at least one recipient or type an email address'];
+    $orgId = str_in($in, 'organizationId');
+    if ($orgId !== '' && !q_val('SELECT 1 FROM "Organization" WHERE "id" = ? AND "tenantId" = ?', [$orgId, $tenantId])) return ['error' => 'Organization not found'];
     $data = [
         'name' => $name, 'frequency' => $freq, 'weekday' => max(1, min(7, (int) ($in['weekday'] ?? 1))), 'hour' => max(0, min(23, (int) ($in['hour'] ?? 8))),
         'days' => $days, 'recipients' => json_encode($recips), 'active' => ($in['active'] ?? 'on') === 'on' ? 1 : 0,
+        'organizationId' => $orgId ?: null, 'emails' => $emails ? json_encode(array_values($emails)) : null,
     ];
     $data['nextRunAt'] = report_next_run($data);
     if ($id) {

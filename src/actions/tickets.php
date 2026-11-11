@@ -608,8 +608,19 @@ function act_comment_add(array $in): ?array
     if (!$isInternal && staff_lacks($user, 'tickets.reply') && $user['id'] !== $ticket['requesterId']) {
         return ['error' => 'You can only add internal notes on tickets'];
     }
-    add_comment($ticket, $user, $tenantId, $body, $isInternal, $hasFiles ? $files : []);
-    return ['ok' => true];
+    // Attachment rules (Settings → General → Attachments) — say what's wrong instead of dropping files silently.
+    $staff = is_staff($user['role']);
+    if ($hasFiles) {
+        if (!$staff && !attachment_settings($tenantId)['customerUploads']) return ['error' => 'Attaching files is turned off for customers'];
+        if ($problems = upload_problems($files, $tenantId)) return ['error' => implode(' · ', $problems)];
+    }
+    // The agent's signature goes under public replies (unless unticked).
+    if ($staff && !$isInternal && ($in['addSignature'] ?? 'on') === 'on' && html_to_text($body) !== '') {
+        $body = with_signature($body, sanitize_rich_html(user_signature($user)));
+    }
+    $staffOnlyFiles = $staff && ($in['filesStaffOnly'] ?? '') === 'on' && attachment_settings($tenantId)['staffOnly'];
+    $commentId = add_comment($ticket, $user, $tenantId, $body, $isInternal, $hasFiles ? $files : [], $staffOnlyFiles);
+    return ['ok' => true, 'back' => '/tickets/' . $ticket['id'] . '#c-' . $commentId];
 }
 
 /**
@@ -617,7 +628,7 @@ function act_comment_add(array $in): ?array
  * reopen-on-customer-reply, first-response time, search index, notifications).
  * $body must already be sanitized. Shared by replies and macros.
  */
-function add_comment(array $ticket, array $user, string $tenantId, string $body, bool $isInternal, array $files = []): string
+function add_comment(array $ticket, array $user, string $tenantId, string $body, bool $isInternal, array $files = [], bool $staffOnlyFiles = false): string
 {
     $ticketId = $ticket['id'];
     $now = now_iso();
@@ -626,7 +637,7 @@ function add_comment(array $ticket, array $user, string $tenantId, string $body,
         'id' => $commentId, 'body' => $body, 'isInternal' => $isInternal ? 1 : 0, 'createdAt' => $now,
         'tenantId' => $tenantId, 'ticketId' => $ticketId, 'authorId' => $user['id'],
     ]);
-    if ($files) save_uploads($files, $tenantId, $user['id'], $ticketId, $commentId);
+    if ($files) save_uploads($files, $tenantId, $user['id'], $ticketId, $commentId, $staffOnlyFiles);
 
     // First public staff reply = first response (SLA / reports).
     if (!$isInternal && is_staff($user['role']) && $user['id'] !== $ticket['requesterId'] && empty($ticket['firstResponseAt'])) {

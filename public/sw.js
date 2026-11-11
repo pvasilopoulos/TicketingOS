@@ -1,5 +1,5 @@
 // TicketingOS service worker: offline app shell, page cache and Web Push.
-const VERSION = "v18";
+const VERSION = "v20";
 const SHELL = `tos-shell-${VERSION}`;
 const PAGES = `tos-pages-${VERSION}`;
 const SHELL_FILES = [
@@ -7,9 +7,11 @@ const SHELL_FILES = [
   "/assets/app.css",
   "/assets/app.js",
   "/assets/editor.js",
+  "/assets/ticket.js",
   "/app-icons/icon-192.png",
   "/app-icons/icon-512.png",
   "/app-icons/badge-96.png",
+  "/app-icons/logo.svg",
   "/favicon.ico",
 ];
 const MAX_PAGES = 60;

@@ -337,31 +337,96 @@
   function bindFileInput(root) {
     var input = root.querySelector("input[type=file]");
     var list = root.querySelector("[data-file-list]");
-    var big = root.querySelector("[data-file-too-big]");
-    root.querySelector("[data-file-pick]").addEventListener("click", function () { input.click(); });
+    var problem = root.querySelector("[data-file-problem]");
+    var rules = {};
+    try { rules = JSON.parse(root.getAttribute("data-rules") || "{}"); } catch (e) {}
+    var maxBytes = rules.maxBytes || MAX, maxFiles = rules.maxFiles || 5, exts = rules.exts || [];
+    var form = root.closest("form") || root;
+    var extOf = function (n) { var m = /\.([^.]+)$/.exec(n || ""); return m ? m[1].toLowerCase() : ""; };
+    var iconFor = function (f) {
+      if (/^image\//.test(f.type)) return "file-image";
+      if (/^video\/|^audio\//.test(f.type)) return "file-video";
+      if (/xls|csv|ods/.test(extOf(f.name))) return "file-spreadsheet";
+      if (/zip|rar|7z|gz|tar/.test(extOf(f.name))) return "file-archive";
+      return "file-text";
+    };
+    function issue(f) {
+      if (f.size > maxBytes) return "larger than " + formatBytes(maxBytes);
+      if (exts.length && exts.indexOf(extOf(f.name)) < 0) return "file type not allowed";
+      return "";
+    }
+    function setFiles(arr) {
+      var dt = new DataTransfer();
+      arr.forEach(function (ff) { dt.items.add(ff); });
+      input.files = dt.files;
+      render();
+    }
+    function add(files) {
+      var cur = Array.prototype.slice.call(input.files || []);
+      Array.prototype.forEach.call(files, function (nf) {
+        if (!cur.some(function (c) { return c.name === nf.name && c.size === nf.size; })) cur.push(nf);
+      });
+      setFiles(cur);
+    }
+    root.addFiles = add;
     function render() {
       var files = Array.prototype.slice.call(input.files || []);
       list.innerHTML = "";
       list.hidden = files.length === 0;
-      big.hidden = !files.some(function (f) { return f.size > MAX; });
+      var bad = files.filter(issue).length, msgs = [];
+      if (bad) msgs.push(bad === 1 ? "1 file can’t be sent — remove it to continue." : bad + " files can’t be sent — remove them to continue.");
+      if (files.length > maxFiles) msgs.push("Up to " + maxFiles + " files per message.");
+      problem.textContent = msgs.join(" ");
+      problem.hidden = !msgs.length;
+      form.dataset.filesInvalid = msgs.length ? "1" : "";
+      form.dispatchEvent(new CustomEvent("files:change", { detail: { count: files.length } }));
       files.forEach(function (f, i) {
+        var why = issue(f);
         var li = document.createElement("li");
-        li.className = "flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-sm " +
-          (f.size > MAX ? "border-red-300 dark:border-red-500/40 bg-red-50 dark:bg-red-500/10" : "border-border bg-surface-2");
-        li.innerHTML = APP.icons["file-text"] + '<span class="min-w-0 flex-1 truncate"></span><span class="shrink-0 text-xs text-muted"></span>' +
-          '<button type="button" class="shrink-0 text-muted hover:text-red-600 cursor-pointer" aria-label="Remove file">' + APP.icons["x-sm"] + "</button>";
-        li.children[1].textContent = f.name;
-        li.children[2].textContent = formatBytes(f.size);
-        li.querySelector("button").addEventListener("click", function () {
-          var dt = new DataTransfer();
-          Array.prototype.slice.call(input.files).forEach(function (ff, idx) { if (idx !== i) dt.items.add(ff); });
-          input.files = dt.files;
-          render();
-        });
+        li.className = "flex items-center gap-2.5 rounded-lg border px-2.5 py-1.5 text-sm " +
+          (why ? "border-red-300 dark:border-red-500/40 bg-red-50 dark:bg-red-500/10" : "border-border bg-surface-2");
+        var thumb = document.createElement("span");
+        thumb.className = "grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-md bg-surface text-muted";
+        if (/^image\/(png|jpeg|gif|webp)$/.test(f.type) && f.size < 15e6) {
+          var img = document.createElement("img");
+          img.className = "h-full w-full object-cover"; img.alt = "";
+          img.src = URL.createObjectURL(f);
+          img.onload = function () { URL.revokeObjectURL(img.src); };
+          thumb.appendChild(img);
+        } else thumb.innerHTML = APP.icons[iconFor(f)] || APP.icons["file-text"];
+        li.appendChild(thumb);
+        var info = document.createElement("span");
+        info.className = "min-w-0 flex-1";
+        info.innerHTML = '<span class="block truncate"></span><span class="block text-xs"></span>';
+        info.children[0].textContent = f.name;
+        info.children[1].textContent = formatBytes(f.size) + (why ? " · " + why : "");
+        info.children[1].className = "block text-xs " + (why ? "text-red-600 dark:text-red-400" : "text-muted");
+        li.appendChild(info);
+        var rm = document.createElement("button");
+        rm.type = "button";
+        rm.className = "grid h-7 w-7 shrink-0 place-items-center rounded-md text-muted hover:bg-red-500/10 hover:text-red-600 cursor-pointer";
+        rm.setAttribute("aria-label", "Remove " + f.name);
+        rm.innerHTML = APP.icons["x-sm"];
+        rm.addEventListener("click", function () { setFiles(files.filter(function (_, idx) { return idx !== i; })); });
+        li.appendChild(rm);
         list.appendChild(li);
       });
     }
+    root.querySelector("[data-file-pick]").addEventListener("click", function () { input.click(); });
     input.addEventListener("change", render);
+    // Drag & drop anywhere on the form; the editor hands over non-image files.
+    form.addEventListener("rte:files", function (e) { depth = 0; form.classList.remove("ring-2", "ring-brand/40"); add(e.detail.files); });
+    var depth = 0;
+    var hasFiles = function (e) { return e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types || [], "Files") >= 0; };
+    form.addEventListener("dragenter", function (e) { if (!hasFiles(e)) return; depth++; form.classList.add("ring-2", "ring-brand/40"); });
+    form.addEventListener("dragleave", function () { if (--depth <= 0) { depth = 0; form.classList.remove("ring-2", "ring-brand/40"); } });
+    form.addEventListener("dragover", function (e) { if (hasFiles(e)) e.preventDefault(); });
+    form.addEventListener("drop", function (e) {
+      depth = 0; form.classList.remove("ring-2", "ring-brand/40");
+      if (!hasFiles(e) || e.defaultPrevented) return;
+      e.preventDefault();
+      add(e.dataTransfer.files);
+    });
   }
 
   /* ---------- searchable people picker (team / followers) ---------- */
@@ -789,9 +854,7 @@
         ? "This device will receive push notifications."
         : "Get notified on this device even when the app is closed.";
       root.querySelector("[data-push-enable]").hidden = on;
-      root.querySelector("[data-push-test]").hidden = !on;
       root.querySelector("[data-push-disable]").hidden = !on;
-      if (!on) root.querySelector("[data-push-tested]").hidden = true;
     }
     setState("busy");
     navigator.serviceWorker.register("/sw.js")
@@ -822,10 +885,6 @@
         })
         .catch(function () {})
         .then(function () { setState("off"); });
-    });
-    root.querySelector("[data-push-test]").addEventListener("click", function () {
-      root.querySelector("[data-push-tested]").hidden = true;
-      jsonPost("/api/push/test").then(function () { root.querySelector("[data-push-tested]").hidden = false; });
     });
   }
 

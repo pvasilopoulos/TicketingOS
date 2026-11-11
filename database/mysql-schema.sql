@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS `User` (
   `lastLoginAt` varchar(30) DEFAULT NULL,
   `organizationId` varchar(40) DEFAULT NULL,
   `orgManager` int(11) NOT NULL DEFAULT 0,
+  `signature` mediumtext DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `email` (`email`),
   KEY `User_role_idx` (`role`),
@@ -300,6 +301,9 @@ CREATE TABLE IF NOT EXISTS `Comment` (
   `tenantId` varchar(40) NOT NULL,
   `ticketId` varchar(40) NOT NULL,
   `authorId` varchar(40) NOT NULL,
+  `editedAt` varchar(30) DEFAULT NULL,
+  `deletedAt` varchar(30) DEFAULT NULL,
+  `pinned` int(11) NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),
   KEY `tenantId` (`tenantId`),
   KEY `authorId` (`authorId`),
@@ -320,6 +324,7 @@ CREATE TABLE IF NOT EXISTS `Attachment` (
   `ticketId` varchar(40) DEFAULT NULL,
   `commentId` varchar(40) DEFAULT NULL,
   `uploaderId` varchar(40) NOT NULL,
+  `internal` int(11) NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),
   KEY `tenantId` (`tenantId`),
   KEY `commentId` (`commentId`),
@@ -557,6 +562,8 @@ CREATE TABLE IF NOT EXISTS `ScheduledReport` (
   `lastSentAt` varchar(30) DEFAULT NULL,
   `createdById` varchar(40) DEFAULT NULL,
   `createdAt` varchar(30) NOT NULL,
+  `organizationId` varchar(40) DEFAULT NULL,
+  `emails` varchar(4000) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `tenantId` (`tenantId`),
   KEY `createdById` (`createdById`),
@@ -686,3 +693,14 @@ CREATE TABLE IF NOT EXISTS `UserOrganization` (
 ALTER TABLE `Ticket` ADD COLUMN `parentId` varchar(40) DEFAULT NULL, ADD KEY `Ticket_parent_idx` (`parentId`);
 
 SET FOREIGN_KEY_CHECKS = 1;
+
+-- Earlier versions of edited / deleted messages.
+CREATE TABLE IF NOT EXISTS `CommentRevision` (
+  `id` varchar(40) NOT NULL,
+  `commentId` varchar(40) NOT NULL,
+  `body` mediumtext NOT NULL,
+  `editedById` varchar(40) DEFAULT NULL,
+  `createdAt` varchar(30) NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `CommentRevision_comment_idx` (`commentId`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

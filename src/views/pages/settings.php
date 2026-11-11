@@ -129,6 +129,7 @@ $s = fn (string $form) => flash($form);
     </div>
     <?php endif; ?>
   </div>
+    <?php require ROOT . '/src/views/partials/attachments_admin.php'; ?>
     <?php if (can($me, 'settings.general')): ?>
     <!-- Mobile bottom menu -->
     <?php
@@ -342,6 +343,11 @@ $s = fn (string $form) => flash($form);
   <div class="rounded-xl border border-border bg-surface">
     <?= card_header(titled('message-square-plus', 'Canned responses')) ?>
     <p class="px-6 pt-4 text-sm text-muted">Reusable reply templates. Agents can insert them in the ticket reply box.</p>
+    <details class="mx-6 mt-2 text-xs text-muted">
+      <summary class="cursor-pointer select-none hover:text-fg">Placeholders filled in for the ticket (also in macros)</summary>
+      <div class="mt-2 flex flex-wrap gap-1.5"><?php foreach (REPLY_VAR_HELP as $v): ?><code class="rounded bg-surface-2 px-1.5 py-0.5 text-fg"><?= e($v) ?></code><?php endforeach; ?></div>
+      <p class="mt-2">Example: “Hi {customer.first_name}, thanks for contacting us about {ticket.number}.”</p>
+    </details>
     <div class="divide-y divide-border px-2 py-3">
       <?php if (!$canned): ?><p class="px-3 py-6 text-center text-sm text-muted">No canned responses yet.</p><?php endif; ?>
       <?php foreach ($canned as $c): $cs = $s('canned-' . $c['id']); ?>
@@ -654,6 +660,7 @@ $s = fn (string $form) => flash($form);
   <?php if ($sec('integrations')): ?>
   <section id="integrations" data-settings-section="integrations" class="scroll-mt-24 space-y-6">
     <?php require ROOT . '/src/views/partials/integrations_admin.php'; ?>
+    <?php require ROOT . '/src/views/partials/ai_admin.php'; ?>
   </section>
   <?php endif; ?>
 

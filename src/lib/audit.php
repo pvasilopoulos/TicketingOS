@@ -36,6 +36,8 @@ const AUDITED_ACTIONS = [
     'rule-toggle' => ['settings', 'Turned an automation on/off'], 'rule-delete' => ['settings', 'Deleted an automation'],
     'field-save' => ['settings', 'Saved a ticket field'], 'field-delete' => ['settings', 'Deleted a ticket field'],
     'csat-settings' => ['settings', 'Changed satisfaction surveys'],
+    'attachment-settings-save' => ['settings', 'Changed attachment settings'], 'ai-settings-save' => ['settings', 'Changed the AI assistant'],
+    'attachment-delete' => ['tickets', 'Deleted a file'], 'comment-delete' => ['tickets', 'Deleted a message'],
     'kb-save' => ['content', 'Saved an article'], 'kb-delete' => ['content', 'Deleted an article'],
     // Integrations
     'apikey-create' => ['integrations', 'Created an API key'], 'apikey-revoke' => ['integrations', 'Revoked an API key'],
@@ -105,7 +107,7 @@ function audit_action(string $name, array $in, array $state): void
 }
 
 /** Inputs never written to the audit log. */
-const SECRET_INPUTS = ['password', 'confirm', 'smtpPassword', 'msClientSecret', 'token', 'secret', 'body', 'description'];
+const SECRET_INPUTS = ['password', 'confirm', 'smtpPassword', 'msClientSecret', 'token', 'secret', 'body', 'description', 'apiKey', 'signature'];
 
 /* ---------- Rate limiting for public endpoints ---------- */
 

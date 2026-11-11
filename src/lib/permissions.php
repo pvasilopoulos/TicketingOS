@@ -27,6 +27,7 @@ const PERMISSIONS = [
         'tickets.view_unassigned' => ['See unassigned tickets', 'The shared queue of tickets nobody has taken yet, so they can pick work up.', []],
         'tickets.reply' => ['Reply to customers', 'Send public replies. Without it they can only write internal notes.', []],
         'tickets.internal' => ['Internal notes', 'Read and write notes that customers never see.', []],
+        'tickets.ai' => ['AI assistant', 'Summarize tickets, draft replies, fix the tone and translate with Claude (when turned on in Settings → Integrations).', []],
     ]],
     'Ticket details' => ['sliders-horizontal', 'What can be changed on a ticket.', [
         'tickets.status' => ['Change status', 'Move tickets through the workflow, resolve, close and reopen them.', []],
@@ -37,6 +38,7 @@ const PERMISSIONS = [
         'tickets.group' => ['Move between groups', 'Route a ticket to another team such as Billing or Technical.', []],
         'tickets.tags' => ['Tag tickets', 'Add and remove tags; new tags can be created while tagging.', []],
         'tickets.team' => ['Manage followers', 'Add viewers and collaborators to a ticket.', []],
+        'tickets.delete_files' => ['Delete files', 'Remove anyone’s attachments from a ticket (people can always remove their own within a few minutes). Every deletion is in the audit log.', []],
         'macros.use' => ['Use macros', 'Apply saved replies that can also change status or assignee.', []],
     ]],
     'Bulk & data' => ['layers', 'Actions that touch many tickets or take data out.', [
@@ -77,6 +79,8 @@ const PERMISSIONS = [
         'settings.email' => ['Email server', 'Outgoing email (SMTP / Microsoft 365) and its passwords.', ['sensitive' => true]],
         'settings.api' => ['API keys & webhooks', 'REST API keys and Slack / Teams / JSON webhooks.', ['sensitive' => true]],
         'settings.webform' => ['Support form & widget', 'The public support form and website widget.', ['sensitive' => true]],
+        'settings.attachments' => ['Attachments', 'Maximum size, allowed file types and staff-only files.', ['sensitive' => true]],
+        'settings.ai' => ['AI assistant', 'Turn the Claude assistant on, its API key and model.', ['sensitive' => true]],
     ]],
     'Oversight' => ['scroll-text', 'Seeing who did what.', [
         'audit.view' => ['View the audit log', 'Every admin change, sign-in and export, with IP addresses; can export it.', ['sensitive' => true]],
@@ -100,13 +104,13 @@ const PERMS_ADMIN_MARKER = '_ax';
 
 /** Settings tab id => permissions that open it (any of them). */
 const SETTINGS_SECTIONS = [
-    'general' => ['settings.general', 'settings.categories'],
+    'general' => ['settings.general', 'settings.categories', 'settings.attachments'],
     'workflow' => ['settings.workflow'],
     'replies' => ['settings.tags', 'settings.canned', 'settings.macros', 'settings.templates'],
     'automations' => ['settings.automations'],
     'notifications' => ['settings.notifications', 'settings.email'],
     'fields' => ['settings.fields', 'settings.csat'],
-    'integrations' => ['settings.api', 'settings.webform'],
+    'integrations' => ['settings.api', 'settings.webform', 'settings.ai'],
 ];
 
 /** Can the user open this Settings tab? */
@@ -140,7 +144,7 @@ const PERMS_LEGACY = [
 
 /** Default permissions of the built-in Agent role. */
 const AGENT_DEFAULT_PERMISSIONS = [
-    PERMS_MARKER, 'tickets.view_all', 'tickets.view_unassigned', 'tickets.reply', 'tickets.internal',
+    PERMS_MARKER, 'tickets.view_all', 'tickets.view_unassigned', 'tickets.reply', 'tickets.internal', 'tickets.ai',
     'tickets.status', 'tickets.priority', 'tickets.category', 'tickets.fields', 'tickets.assign', 'tickets.group', 'tickets.tags', 'tickets.team',
     'macros.use', 'tickets.bulk', 'tickets.merge', 'tickets.link', 'tickets.export', 'kb.edit', 'kb.publish', 'kb.delete', 'reports.view', 'reports.schedule',
 ];

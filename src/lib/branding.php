@@ -59,8 +59,8 @@ function brand_mark(int $size = 36, string $radius = 'rounded-xl'): string
     if ($url) {
         return '<img src="' . e($url) . '" alt="" width="' . $size . '" height="' . $size . '" class="' . $radius . ' shrink-0 object-contain" style="width:' . $size . 'px;height:' . $size . 'px">';
     }
-    return '<span class="grid shrink-0 place-items-center ' . $radius . ' bg-gradient-to-br from-brand to-violet-600 text-white shadow-md shadow-brand/25" style="width:' . $size . 'px;height:' . $size . 'px">'
-        . icon('ticket', (int) round($size / 2)) . '</span>';
+    // Built-in TicketingOS logo (public/app-icons/logo.svg).
+    return '<img src="/app-icons/logo.svg" alt="" width="' . $size . '" height="' . $size . '" class="shrink-0 drop-shadow-sm" style="width:' . $size . 'px;height:' . $size . 'px">';
 }
 
 function branding_save(array $data): void

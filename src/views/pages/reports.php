@@ -91,6 +91,7 @@ arsort($byOrg);
 $schedules = q_all('SELECT * FROM "ScheduledReport" WHERE "tenantId" = ? ORDER BY "createdAt"', [$tenantId]);
 $reportStaff = array_values(array_filter(q_all('SELECT * FROM "User" WHERE "tenantId" = ? AND "active" = 1 AND "role" IN (\'SUPER_ADMIN\',\'ADMIN\',\'AGENT\') ORDER BY "name" LIMIT 300', [$tenantId]), fn ($u) => can($u, 'reports.view')));
 $schedState = flash('schedules');
+$schedOrgs = can($user, 'reports.schedule') ? array_column(q_all('SELECT "id","name" FROM "Organization" WHERE "tenantId" = ? ORDER BY "name" ASC', [$tenantId]), 'name', 'id') : [];
 $emailReady = (email_settings($tenantId)['enabled'] ?? false);
 $weekdays = [1 => 'Monday', 2 => 'Tuesday', 3 => 'Wednesday', 4 => 'Thursday', 5 => 'Friday', 6 => 'Saturday', 7 => 'Sunday'];
 
@@ -279,7 +280,11 @@ $bar = fn (int $n, int $max, string $color) => '<span class="block h-2 rounded-f
           <div><label class="mb-1 block text-xs font-medium text-muted">Day (weekly)</label><select name="weekday" class="<?= SELECT_CLS ?>"><?= select_options(array_map('strval', $weekdays), '1') ?></select></div>
           <div><label class="mb-1 block text-xs font-medium text-muted">Time</label><select name="hour" class="<?= SELECT_CLS ?>"><?= select_options(array_combine(array_map('strval', range(0, 23)), array_map(fn ($h) => sprintf('%02d:00', $h), range(0, 23))), '8') ?></select></div>
         </div>
-        <div><label class="mb-1 block text-xs font-medium text-muted">Covers</label><select name="days" class="<?= SELECT_CLS ?> sm:max-w-xs"><?= select_options(['1' => 'Last 24 hours', '7' => 'Last 7 days', '30' => 'Last 30 days', '90' => 'Last 90 days'], '7') ?></select></div>
+        <div class="grid gap-3 sm:grid-cols-2">
+          <div><label class="mb-1 block text-xs font-medium text-muted">Covers</label><select name="days" class="<?= SELECT_CLS ?>"><?= select_options(['1' => 'Last 24 hours', '7' => 'Last 7 days', '30' => 'Last 30 days', '90' => 'Last 90 days'], '7') ?></select></div>
+          <div><label class="mb-1 block text-xs font-medium text-muted">Organization</label><select name="organizationId" class="<?= SELECT_CLS ?>"><option value="">All organizations</option><?= select_options($schedOrgs, '') ?></select>
+            <p class="mt-1 text-xs text-muted">Only tickets from that organization’s people are counted.</p></div>
+        </div>
         <div><span class="mb-1.5 block text-xs font-medium text-muted">Recipients</span>
           <div class="grid max-h-48 gap-1 overflow-y-auto rounded-xl border border-border p-1.5 sm:grid-cols-2">
             <?php foreach ($reportStaff as $u): ?>
@@ -287,14 +292,17 @@ $bar = fn (int $n, int $max, string $color) => '<span class="block h-2 rounded-f
             <?php endforeach; ?>
           </div>
         </div>
+        <div><label for="sched-emails" class="mb-1 block text-xs font-medium text-muted">Other email addresses</label>
+          <textarea id="sched-emails" name="emails" rows="2" placeholder="manager@customer.com, owner@customer.com" class="<?= INPUT_CLS ?> h-auto py-2"></textarea>
+          <p class="mt-1 text-xs text-muted">Anyone, also people without an account — e.g. the customer’s contact for an organization report. Separate with commas or new lines.</p></div>
         <div class="flex gap-2"><button type="submit" class="<?= btn_cls('primary', 'sm') ?>"><?= icon('check', 14) ?> Create schedule</button><a href="/reports/email-preview" target="_blank" class="<?= btn_cls('ghost', 'sm') ?>"><?= icon('eye', 14) ?> Preview</a></div>
       </form>
-      <?php foreach ($schedules as $sc): $rc = count(json_decode($sc['recipients'], true) ?: []); ?>
+      <?php foreach ($schedules as $sc): $rc = count(json_decode($sc['recipients'], true) ?: []) + count(json_decode((string) ($sc['emails'] ?? ''), true) ?: []); $scOrg = $schedOrgs[$sc['organizationId'] ?? ''] ?? null; ?>
         <div class="flex flex-wrap items-center gap-3 rounded-xl border border-border px-4 py-3">
           <span class="grid h-9 w-9 place-items-center rounded-lg <?= (int) $sc['active'] ? 'bg-brand/10 text-brand' : 'bg-surface-2 text-muted' ?>"><?= icon('calendar-clock', 16) ?></span>
           <div class="min-w-0 flex-1">
             <p class="text-sm font-medium"><?= e($sc['name']) ?><?= (int) $sc['active'] ? '' : ' <span class="text-xs font-normal text-muted">(paused)</span>' ?></p>
-            <p class="text-xs text-muted"><?= e(['daily' => 'Daily', 'weekly' => 'Weekly on ' . ($weekdays[(int) $sc['weekday']] ?? ''), 'monthly' => 'Monthly'][$sc['frequency']] ?? '') ?> at <?= sprintf('%02d:00', (int) $sc['hour']) ?> · last <?= (int) $sc['days'] ?> days · <?= $rc ?> recipient<?= $rc === 1 ? '' : 's' ?> · next <?= e(format_date($sc['nextRunAt'])) ?><?= $sc['lastSentAt'] ? ' · sent ' . e(time_ago($sc['lastSentAt'])) : '' ?></p>
+            <p class="text-xs text-muted"><?= e(['daily' => 'Daily', 'weekly' => 'Weekly on ' . ($weekdays[(int) $sc['weekday']] ?? ''), 'monthly' => 'Monthly'][$sc['frequency']] ?? '') ?> at <?= sprintf('%02d:00', (int) $sc['hour']) ?> · last <?= (int) $sc['days'] ?> days<?= $scOrg !== null ? ' · ' . e($scOrg) : '' ?> · <?= $rc ?> recipient<?= $rc === 1 ? '' : 's' ?> · next <?= e(format_date($sc['nextRunAt'])) ?><?= $sc['lastSentAt'] ? ' · sent ' . e(time_ago($sc['lastSentAt'])) : '' ?></p>
           </div>
           <a href="/reports/email-preview?id=<?= e($sc['id']) ?>" target="_blank" class="<?= btn_cls('ghost', 'sm') ?>"><?= icon('eye', 14) ?> Preview</a>
           <form method="post" action="/action/report-schedule-send" data-ajax><?= form_meta('schedules') ?><input type="hidden" name="id" value="<?= e($sc['id']) ?>"><button type="submit" class="<?= btn_cls('outline', 'sm') ?>"><?= icon('send', 14) ?> Send now</button></form>

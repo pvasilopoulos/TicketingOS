@@ -56,15 +56,8 @@ function act_macro_delete(array $in): ?array
 
 function macro_fill(string $html, array $ticket, array $user): string
 {
-    $req = q_one('SELECT "name" FROM "User" WHERE "id" = ?', [$ticket['requesterId']]);
-    $map = [
-        '{{requester.name}}' => $req['name'] ?? '',
-        '{{requester.first_name}}' => first_name($req['name'] ?? ''),
-        '{{agent.name}}' => $user['name'],
-        '{{ticket.number}}' => (string) $ticket['number'],
-        '{{ticket.subject}}' => $ticket['subject'],
-    ];
-    return strtr($html, array_map(fn ($v) => e($v), $map));
+    // Same placeholders as canned replies ({customer.name}, {ticket.number} …) plus the older {{…}} ones.
+    return fill_reply_vars($html, reply_vars($ticket, $user, $ticket['tenantId']));
 }
 
 /** Apply a macro: optional reply/note, then field changes — all through the normal paths. */

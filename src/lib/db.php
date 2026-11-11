@@ -163,7 +163,7 @@ function ts(?string $iso): ?float
  * (hosts like Plesk often have no shell for bin/migrate.php). A marker file in
  * storage/ keeps this to one cheap check per request.
  */
-const RUNTIME_SCHEMA_VERSION = 4;
+const RUNTIME_SCHEMA_VERSION = 5;
 
 /** Does a table have a column? (works for SQLite and MySQL/MariaDB) */
 function db_column_exists(string $table, string $col): bool
@@ -188,10 +188,42 @@ function ensure_runtime_schema(): void
         runtime_schema_v2();
         runtime_schema_v3();
         runtime_schema_v4();
+        runtime_schema_v5();
         @file_put_contents($marker, $sig);
     } catch (Throwable $e) {
         error_log('[schema] ' . $e->getMessage());
     }
+}
+
+/** Add a column if it's missing. */
+function db_add_column(string $table, string $col, string $mysqlType, string $sqliteType): void
+{
+    if (db_column_exists($table, $col)) return;
+    db()->exec('ALTER TABLE ' . qi($table) . ' ADD COLUMN ' . qi($col) . ' ' . (db_driver() === 'mysql' ? $mysqlType : $sqliteType));
+}
+
+/** v5: signatures, editable / deletable / pinned messages with history, staff-only files. */
+function runtime_schema_v5(): void
+{
+    $my = db_driver() === 'mysql';
+    db_add_column('User', 'signature', 'MEDIUMTEXT NULL', 'TEXT');
+    db_add_column('Comment', 'editedAt', 'VARCHAR(30) NULL', 'TEXT');
+    db_add_column('Comment', 'deletedAt', 'VARCHAR(30) NULL', 'TEXT');
+    db_add_column('Comment', 'pinned', 'INT NOT NULL DEFAULT 0', 'INTEGER NOT NULL DEFAULT 0');
+    db_add_column('Attachment', 'internal', 'INT NOT NULL DEFAULT 0', 'INTEGER NOT NULL DEFAULT 0');
+    // Scheduled reports for one organization and to outside email addresses.
+    db_add_column('ScheduledReport', 'organizationId', 'VARCHAR(40) NULL', 'TEXT');
+    db_add_column('ScheduledReport', 'emails', 'VARCHAR(4000) NULL', 'TEXT');
+    $T = $my ? 'VARCHAR(40)' : 'TEXT';
+    db()->exec('CREATE TABLE IF NOT EXISTS "CommentRevision" (
+  "id" ' . $T . ' NOT NULL PRIMARY KEY,
+  "commentId" ' . $T . ' NOT NULL,
+  "body" ' . ($my ? 'MEDIUMTEXT' : 'TEXT') . ' NOT NULL,
+  "editedById" ' . $T . ' NULL,
+  "createdAt" ' . ($my ? 'VARCHAR(30)' : 'TEXT') . ' NOT NULL' . ($my ? ',
+  KEY "CommentRevision_comment_idx" ("commentId")' : '') . '
+)' . ($my ? ' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci' : ''));
+    if (!$my) db()->exec('CREATE INDEX IF NOT EXISTS "CommentRevision_comment_idx" ON "CommentRevision"("commentId")');
 }
 
 /** v4: notification queue (push/email sent in the background, retried, logged) and rule alerts. */

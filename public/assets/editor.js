@@ -21,6 +21,8 @@
     this.tableTools = root.querySelector("[data-table-tools]");
     this.mentions = JSON.parse(root.getAttribute("data-mentions") || "[]");
     this.canned = JSON.parse(root.getAttribute("data-canned-list") || "[]");
+    // Placeholders in canned replies ({customer.name}, {ticket.number} …) → this ticket's values.
+    this.vars = JSON.parse(root.getAttribute("data-vars") || "{}");
     this.savedRange = null;
     this.popup = null;
     this.bind();
@@ -163,6 +165,19 @@
   Editor.prototype.insertHTML = function (html) {
     this.restore();
     document.execCommand("insertHTML", false, html);
+    this.sync();
+  };
+
+  Editor.prototype.fillVars = function (html) {
+    var vars = this.vars, esc = function (s) { var d = document.createElement("div"); d.textContent = s == null ? "" : String(s); return d.innerHTML; };
+    // Longest placeholders first so {{ticket.number}} wins over {ticket.number}.
+    Object.keys(vars).sort(function (a, b) { return b.length - a.length; }).forEach(function (k) { html = html.split(k).join(esc(vars[k])); });
+    return html;
+  };
+
+  /** Replace the whole content (drafts, AI rewrites). */
+  Editor.prototype.setHTML = function (html) {
+    this.input.innerHTML = html || "";
     this.sync();
   };
 
@@ -401,7 +416,14 @@
     box.addEventListener("dragleave", function (e) { if (!box.contains(e.relatedTarget)) box.classList.remove("ring-2", "ring-brand/50", "border-brand"); });
     box.addEventListener("drop", function (e) {
       box.classList.remove("ring-2", "ring-brand/50", "border-brand");
-      var files = images(e.dataTransfer && e.dataTransfer.files);
+      var all = Array.prototype.slice.call((e.dataTransfer && e.dataTransfer.files) || []);
+      var others = all.filter(function (f) { return !/^image\/(png|jpeg|gif|webp)$/.test(f.type); });
+      if (others.length) {
+        e.preventDefault();
+        e.stopPropagation();
+        box.dispatchEvent(new CustomEvent("rte:files", { bubbles: true, detail: { files: others } }));
+      }
+      var files = all.filter(function (f) { return others.indexOf(f) < 0; });
       if (!files.length) return;
       e.preventDefault();
       // Put the caret where the image was dropped.
@@ -448,7 +470,7 @@
       var canned = e.target.closest("[data-canned]");
       if (canned) {
         var body = self.canned[parseInt(canned.getAttribute("data-canned"), 10)];
-        if (body) self.insertHTML(body);
+        if (body) self.insertHTML(self.fillVars(body));
       }
     });
 

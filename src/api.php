@@ -28,6 +28,9 @@ function api_attachment(string $id): never
     }
     // Attachments on internal notes need the internal-notes permission.
     if ($a['cInternal'] && !$super && !(is_staff($user['role']) && can($user, 'tickets.internal'))) abort(403, 'Forbidden');
+    // Staff-only files, and files of deleted messages.
+    if ((int) ($a['internal'] ?? 0) && !is_staff($user['role'])) abort(403, 'Forbidden');
+    if ($a['commentId'] && !$super && q_val('SELECT "deletedAt" FROM "Comment" WHERE "id" = ?', [$a['commentId']])) abort(404);
 
     $path = attachment_disk_path($owner, $a['id']);
     if (!is_file($path)) abort(404, 'File missing');

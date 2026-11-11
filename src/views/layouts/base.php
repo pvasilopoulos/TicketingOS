@@ -2,7 +2,7 @@
 /** @var string $content */
 $pageTitle = page_title() ? page_title() . ' · ' . app_name() : app_name() . ' — Helpdesk';
 $assetV = @filemtime(ROOT . '/public/assets/app.css') ?: 1;
-$jsIcons = ['bell' => icon('bell', 16), 'x' => icon('x', 15), 'x-sm' => icon('x', 14), 'file-text' => icon('file-text', 15, 'shrink-0 text-muted'), 'loader' => icon('loader-circle', 13, 'animate-spin')];
+$jsIcons = ['bell' => icon('bell', 16), 'x' => icon('x', 15), 'x-sm' => icon('x', 14), 'file-text' => icon('file-text', 15, 'shrink-0 text-muted'), 'loader' => icon('loader-circle', 13, 'animate-spin'), 'file-image' => icon('file-image', 16), 'file-video' => icon('file-video', 16), 'file-spreadsheet' => icon('file-spreadsheet', 16), 'file-archive' => icon('file-archive', 16), 'chevron-left' => icon('chevron-left', 22), 'chevron-right' => icon('chevron-right', 22), 'download' => icon('download', 18), 'external-link' => icon('external-link', 18), 'x-lg' => icon('x', 20), 'copy' => icon('copy', 14), 'check' => icon('check', 14)];
 ?><!DOCTYPE html>
 <html lang="en" class="h-full">
 <head>
@@ -10,7 +10,8 @@ $jsIcons = ['bell' => icon('bell', 16), 'x' => icon('x', 15), 'x-sm' => icon('x'
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title><?= e($pageTitle) ?></title>
   <meta name="description" content="A complete, modern support ticketing system.">
-  <link rel="icon" href="<?= e(brand_logo_url() ?? '/favicon.ico') ?>">
+  <?php if ($bl = brand_logo_url()): ?><link rel="icon" href="<?= e($bl) ?>"><?php else: ?>
+  <link rel="icon" href="/favicon.ico" sizes="48x48"><link rel="icon" href="/app-icons/logo.svg" type="image/svg+xml"><?php endif; ?>
   <!-- PWA -->
   <link rel="manifest" href="/manifest.webmanifest">
   <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
@@ -43,6 +44,7 @@ $jsIcons = ['bell' => icon('bell', 16), 'x' => icon('x', 15), 'x-sm' => icon('x'
   </script>
   <script src="/assets/app.js?v=<?= @filemtime(ROOT . '/public/assets/app.js') ?: 1 ?>" defer></script>
   <script src="/assets/editor.js?v=<?= @filemtime(ROOT . '/public/assets/editor.js') ?: 1 ?>" defer></script>
+  <script src="/assets/ticket.js?v=<?= @filemtime(ROOT . '/public/assets/ticket.js') ?: 1 ?>" defer></script>
 </head>
 <body class="min-h-full">
 <?= $content ?>

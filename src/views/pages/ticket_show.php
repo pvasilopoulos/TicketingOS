@@ -59,9 +59,22 @@ $curPriority = resolve_priority($priorities, $ticket['priority']);
 
 $tags = q_all('SELECT g."id", g."name" FROM "TicketTag" tt JOIN "Tag" g ON g."id" = tt."tagId" WHERE tt."ticketId" = ? ORDER BY g."name" ASC', [$id]);
 $allTags = q_all('SELECT "id","name" FROM "Tag" WHERE "tenantId" = ? ORDER BY "name" ASC', [$tenantId]);
-$attachments = q_all('SELECT * FROM "Attachment" WHERE "ticketId" = ? ORDER BY "createdAt" ASC', [$id]);
 $comments = q_all('SELECT c.*, u."name" AS "aName", u."avatarColor" AS "aColor", u."role" AS "aRole" FROM "Comment" c JOIN "User" u ON u."id" = c."authorId" WHERE c."ticketId" = ? ORDER BY c."createdAt" ASC', [$id]);
 $events = q_all('SELECT e.*, u."name" AS "aName", u."avatarColor" AS "aColor" FROM "TicketEvent" e LEFT JOIN "User" u ON u."id" = e."actorId" WHERE e."ticketId" = ? ORDER BY e."createdAt" ASC', [$id]);
+// Files this person may see (internal notes, staff-only files and deleted messages respected).
+$attachments = visible_attachments($ticket, $user, $comments);
+// Earlier versions of edited / deleted messages (staff only).
+$revisions = [];
+$revIds = $staff ? pluck(array_filter($comments, fn ($c) => $c['editedAt'] || $c['deletedAt']), 'id') : [];
+if ($revIds) foreach (q_all('SELECT r.*, u."name" AS "eName" FROM "CommentRevision" r LEFT JOIN "User" u ON u."id" = r."editedById" WHERE r."commentId" IN (' . in_ph($revIds) . ') ORDER BY r."createdAt" ASC', $revIds) as $r) $revisions[$r['commentId']][] = $r;
+$pinned = array_values(array_filter($comments, fn ($c) => (int) $c['pinned'] && !$c['deletedAt'] && ($canInternal || !$c['isInternal'])));
+$canPin = can_pin($user);
+$aiOn = ai_available($user, $tenantId);
+$attRules = attachment_settings($tenantId);
+$custHistory = $staff ? customer_history($ticket, $tenantId) : null;
+$replyVars = $staff ? reply_vars($ticket, $user, $tenantId) : [];
+$mySignature = $staff ? user_signature($user) : '';
+$canUpload = $staff || $attRules['customerUploads'];
 
 $canned = $staff ? q_all('SELECT "title","body" FROM "CannedResponse" WHERE "tenantId" = ? ORDER BY "title" ASC', [$tenantId]) : [];
 // Staff can mention anyone; customers only people on this ticket and colleagues of their organization.
@@ -85,7 +98,8 @@ $historyIcons = [
     'MEMBER_ADDED' => ['user-plus', 'text-teal-600 bg-teal-500/10'], 'MEMBER_REMOVED' => ['user-minus', 'text-rose-600 bg-rose-500/10'],
     'MEMBER_ROLE_CHANGED' => ['users-round', 'text-teal-600 bg-teal-500/10'], 'LINKED' => ['link', 'text-blue-600 bg-blue-500/10'],
     'MERGED' => ['git-merge', 'text-fuchsia-600 bg-fuchsia-500/10'], 'MACRO' => ['zap', 'text-yellow-600 bg-yellow-500/10'],
-    'CSAT' => ['smile', 'text-pink-600 bg-pink-500/10'],
+    'CSAT' => ['smile', 'text-pink-600 bg-pink-500/10'], 'PINNED' => ['pin', 'text-brand bg-brand/10'],
+    'MESSAGE_DELETED' => ['trash-2', 'text-rose-600 bg-rose-500/10'], 'FILE_DELETED' => ['trash-2', 'text-rose-600 bg-rose-500/10'],
 ];
 $replyCount = count($timeline) + 1;
 
@@ -100,29 +114,92 @@ $candidates = $canManage && search_people($user, $tenantId, '', 'all', array_key
 
 $replyState = flash('reply');
 
-$attachmentList = function (array $items): string {
+/** Attributes that open a file in the in-page viewer (images and PDFs). */
+$previewAttr = function (array $a): string {
+    $k = attachment_kind($a);
+    $ok = ($k === 'image' && in_array($a['mime'], IMAGE_MIME, true)) || $k === 'pdf';
+    return $ok ? ' data-preview="' . $k . '" data-name="' . e($a['filename']) . '"' : '';
+};
+$fileIcon = fn (array $a): string => ['image' => 'file-image', 'pdf' => 'file-text', 'media' => 'file-video', 'doc' => in_array(file_ext($a['filename']), ['xls', 'xlsx', 'csv', 'ods'], true) ? 'file-spreadsheet' : 'file-text'][attachment_kind($a)]
+    ?? (in_array(file_ext($a['filename']), ['zip', 'rar', '7z', 'gz', 'tar'], true) ? 'file-archive' : 'file');
+
+$attachmentList = function (array $items) use ($previewAttr, $fileIcon): string {
     if (!$items) return '';
-    $h = '<div class="mt-3 flex flex-wrap gap-2">';
+    $h = '<div class="mt-3 flex flex-wrap items-end gap-2">';
     foreach ($items as $a) {
-        $h .= '<a href="' . e($a['url']) . '" target="_blank" rel="noopener noreferrer" class="group inline-flex items-center gap-2 rounded-lg border border-border bg-surface-2 px-2.5 py-1.5 text-sm hover:border-brand/50 hover:bg-surface transition-colors">'
-            . icon(str_starts_with($a['mime'], 'image/') ? 'image' : 'file-text', 15, 'text-muted')
-            . '<span class="max-w-50 truncate">' . e($a['filename']) . '</span><span class="text-xs text-muted">' . e(format_bytes((int) $a['size'])) . '</span>'
-            . icon('download', 14, 'text-muted opacity-0 group-hover:opacity-100 transition-opacity') . '</a>';
+        $lock = (int) ($a['internal'] ?? 0) ? '<span title="Only staff can see this file" class="text-amber-600 dark:text-amber-400">' . icon('lock', 12) . '</span>' : '';
+        $pv = $previewAttr($a);
+        if ($pv && attachment_kind($a) === 'image') {
+            $h .= '<a href="' . e($a['url']) . '" target="_blank" rel="noopener noreferrer"' . $pv . ' title="' . e($a['filename'] . ' · ' . format_bytes((int) $a['size'])) . '" class="group relative block h-24 w-24 overflow-hidden rounded-lg border border-border bg-surface-2 hover:border-brand/50">'
+                . '<img src="' . e($a['url']) . '" alt="' . e($a['filename']) . '" loading="lazy" class="h-full w-full object-cover transition group-hover:scale-105">'
+                . ($lock ? '<span class="absolute right-1 top-1 grid h-5 w-5 place-items-center rounded bg-surface/90">' . $lock . '</span>' : '') . '</a>';
+            continue;
+        }
+        $h .= '<a href="' . e($a['url']) . '" target="_blank" rel="noopener noreferrer"' . $pv . ' class="group inline-flex items-center gap-2 rounded-lg border border-border bg-surface-2 px-2.5 py-1.5 text-sm hover:border-brand/50 hover:bg-surface transition-colors">'
+            . icon($fileIcon($a), 15, 'text-muted')
+            . '<span class="max-w-50 truncate">' . e($a['filename']) . '</span><span class="text-xs text-muted">' . e(format_bytes((int) $a['size'])) . '</span>' . $lock
+            . icon($pv ? 'eye' : 'download', 14, 'text-muted opacity-0 group-hover:opacity-100 transition-opacity') . '</a>';
     }
     return $h . '</div>';
 };
 
-$message = function (string $name, string $color, string $role, string $date, string $body, array $files, bool $internal, bool $isRequester) use ($attachmentList): string {
-    $h = '<div class="flex gap-3">' . avatar($name, $color, 38);
-    $h .= '<div class="' . cx('min-w-0 flex-1 rounded-xl border p-4', $internal ? 'border-amber-300 dark:border-amber-500/40 bg-amber-50/70 dark:bg-amber-500/5' : 'border-border bg-surface') . '">';
+$message = function (string $name, string $color, string $role, string $date, string $body, array $files, bool $internal, bool $isRequester, ?array $c = null) use ($attachmentList, $user, $canPin, $revisions, $canReply, $canInternal): string {
+    $deleted = $c && !empty($c['deletedAt']);
+    $isPinned = $c && (int) $c['pinned'] && !$deleted;
+    $editable = $c && comment_editable($c, $user);
+    $isHtml = (bool) preg_match('/<[a-z][\s\S]*>/i', $body);
+    $bodyHtml = $isHtml ? $body : '<p>' . nl2br(e($body)) . '</p>';
+    $anchor = $c ? 'c-' . $c['id'] : 'c-desc';
+
+    // "⋯" menu: quote, copy link, pin, edit, delete.
+    $item = 'flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm hover:bg-surface-2 cursor-pointer';
+    $menu = '';
+    if (!$deleted && ($canReply || $canInternal)) $menu .= '<button type="button" data-quote data-dropdown-close class="' . $item . '">' . icon('quote', 14, 'text-muted') . ' Quote in reply</button>';
+    $menu .= '<button type="button" data-copy-link="' . $anchor . '" data-dropdown-close class="' . $item . '">' . icon('link', 14, 'text-muted') . ' Copy link</button>';
+    if ($c && $canPin && !$deleted) {
+        $menu .= '<form method="post" action="/action/comment-pin" data-ajax>' . form_meta() . '<input type="hidden" name="commentId" value="' . e($c['id']) . '"><input type="hidden" name="pinned" value="' . ($isPinned ? '0' : '1') . '">'
+            . '<button type="submit" data-dropdown-close class="' . $item . '">' . icon($isPinned ? 'pin-off' : 'pin', 14, 'text-muted') . ($isPinned ? ' Unpin' : ' Pin to top') . '</button></form>';
+    }
+    if ($editable) {
+        $left = max(1, MESSAGE_EDIT_MINUTES - (int) floor((time() - (int) iso_sec($c['createdAt'])) / 60));
+        $menu .= '<div class="my-1 border-t border-border"></div><p class="px-3 pb-1 pt-1.5 text-[11px] text-muted">You can change this for ' . $left . ' more min</p>'
+            . '<button type="button" data-edit-toggle data-dropdown-close class="' . $item . '">' . icon('pencil', 14, 'text-muted') . ' Edit</button>'
+            . '<form method="post" action="/action/comment-delete" data-ajax data-confirm="Delete this message? Its files are deleted too.">' . form_meta() . '<input type="hidden" name="commentId" value="' . e($c['id']) . '">'
+            . '<button type="submit" data-dropdown-close class="' . $item . ' text-red-600 dark:text-red-400">' . icon('trash-2', 14) . ' Delete</button></form>';
+    }
+    $actions = dropdown('<button type="button" data-dropdown-trigger aria-label="Message actions" class="grid h-7 w-7 place-items-center rounded-md text-muted hover:bg-surface-2 hover:text-fg cursor-pointer">' . icon('ellipsis', 16) . '</button>',
+        '<div class="py-1">' . $menu . '</div>', 220, 'right', true);
+
+    $h = '<div id="' . $anchor . '" class="flex scroll-mt-24 gap-3" data-message data-author="' . e($name) . '">' . avatar($name, $color, 38);
+    $h .= '<div class="' . cx('min-w-0 flex-1 rounded-xl border p-4 transition-shadow', $internal ? 'border-amber-300 dark:border-amber-500/40 bg-amber-50/70 dark:bg-amber-500/5' : 'border-border bg-surface', $isPinned ? 'ring-2 ring-brand/25' : '') . '">';
     $h .= '<div class="mb-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm"><span class="font-semibold">' . e($name) . '</span>';
     if (!$isRequester) $h .= '<span class="rounded bg-brand/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-brand">' . e(role_label($role)) . '</span>';
     if ($internal) $h .= '<span class="inline-flex items-center gap-1 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-700 dark:text-amber-300">' . icon('lock', 10) . ' Internal</span>';
-    $h .= '<span class="text-xs text-muted">· ' . e(time_ago($date)) . '</span></div>';
+    $h .= '<span class="text-xs text-muted" title="' . e(format_date($date)) . '">· ' . e(time_ago($date)) . '</span>';
+    if ($c && $c['editedAt'] && !$deleted) $h .= '<span class="text-xs text-muted" title="Edited ' . e(format_date($c['editedAt'])) . '">· edited</span>';
+    if ($isPinned) $h .= '<span class="inline-flex items-center gap-1 rounded bg-brand/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-brand">' . icon('pin', 10) . ' Pinned</span>';
+    $h .= '<span class="ml-auto">' . $actions . '</span></div>';
     // Body is sanitized on write; legacy plain-text bodies are shown as text.
-    $isHtml = (bool) preg_match('/<[a-z][\s\S]*>/i', $body);
-    $h .= '<div class="rich">' . ($isHtml ? $body : '<p>' . nl2br(e($body)) . '</p>') . '</div>';
-    $h .= $attachmentList($files);
+    if ($deleted) {
+        $h .= '<p class="flex items-center gap-1.5 text-sm italic text-muted">' . icon('trash-2', 13) . ' This message was deleted ' . e(time_ago($c['deletedAt'])) . '.</p>';
+    } else {
+        $h .= '<div class="rich" data-message-body>' . $bodyHtml . '</div>';
+        $h .= $attachmentList($files);
+    }
+    if ($editable) {
+        $h .= '<form method="post" action="/action/comment-edit" data-ajax data-edit-form hidden class="mt-2 space-y-2">' . form_meta() . '<input type="hidden" name="commentId" value="' . e($c['id']) . '">'
+            . rich_editor('body', ['html' => $bodyHtml, 'minHeight' => 80])
+            . '<div class="flex gap-2"><button type="submit" class="' . btn_cls('primary', 'sm') . '">' . icon('check', 14) . ' Save</button><button type="button" data-edit-cancel class="' . btn_cls('ghost', 'sm') . '">Cancel</button></div></form>';
+    }
+    // Staff see earlier versions of edited and deleted messages.
+    if ($c && !empty($revisions[$c['id']])) {
+        $revs = $revisions[$c['id']];
+        $h .= '<details class="mt-3 rounded-lg border border-border/70 bg-surface-2/40 text-xs"><summary class="flex cursor-pointer list-none items-center gap-1.5 px-3 py-2 text-muted hover:text-fg [&::-webkit-details-marker]:hidden">' . icon('history', 13) . ' History · ' . count($revs) . ' earlier version' . (count($revs) === 1 ? '' : 's') . ' <span class="ml-auto">staff only</span></summary><ol class="space-y-3 border-t border-border/70 px-3 py-3">';
+        foreach (array_reverse($revs) as $rv) {
+            $h .= '<li><p class="mb-1 text-muted">Before the change by ' . e($rv['eName'] ?? 'someone') . ' · ' . e(format_date($rv['createdAt'])) . '</p><div class="rich border-l-2 border-border pl-3 text-sm opacity-80">' . ($rv['body'] !== '' ? $rv['body'] : '<p><em>(empty)</em></p>') . '</div></li>';
+        }
+        $h .= '</ol></details>';
+    }
     return $h . '</div></div>';
 };
 
@@ -203,6 +280,7 @@ $row = fn (string $label, string $valueHtml) => '<div class="flex items-center j
       </form>
     <?php endif; ?>
     <button type="button" data-share data-share-title="<?= e('#' . $ticket['number'] . ' ' . $ticket['subject']) ?>" class="<?= $quick ?>"><?= icon('link', 15) ?> <span data-share-label>Share link</span></button>
+    <a href="/tickets/<?= e($ticket['id']) ?>/print" target="_blank" rel="noopener" class="<?= $quick ?>"><?= icon('printer', 15) ?> Print / PDF</a>
     <a href="#reply" data-jump-reply class="<?= $quick ?> lg:hidden"><?= icon('send', 15) ?> Reply</a>
   </div>
 
@@ -239,11 +317,25 @@ $row = fn (string $label, string $valueHtml) => '<div class="flex items-center j
 
       <!-- Conversation -->
       <div data-tab-panel="conversation" class="space-y-4">
+      <?php if ($pinned): ?>
+        <div class="rounded-xl border border-brand/30 bg-brand/5 p-2.5 sm:p-3">
+          <p class="mb-1 flex items-center gap-1.5 px-2 text-xs font-semibold uppercase tracking-wide text-brand"><?= icon('pin', 13) ?> Pinned</p>
+          <ul>
+            <?php foreach ($pinned as $pc): ?>
+              <li><a href="#c-<?= e($pc['id']) ?>" class="flex items-start gap-2.5 rounded-lg px-2 py-2 text-sm hover:bg-surface">
+                <?= avatar($pc['aName'], $pc['aColor'], 22) ?>
+                <span class="min-w-0 flex-1"><span class="font-medium"><?= e($pc['aName']) ?></span> <span class="text-xs text-muted">· <?= e(time_ago($pc['createdAt'])) ?></span><?= $pc['isInternal'] ? ' <span class="text-xs text-amber-700 dark:text-amber-400">· internal</span>' : '' ?>
+                  <span class="block truncate text-muted"><?= e(mb_substr(html_to_text($pc['body']), 0, 220)) ?></span></span>
+              </a></li>
+            <?php endforeach; ?>
+          </ul>
+        </div>
+      <?php endif; ?>
       <?= $message($requester['name'], $requester['avatarColor'], $requester['role'], $ticket['createdAt'], $ticket['description'], $byComment[''] ?? [], false, true) ?>
 
       <?php foreach ($timeline as $it):
           $c = $it['item'];
-          echo $message($c['aName'], $c['aColor'], $c['aRole'], $c['createdAt'], $c['body'], $byComment[$c['id']] ?? [], (bool) $c['isInternal'], $c['authorId'] === $ticket['requesterId']);
+          echo $message($c['aName'], $c['aColor'], $c['aRole'], $c['createdAt'], $c['body'], $byComment[$c['id']] ?? [], (bool) $c['isInternal'], $c['authorId'] === $ticket['requesterId'], $c);
       endforeach; ?>
 
       <?php if ($csatPending || ($csatDone && !$staff && $ticket['requesterId'] === $user['id'])): $cur = (int) ($csatDone['rating'] ?? 0); ?>
@@ -264,7 +356,19 @@ $row = fn (string $label, string $valueHtml) => '<div class="flex items-center j
         <?php if (!$canReply && !$canInternal): ?>
           <p class="flex items-center gap-2 rounded-xl border border-dashed border-border p-4 text-sm text-muted"><?= icon('lock', 15) ?> Your role can view this ticket but not reply to it.</p>
         <?php else: ?>
+        <?php if ($aiOn): ?>
+          <div data-ai-panel hidden class="mb-3 rounded-xl border border-violet-300/60 bg-violet-50/60 p-4 dark:border-violet-500/30 dark:bg-violet-500/5">
+            <div class="mb-2 flex items-center gap-2 text-sm font-semibold text-violet-700 dark:text-violet-300"><?= icon('sparkles', 15) ?> <span data-ai-title>AI summary</span>
+              <button type="button" data-ai-close aria-label="Close" class="ml-auto grid h-7 w-7 place-items-center rounded-md text-muted hover:bg-surface cursor-pointer"><?= icon('x', 14) ?></button></div>
+            <div data-ai-body class="rich text-sm"></div>
+            <div class="mt-3 flex flex-wrap gap-2" data-ai-actions hidden>
+              <button type="button" data-ai-copy class="<?= btn_cls('outline', 'sm') ?>"><?= icon('copy', 13) ?> Copy</button>
+              <?php if ($canInternal): ?><button type="button" data-ai-note class="<?= btn_cls('outline', 'sm') ?>"><?= icon('lock', 13) ?> Use as internal note</button><?php endif; ?>
+            </div>
+          </div>
+        <?php endif; ?>
         <form method="post" action="/action/comment-add" enctype="multipart/form-data" data-reply data-pending="Sending…" <?= $notesOnly ? 'data-internal="true"' : '' ?>
+              data-ticket-id="<?= e($ticket['id']) ?>" data-draft-key="<?= e('tos-draft:' . $user['id'] . ':' . $ticket['id']) ?>"
               class="rounded-xl border p-4 transition-colors border-border bg-surface data-[internal=true]:border-amber-300 dark:data-[internal=true]:border-amber-500/40 data-[internal=true]:bg-amber-50/60 dark:data-[internal=true]:bg-amber-500/5">
           <?= form_meta('reply') ?>
           <input type="hidden" name="ticketId" value="<?= e($ticket['id']) ?>">
@@ -275,8 +379,28 @@ $row = fn (string $label, string $valueHtml) => '<div class="flex items-center j
                 'placeholder' => 'Write a reply… use @ to mention',
                 'mentions' => $mentionUsers,
                 'canned' => $canned,
+                'vars' => $replyVars,
+                'kb' => $staff,
             ]) ?>
-            <?= file_input('files') ?>
+            <?php if ($canUpload): ?><?= file_input('files', attachment_rules_js($tenantId)) ?><?php endif; ?>
+            <div data-upload-progress hidden>
+              <div class="h-1.5 overflow-hidden rounded-full bg-surface-2"><div data-upload-bar class="h-full w-0 rounded-full bg-brand transition-[width]"></div></div>
+              <p data-upload-label class="mt-1 text-xs text-muted"></p>
+            </div>
+            <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted">
+              <?php if ($staff && !$notesOnly): ?>
+                <?php if ($mySignature !== ''): ?>
+                  <label data-when="public" class="inline-flex items-center gap-1.5 cursor-pointer select-none"><input type="checkbox" name="addSignature" value="on" checked class="h-3.5 w-3.5 rounded border-border accent-brand"> Add my signature</label>
+                  <a href="/notifications#signature" class="hover:text-fg">Edit signature</a>
+                <?php else: ?>
+                  <a href="/notifications#signature" class="inline-flex items-center gap-1 hover:text-fg"><?= icon('signature', 13) ?> Add a signature</a>
+                <?php endif; ?>
+              <?php endif; ?>
+              <?php if ($staff && $attRules['staffOnly'] && $canUpload): ?>
+                <label data-staff-files hidden class="inline-flex items-center gap-1.5 cursor-pointer select-none"><input type="checkbox" name="filesStaffOnly" value="on" class="h-3.5 w-3.5 rounded border-border accent-amber-500"> <?= icon('lock', 12) ?> Files visible to staff only</label>
+              <?php endif; ?>
+              <span data-draft-status class="ml-auto inline-flex items-center gap-1.5" hidden></span>
+            </div>
           </div>
           <div class="mt-3 flex flex-wrap items-center justify-between gap-3">
             <?php if ($notesOnly): ?>
@@ -288,10 +412,28 @@ $row = fn (string $label, string $valueHtml) => '<div class="flex items-center j
                 Internal note
               </label>
             <?php else: ?><span></span><?php endif; ?>
+            <div class="flex flex-wrap items-center gap-2 max-sm:w-full">
+            <?php if ($aiOn): ?>
+              <?php $aiItem = 'flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm hover:bg-surface-2 cursor-pointer'; ?>
+              <?= dropdown(
+                  '<button type="button" data-dropdown-trigger class="' . btn_cls('outline', 'md') . ' text-violet-700 dark:text-violet-300">' . icon('sparkles', 15) . ' AI ' . icon('chevron-down', 14, 'text-muted') . '</button>',
+                  '<div class="py-1" data-ai-menu>'
+                  . '<button type="button" data-ai-task="reply" data-dropdown-close class="' . $aiItem . '">' . icon('wand-sparkles', 14, 'text-violet-600') . ' Suggest a reply</button>'
+                  . '<button type="button" data-ai-task="summary" data-dropdown-close class="' . $aiItem . '">' . icon('list-checks', 14, 'text-violet-600') . ' Summarize the ticket</button>'
+                  . '<p class="px-3 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wide text-muted">Improve my text</p>'
+                  . implode('', array_map(fn ($k, $l) => '<button type="button" data-ai-task="tone" data-ai-tone="' . $k . '" data-dropdown-close class="' . $aiItem . '">' . icon('pencil', 14, 'text-muted') . ' ' . $l . '</button>', array_keys(['professional' => 1, 'friendly' => 1, 'empathetic' => 1, 'shorter' => 1, 'grammar' => 1]), ['More professional', 'Friendlier', 'More empathetic', 'Shorter', 'Fix spelling & grammar']))
+                  . '<p class="px-3 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wide text-muted">Translate my text to</p>'
+                  . implode('', array_map(fn ($l) => '<button type="button" data-ai-task="translate" data-ai-lang="' . e($l) . '" data-dropdown-close class="' . $aiItem . '">' . icon('languages', 14, 'text-muted') . ' ' . e($l) . '</button>', ['English', 'Ελληνικά', 'Deutsch', 'Français']))
+                  . '<button type="button" data-ai-task="translate" data-ai-lang="" data-dropdown-close class="' . $aiItem . '">' . icon('languages', 14, 'text-muted') . ' Other language…</button>'
+                  . '</div>',
+                  250, 'right', true,
+              ) ?>
+            <?php endif; ?>
             <button type="submit" data-reply-submit class="<?= btn_cls('primary', 'md', 'max-sm:flex-1') ?>">
               <span data-when="public" <?= $notesOnly ? 'hidden' : '' ?> class="inline-flex items-center gap-2"><?= icon('send', 16) ?> Send reply</span>
               <span data-when="internal" <?= $notesOnly ? '' : 'hidden' ?> class="inline-flex items-center gap-2"><?= icon('lock', 16) ?> Add internal note</span>
             </button>
+            </div>
           </div>
         </form>
         <?php endif; ?>
@@ -541,6 +683,47 @@ $row = fn (string $label, string $valueHtml) => '<div class="flex items-center j
         <?php endif; ?>
       </div>
 
+      <!-- Files -->
+      <?php if ($attachments):
+          $kinds = array_count_values(array_map(fn ($x) => in_array(attachment_kind($x), ['pdf', 'doc'], true) ? 'docs' : (attachment_kind($x) === 'image' ? 'images' : 'other'), $attachments));
+          $mayDeleteAny = $staff && can($user, 'tickets.delete_files'); ?>
+      <div class="rounded-xl border border-border bg-surface" data-files>
+        <?= card_header(titled('paperclip', 'Files') . ' <span class="ml-1 rounded-full bg-surface-2 px-1.5 text-[11px] font-normal tabular-nums text-muted">' . count($attachments) . '</span>',
+            '<a href="/tickets/' . e($ticket['id']) . '/files.zip" class="' . btn_cls('ghost', 'sm') . '" title="Download all files as a ZIP">' . icon('download', 14) . ' All (ZIP)</a>') ?>
+        <?php if (count($kinds) > 1): ?>
+          <div class="flex flex-wrap gap-1.5 border-b border-border px-4 py-2.5" data-files-filters>
+            <?php foreach (['all' => ['All', count($attachments)], 'images' => ['Images', $kinds['images'] ?? 0], 'docs' => ['Documents', $kinds['docs'] ?? 0], 'other' => ['Other', $kinds['other'] ?? 0]] as $fk => [$fl, $fn]): if (!$fn) continue; ?>
+              <button type="button" data-files-filter="<?= $fk ?>" aria-pressed="<?= $fk === 'all' ? 'true' : 'false' ?>" class="rounded-full border border-border px-2.5 py-1 text-xs text-muted hover:text-fg aria-pressed:border-transparent aria-pressed:bg-fg aria-pressed:text-bg cursor-pointer"><?= $fl ?> <span class="tabular-nums opacity-70"><?= $fn ?></span></button>
+            <?php endforeach; ?>
+          </div>
+        <?php endif; ?>
+        <ul class="max-h-[26rem] divide-y divide-border overflow-y-auto">
+          <?php foreach (array_reverse($attachments) as $fa):
+              $fkind = attachment_kind($fa);
+              $group = in_array($fkind, ['pdf', 'doc'], true) ? 'docs' : ($fkind === 'image' ? 'images' : 'other');
+              $pv = $previewAttr($fa);
+              $mayDelete = $mayDeleteAny || ($fa['uploaderId'] === $user['id'] && $fa['createdAt'] >= now_iso(-MESSAGE_EDIT_MINUTES * 60)); ?>
+            <li data-file-kind="<?= $group ?>" class="group flex items-center gap-3 px-4 py-2.5">
+              <a href="<?= e($fa['url']) ?>" target="_blank" rel="noopener noreferrer"<?= $pv ?> class="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg border border-border bg-surface-2 text-muted">
+                <?= $fkind === 'image' && $pv ? '<img src="' . e($fa['url']) . '" alt="" loading="lazy" class="h-full w-full object-cover">' : icon($fileIcon($fa), 18) ?>
+              </a>
+              <div class="min-w-0 flex-1">
+                <a href="<?= e($fa['url']) ?>" target="_blank" rel="noopener noreferrer"<?= $pv ?> class="block truncate text-sm font-medium hover:text-brand" title="<?= e($fa['filename']) ?>"><?= e($fa['filename']) ?></a>
+                <p class="truncate text-xs text-muted"><?= e(format_bytes((int) $fa['size'])) ?> · <?= e($fa['uName'] ?? 'Unknown') ?> · <span title="<?= e(format_date($fa['createdAt'])) ?>"><?= e(time_ago($fa['createdAt'])) ?></span><?= (int) ($fa['internal'] ?? 0) ? ' · <span class="text-amber-700 dark:text-amber-400">staff only</span>' : '' ?></p>
+              </div>
+              <a href="<?= e($fa['url']) ?>" download="<?= e($fa['filename']) ?>" aria-label="Download <?= e($fa['filename']) ?>" class="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-muted hover:bg-surface-2 hover:text-fg"><?= icon('download', 15) ?></a>
+              <?php if ($mayDelete): ?>
+                <form method="post" action="/action/attachment-delete" data-ajax data-confirm="Delete “<?= e($fa['filename']) ?>”? This can’t be undone.">
+                  <?= form_meta() ?><input type="hidden" name="id" value="<?= e($fa['id']) ?>"><input type="hidden" name="ticketId" value="<?= e($ticket['id']) ?>">
+                  <button type="submit" aria-label="Delete <?= e($fa['filename']) ?>" class="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-muted hover:bg-red-500/10 hover:text-red-600 cursor-pointer"><?= icon('trash-2', 15) ?></button>
+                </form>
+              <?php endif; ?>
+            </li>
+          <?php endforeach; ?>
+        </ul>
+      </div>
+      <?php endif; ?>
+
       <!-- Requester -->
       <div class="rounded-xl border border-border bg-surface">
         <?= card_header('Requester') ?>
@@ -568,6 +751,34 @@ $row = fn (string $label, string $valueHtml) => '<div class="flex items-center j
           <?php if ($ticket['closedAt']) echo $row('Closed', e(time_ago($ticket['closedAt']))); ?>
         </div>
       </div>
+
+      <!-- Customer history -->
+      <?php if ($custHistory): $ch = $custHistory; ?>
+      <div class="rounded-xl border border-border bg-surface">
+        <?= card_header(titled('history', 'Customer history')) ?>
+        <div class="grid grid-cols-3 divide-x divide-border border-b border-border text-center">
+          <div class="px-2 py-3"><p class="text-lg font-semibold tabular-nums"><?= $ch['mineTotal'] ?></p><p class="text-[11px] text-muted">tickets</p></div>
+          <div class="px-2 py-3"><p class="text-lg font-semibold tabular-nums"><?= $ch['mineOpen'] ?></p><p class="text-[11px] text-muted">open</p></div>
+          <div class="px-2 py-3"><p class="text-lg font-semibold tabular-nums"><?= $ch['csatAvg'] === null ? '—' : e((string) $ch['csatAvg']) ?></p><p class="text-[11px] text-muted"><?= $ch['csatCount'] ? 'rating /5' : 'no ratings' ?></p></div>
+        </div>
+        <?php $histRow = function (array $t, string $sub) use ($statuses): string {
+            $st = resolve_status($statuses, $t['status']);
+            return '<li><a href="/tickets/' . e($t['id']) . '" class="flex items-start gap-2 px-4 py-2 hover:bg-surface-2"><span class="mt-1.5 h-2 w-2 shrink-0 rounded-full" style="background-color:' . safe_color($st['color']) . '" title="' . e($st['label']) . '"></span>'
+                . '<span class="min-w-0 flex-1"><span class="block truncate text-sm"><span class="font-mono text-xs text-muted">#' . (int) $t['number'] . '</span> ' . e($t['subject']) . '</span><span class="block truncate text-xs text-muted">' . $sub . '</span></span></a></li>';
+        }; ?>
+        <?php if ($ch['mine']): ?>
+          <p class="px-4 pb-1 pt-3 text-[11px] font-medium uppercase tracking-wide text-muted">Their other tickets</p>
+          <ul class="pb-1"><?php foreach ($ch['mine'] as $ht) echo $histRow($ht, e(resolve_status($statuses, $ht['status'])['label']) . ' · ' . e(time_ago($ht['createdAt']))); ?></ul>
+        <?php else: ?>
+          <p class="px-4 py-3 text-sm text-muted">This is their first ticket.</p>
+        <?php endif; ?>
+        <?php if ($ch['org']): ?>
+          <p class="border-t border-border px-4 pb-1 pt-3 text-[11px] font-medium uppercase tracking-wide text-muted">From their organization</p>
+          <ul class="pb-1"><?php foreach ($ch['org'] as $ht) echo $histRow($ht, e($ht['who']) . ' · ' . e(time_ago($ht['createdAt']))); ?></ul>
+        <?php endif; ?>
+        <?php if ($org): ?><a href="/tickets?org=<?= e($org['id']) ?>" class="block border-t border-border px-4 py-2.5 text-xs font-medium text-brand hover:bg-surface-2">All tickets of <?= e($org['name']) ?> →</a><?php endif; ?>
+      </div>
+      <?php endif; ?>
 
       <!-- Linked tickets -->
       <?php $links = ticket_links($ticket['id'], $statuses); ?>

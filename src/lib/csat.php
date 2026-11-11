@@ -82,10 +82,14 @@ function csat_answer(array $survey, int $rating, string $comment): array
 }
 
 /** CSAT stats for answered surveys since a date: [count, satisfied %, average]. */
-function csat_stats(string $tenantId, string $since, ?string $until = null): array
+function csat_stats(string $tenantId, string $since, ?string $until = null, ?string $orgId = null): array
 {
+    $p = [$tenantId, $since];
+    if ($until) $p[] = $until;
+    if ($orgId) $p[] = $orgId;
     $row = q_one('SELECT COUNT(*) AS n, SUM(CASE WHEN "rating" >= 4 THEN 1 ELSE 0 END) AS good, AVG("rating") AS avg
-                  FROM "CsatSurvey" WHERE "tenantId" = ? AND "answeredAt" >= ?' . ($until ? ' AND "answeredAt" < ?' : ''), $until ? [$tenantId, $since, $until] : [$tenantId, $since]);
+                  FROM "CsatSurvey" WHERE "tenantId" = ? AND "answeredAt" >= ?' . ($until ? ' AND "answeredAt" < ?' : '')
+        . ($orgId ? ' AND "requesterId" IN (SELECT "userId" FROM "UserOrganization" WHERE "organizationId" = ?)' : ''), $p);
     $n = (int) ($row['n'] ?? 0);
     return ['count' => $n, 'pct' => $n ? (int) round($row['good'] / $n * 100) : null, 'avg' => $n ? round((float) $row['avg'], 1) : null];
 }

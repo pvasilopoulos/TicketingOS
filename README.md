@@ -90,6 +90,21 @@ oversee every tenant and step into any board to manage it.
   - **Reliable delivery**: push and email are queued and sent right after the page answers, retried with back-off (2, 4, 8… minutes, 6 tries), held back during quiet hours instead of dropped, or grouped into an hourly / daily summary per person.
   - **Emails**: branded (app name and logo), include the reply or description itself, a “View ticket” button and a link to notification settings; all emails about a ticket form one conversation in mail apps. Subject and message of every event can be rewritten with placeholders ({ticket.number}, {actor.name}, {workspace}…).
   - **Delivery log** with status filters, the reason for every failure or skip (e.g. “No device has push turned on”), Resend / Retry all failed, “Send test to me” and the time the background jobs last ran.
+- ✍️ **Writing replies**:
+  - **Drafts** are saved in the browser per ticket while typing and come back after a reload or crash (“Draft restored · Discard”).
+  - **Signature** per agent (Notifications page → Reply signature), added under public replies; it can be unticked for one reply.
+  - **Canned replies and macros fill in placeholders**: {customer.name}, {customer.first_name}, {organization.name}, {ticket.number}, {ticket.subject}, {ticket.status}, {ticket.link}, {agent.name}, {workspace.name}, {today} …
+  - **Help-center links**: the book button in the editor searches published articles and inserts a link.
+- 💬 **Messages**: every message has a ⋯ menu — **Quote in reply** (the whole message or the selected text), **Copy link**, **Pin to top** (pinned messages are listed above the conversation) and, for the author within 15 minutes, **Edit** or **Delete**. Staff can open the earlier versions of edited or deleted messages.
+- 📎 **Files**:
+  - **Files card** on the ticket with thumbnails, type filter (images / documents / other), uploader and date, download, delete and **Download all (ZIP)**.
+  - **Viewer** for images and PDFs (arrows / swipe between files, open, download).
+  - **Drag & drop** anywhere on the reply box, checks size and type before sending, thumbnails, remove, and an **upload progress bar**.
+  - **Settings → General → Attachments**: largest file, files per message, allowed file types (checked by extension; the stored type comes from the extension, never the browser), whether customers may attach files, and **staff-only files** on public replies. People can delete their own files within 15 minutes; others need the new “Delete files” permission. Deletions go to the ticket history and the audit log.
+- 🖨️ **Print / PDF**: a clean printable page of the ticket (browser “Save as PDF”); staff can include internal notes.
+- 👤 **Customer history** in the ticket sidebar: the requester’s ticket count, open tickets, average rating, their other tickets and recent tickets from their organization.
+- ✨ **AI assistant (Claude)** — Settings → Integrations: add an Anthropic API key and pick the model (Claude Opus 5.5 by default, Sonnet 5.5 or Haiku 5.5). Agents with the “AI assistant” permission get an **AI** menu next to *Send reply*: suggest a reply, summarize the ticket (copy it or use it as an internal note), make the text more professional / friendlier / more empathetic / shorter, fix spelling, translate. Nothing is sent without the agent; every rewrite can be undone. Calls go straight to the Messages API with PHP curl (no Composer packages), with server-side fallbacks enabled on Opus/Sonnet; limited to 30 requests per person per 10 minutes. On Windows PHP, set `curl.cainfo` in php.ini if requests fail with an SSL certificate error.
+- 📊 **Scheduled report emails** can cover **one organization** and go to **any email address** (e.g. the customer’s contact), not only to users.
 - 🕓 **Ticket history**: changes to a ticket (status, priority, assignee, category, group, fields, followers, links, merges, macros, ratings) are in their own **History** tab, so the **Conversation** tab holds only messages.
 - 📜 **Audit log** (Settings → Audit log, admins):
   - Records every change to users, roles, groups, organizations, settings, integrations and scheduled reports, plus staff sign-ins (also failed and blocked ones), bulk edits, merges and CSV exports.

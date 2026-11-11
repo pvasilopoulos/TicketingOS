@@ -24,7 +24,9 @@ $ACTIONS = [
     'forgot' => 'act_forgot', 'reset' => 'act_reset',
     // tickets
     'ticket-create' => 'act_ticket_create', 'ticket-update' => 'act_ticket_update', 'ticket-bulk' => 'act_ticket_bulk',
-    'comment-add' => 'act_comment_add',
+    'comment-add' => 'act_comment_add', 'comment-edit' => 'act_comment_edit', 'comment-delete' => 'act_comment_delete', 'comment-pin' => 'act_comment_pin',
+    'attachment-delete' => 'act_attachment_delete', 'signature-save' => 'act_signature_save',
+    'attachment-settings-save' => 'act_attachment_settings_save', 'ai-settings-save' => 'act_ai_settings_save', 'ai-test' => 'act_ai_test',
     'watcher-add' => 'act_watcher_add', 'watcher-role' => 'act_watcher_role', 'watcher-remove' => 'act_watcher_remove',
     'ticket-tag-add' => 'act_ticket_tag_add', 'ticket-tag-remove' => 'act_ticket_tag_remove',
     // user
@@ -60,7 +62,7 @@ $ACTIONS = [
 ];
 
 // Never leak secrets/old input for these fields back into flash state.
-const SECRET_FIELDS = ['password', 'confirm', 'smtpPassword', 'msClientSecret', '_csrf', 'token'];
+const SECRET_FIELDS = ['password', 'confirm', 'smtpPassword', 'msClientSecret', '_csrf', 'token', 'apiKey'];
 
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $path = request_path();
@@ -135,6 +137,8 @@ try {
     if ($path === '/api/search' && $method === 'GET') api_search();
     if ($path === '/api/presence' && $method === 'POST') api_presence();
     if ($path === '/api/kb/suggest' && $method === 'GET') api_kb_suggest();
+    if ($path === '/api/ai' && $method === 'POST') api_ai();
+    if (preg_match('#^/tickets/([A-Za-z0-9]+)/files.zip$#', $path, $m) && $method === 'GET') ticket_files_zip($m[1]);
     if ($path === '/api/customers' && $method === 'GET') api_customers_search();
     if ($path === '/api/people' && $method === 'GET') api_people_search();
     if ($path === '/api/tickets/similar' && $method === 'GET') api_similar_tickets();
@@ -183,6 +187,9 @@ try {
             view('pages/ticket_new', [], 'app');
         case (bool) preg_match('#^/tickets/([A-Za-z0-9]+)$#', $path, $m):
             view('pages/ticket_show', ['id' => $m[1]], 'app');
+        case (bool) preg_match('#^/tickets/([A-Za-z0-9]+)/print$#', $path, $m):
+            require SRC . '/views/pages/ticket_print.php';
+            throw new HttpExit();
         case $path === '/team':
             // User management lives in Settings → Users & roles.
             redirect('/settings' . ($_SERVER['QUERY_STRING'] ?? '' ? '?' . $_SERVER['QUERY_STRING'] : '') . '#users');

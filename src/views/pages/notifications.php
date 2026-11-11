@@ -90,6 +90,19 @@ $myDigest = $prefs['digest'] ?? $nMatrix['_digest'][$nRole];
       </div>
     </form>
 
+    <?php if ($staffMe): $sigState = flash('signature'); ?>
+    <div class="rounded-xl border border-border bg-surface scroll-mt-24" id="signature">
+      <?= card_header(titled('signature', 'Reply signature')) ?>
+      <form method="post" action="/action/signature-save" class="space-y-3 p-5">
+        <?= form_meta('signature', '/notifications#signature') ?>
+        <p class="text-sm text-muted">Added under your public replies (not internal notes). You can untick it for a single reply.</p>
+        <?= rich_editor('signature', ['minHeight' => 80, 'placeholder' => 'e.g. Maria Papadopoulou · Support team · +30 210 0000000', 'html' => (string) ($user['signature'] ?? '')]) ?>
+        <?= banner($sigState) ?>
+        <button type="submit" class="<?= btn_cls() ?>">Save signature</button>
+      </form>
+    </div>
+    <?php endif; ?>
+
     <div class="rounded-xl border border-border bg-surface">
       <?= card_header('Your devices', $devices ? '<span class="text-xs text-muted">' . count($devices) . ' receiving push notifications</span>' : '') ?>
       <div class="divide-y divide-border">

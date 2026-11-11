@@ -62,14 +62,20 @@ function file_ok(array $f): bool
  * Persist uploaded files and create Attachment rows.
  * Invalid files (wrong type / too large / empty) are skipped.
  */
-function save_uploads(array $files, string $tenantId, string $uploaderId, string $ticketId, ?string $commentId = null): array
+function save_uploads(array $files, string $tenantId, string $uploaderId, string $ticketId, ?string $commentId = null, bool $internal = false): array
 {
+    // Workspace rules (Settings → General → Attachments): types by extension, size and count.
+    $rules = attachment_settings($tenantId);
+    $map = attachment_ext_map($tenantId);
+    $max = min($rules['maxMB'], server_upload_limit_mb()) * 1024 * 1024;
     $valid = array_values(array_filter($files, 'file_ok'));
-    $valid = array_slice($valid, 0, MAX_FILES);
-    $valid = array_filter($valid, fn ($f) => $f['size'] <= MAX_FILE_SIZE && in_array($f['type'], ALLOWED_MIME, true));
+    $valid = array_slice($valid, 0, $rules['maxFiles']);
+    $valid = array_filter($valid, fn ($f) => $f['size'] <= $max && isset($map[file_ext((string) $f['name'])]));
 
     $created = [];
     foreach ($valid as $f) {
+        // The stored type comes from the extension, never from the browser.
+        $f['type'] = $map[file_ext((string) $f['name'])];
         $id = uuid4();
         $path = attachment_disk_path($tenantId, $id);
         if (!is_dir(dirname($path))) mkdir(dirname($path), 0775, true);
@@ -85,6 +91,7 @@ function save_uploads(array $files, string $tenantId, string $uploaderId, string
             'ticketId' => $ticketId,
             'commentId' => $commentId,
             'uploaderId' => $uploaderId,
+            'internal' => $internal ? 1 : 0,
         ];
         db_insert('Attachment', $row);
         $created[] = $row;

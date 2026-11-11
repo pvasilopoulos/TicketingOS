@@ -231,14 +231,22 @@ function pager(int $page, int $pages, int $total, int $perPage, callable $url, a
 }
 
 /** File picker with a removable list (behaviour in app.js). */
-function file_input(string $name = 'files'): string
+/**
+ * File picker with drag & drop, per-file size/type checks and remove buttons.
+ * $rules = attachment_rules_js($tenantId) (max size, max files, allowed extensions).
+ */
+function file_input(string $name = 'files', ?array $rules = null): string
 {
-    return '<div data-file-input>'
+    $rules ??= ['maxBytes' => MAX_FILE_SIZE, 'maxFiles' => MAX_FILES, 'exts' => []];
+    $accept = $rules['exts'] ? ' accept="' . e(implode(',', array_map(fn ($x) => '.' . $x, $rules['exts']))) . '"' : '';
+    return '<div data-file-input data-rules="' . json_attr($rules) . '">'
+        . '<div class="flex flex-wrap items-center gap-2">'
         . '<button type="button" data-file-pick class="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface px-3 py-1.5 text-sm text-muted hover:bg-surface-2 hover:text-fg transition-colors cursor-pointer">'
         . icon('paperclip', 15) . ' Attach files</button>'
-        . '<input type="file" name="' . e($name) . '[]" multiple class="hidden">'
+        . '<span class="text-xs text-muted max-sm:hidden">or drop them here · up to ' . (int) $rules['maxFiles'] . ' files, ' . format_bytes((int) $rules['maxBytes']) . ' each</span></div>'
+        . '<input type="file" name="' . e($name) . '[]" multiple' . $accept . ' class="hidden">'
         . '<ul data-file-list hidden class="mt-2 space-y-1.5"></ul>'
-        . '<p data-file-too-big hidden class="mt-1 text-xs text-red-600 dark:text-red-400">Some files exceed the 10&nbsp;MB limit and will be skipped.</p>'
+        . '<p data-file-problem hidden class="mt-1 text-xs text-red-600 dark:text-red-400"></p>'
         . '</div>';
 }
 
@@ -265,6 +273,8 @@ function rich_editor(string $name, array $o = []): string
     $html = $o['html'] ?? '';
     $mentions = $o['mentions'] ?? [];
     $canned = $o['canned'] ?? [];
+    $vars = $o['vars'] ?? [];
+    $kb = !empty($o['kb']);
 
     $tb = '<div class="flex items-center gap-0.5 overflow-x-auto overscroll-x-contain border-b border-border px-2 py-1.5 [scrollbar-width:none] sm:flex-wrap sm:overflow-visible [&>*]:shrink-0" data-rte-toolbar>';
     $tb .= '<select data-block title="Text style" class="mr-1 h-8 rounded-md border border-border bg-surface px-1.5 text-xs text-fg focus:outline-none focus:ring-2 focus:ring-brand/40 cursor-pointer">'
@@ -299,13 +309,22 @@ function rich_editor(string $name, array $o = []): string
             true,
         );
     }
+    if ($kb) {
+        // Search the help center and insert a link to an article.
+        $tb .= dropdown(
+            '<button type="button" data-dropdown-trigger title="Link a help-center article" aria-label="Link a help-center article" class="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted hover:bg-surface-2 hover:text-fg transition-colors cursor-pointer">' . icon('book-open', 16) . '</button>',
+            '<div class="p-2" data-kb-picker><input type="search" data-kb-search placeholder="Search articles…" autocomplete="off" class="h-9 w-full rounded-lg border border-border bg-surface px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/40">'
+            . '<div data-kb-results class="mt-1 max-h-64 overflow-y-auto"><p class="px-2 py-3 text-xs text-muted">Type at least 3 letters.</p></div></div>',
+            300, 'right', true,
+        );
+    }
     $tb .= '<span data-table-tools hidden class="inline-flex items-center gap-0.5">' . tb_divider()
         . tb_button('addColumn', 'columns-3', 'Add column') . tb_button('addRow', 'rows-3', 'Add row') . tb_button('deleteTable', 'trash-2', 'Delete table') . '</span>';
     $tb .= tb_divider();
     $tb .= tb_button('undo', 'undo-2', 'Undo') . tb_button('redo', 'redo-2', 'Redo');
     $tb .= '</div>';
 
-    return '<div data-rte data-mentions="' . json_attr($mentions) . '" data-canned-list="' . json_attr(array_map(fn ($c) => $c['body'], $canned)) . '"'
+    return '<div data-rte data-mentions="' . json_attr($mentions) . '" data-canned-list="' . json_attr(array_map(fn ($c) => $c['body'], $canned)) . '"' . ($vars ? ' data-vars="' . json_attr($vars) . '"' : '')
         . ' class="rounded-lg border border-border bg-surface focus-within:ring-2 focus-within:ring-brand/40 focus-within:border-brand transition">'
         . $tb
         . '<div class="relative px-3 py-2">'
