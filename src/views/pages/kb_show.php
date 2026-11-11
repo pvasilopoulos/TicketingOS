@@ -1,7 +1,7 @@
 <?php
 /** @var string $id */
 [$user, $tenantId] = require_tenant_user();
-$staff = can($user, 'kb.manage'); // editors: drafts, stats, edit buttons
+$staff = can($user, 'kb.edit'); // editors: drafts, stats, edit buttons
 $a = q_one('SELECT k.*, u."name" AS "authorName" FROM "KbArticle" k LEFT JOIN "User" u ON u."id" = k."authorId" WHERE k."id" = ? AND k."tenantId" = ?', [$id, $tenantId]);
 if (!$a || (!$a['published'] && !$staff)) abort(404);
 page_title($a['title']);
@@ -39,11 +39,13 @@ $related = array_values(array_filter(kb_find($tenantId, $a['title'], false, 5), 
   <?php if ($staff): ?>
     <div class="mt-4 flex gap-2">
       <a href="/kb/<?= e($id) ?>/edit" class="<?= btn_cls('secondary') ?>"><?= icon('pen-line', 15) ?> Edit</a>
+      <?php if (can($user, 'kb.delete')): ?>
       <form method="post" action="/action/kb-delete" data-confirm-two-step>
         <?= form_meta() ?><input type="hidden" name="id" value="<?= e($id) ?>">
         <button type="button" data-confirm-start class="<?= btn_cls('ghost') ?> text-red-600"><?= icon('trash-2', 15) ?> Delete</button>
         <button type="submit" data-confirm-final hidden class="<?= btn_cls('danger') ?>">Confirm delete</button>
       </form>
+      <?php endif; ?>
     </div>
   <?php endif; ?>
 

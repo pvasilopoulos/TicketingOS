@@ -34,6 +34,7 @@ $fieldForm = function (?array $f) use ($cats): string {
     return $h;
 };
 ?>
+<?php if (can($me, 'settings.fields')): ?>
 <div class="rounded-xl border border-border bg-surface">
   <div class="flex flex-wrap items-start gap-4 p-5 sm:p-6">
     <span class="hidden h-11 w-11 shrink-0 place-items-center rounded-xl bg-brand/10 text-brand sm:grid"><?= icon('sliders-horizontal', 22) ?></span>
@@ -75,7 +76,9 @@ $fieldForm = function (?array $f) use ($cats): string {
     </ul>
   <?php endif; ?>
 </div>
+<?php endif; ?>
 
+<?php if (can($me, 'settings.csat')): ?>
 <!-- Satisfaction surveys -->
 <div class="rounded-xl border border-border bg-surface">
   <?= card_header(titled('smile', 'Satisfaction surveys (CSAT)')) ?>
@@ -97,3 +100,4 @@ $fieldForm = function (?array $f) use ($cats): string {
     </div>
   </form>
 </div>
+<?php endif; ?>

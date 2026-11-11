@@ -44,23 +44,27 @@ oversee every tenant and step into any board to manage it.
   - **Account actions**: deactivate or reactivate (blocks sign-in and signs the user out), send a reset link or set a password, and remove. The app shows the link to copy when email isn't set up.
   - **Invite**: by email (link valid 72h) or with a temporary password.
 - 🛡️ **Permissions**:
-  - 19 permissions in four groups:
-    - Tickets: see all, reply to customers, internal notes, edit, assign, tag, manage followers, macros
-    - Bulk & data: bulk edit, merge & link, export
-    - Knowledge & insights: articles, reports
-    - Administration: manage users, plus one permission per settings section (general, workflow, replies library, automations, notifications & email)
-  - **Roles & permissions** tab: a list of roles and an editor with toggle switches. It includes per-group “all” switches, “Sensitive” markers, dependencies (bulk edit needs edit) and an unsaved-changes bar. New roles can start from a template (Read-only, Junior agent, Team lead, Content editor) or duplicate an existing role. A compare table shows every role side by side.
-  - Existing roles keep their old abilities: `bin/migrate.php` adds the new reply / tag / follower permissions to them once.
+  - 42 detailed permissions in eight groups:
+    - Ticket access: see all tickets, see the unassigned queue, reply to customers, internal notes
+    - Ticket details: status, priority, category, custom fields, assign to others, move between groups, tags, followers, macros
+    - Bulk & data: bulk edit, merge, link, export
+    - Knowledge base: write & edit, publish (without it articles stay drafts), delete
+    - Reports: view, schedule report emails
+    - People: invite, edit, sign-in access (deactivate / reset passwords), remove, groups, organizations
+    - Workspace settings: one per area (name & menu, categories, statuses/priorities/SLA, ticket fields, surveys, tags, canned replies, macros, automations, notification policy, email server, API keys & webhooks, support form)
+    - Oversight: audit log
+  - **Roles & permissions** tab: a list of roles and an editor with toggle switches. It includes per-group “all” switches, “Sensitive” markers, dependencies (e.g. publishing needs editing) and an unsaved-changes bar. New roles can start from a template (Read-only, Junior agent, Team lead, Content editor) or duplicate an existing role. A compare table shows every role side by side.
+  - Existing roles keep exactly what they could do: sets saved by older versions are upgraded when read (e.g. the old “edit tickets” becomes status + priority + category + fields), with no database step.
   - Admins can edit the built-in **Agent** role and create **custom roles**, with a colour, a description and an overview matrix.
-  - Agents without “see all tickets” only see tickets they requested, are assigned or watch.
+  - Agents without “see all tickets” only see tickets they requested, are assigned, follow or that belong to their groups, plus the unassigned queue if allowed.
   - Locked fields and buttons are hidden or disabled in the UI and enforced on the server.
-  - A user with “manage users” can't touch admins or grant admin.
+  - A user with people permissions can't touch admins or grant admin.
   - The workspace always keeps one active admin.
 - 🔐 **Security** tab: admin backup warning, deactivated and never-signed-in counts, and a minimum password length slider with a letters+numbers rule. The rules apply to invites, resets and admin-set passwords.
 - 👑 **Super admin**: the platform owner, above administrators. Works in their own workspace, can open the platform console (`/platform`) and enter any workspace. Administrators can’t edit, deactivate or remove a super admin; only a super admin can grant the role (Users → Edit). The first one is created with `php bin/make-super-admin.php you@example.com` (or the SQL in that file).
   - **Branding** (Settings → Branding): the app name and logo for the whole platform (sign-in pages, browser tab, installed app, emails). Stored in `storage/branding/`.
   - **Sign in as**: from Settings → Users or the platform console, see the app exactly as any user (not other super admins). An amber bar shows who you are acting as, with a button back to your account; every use is in the audit log.
-  - **Administrator permissions**: in Roles → Administrator a super admin can limit what administrators of that workspace may do. Roles, security, users of admins and the audit log always stay with administrators.
+  - **Administrator permissions**: in Roles → Administrator a super admin can limit what administrators of that workspace may do. Roles, security and administrator accounts always stay with administrators.
 - 🕓 **Ticket history**: changes to a ticket (status, priority, assignee, category, group, fields, followers, links, merges, macros, ratings) are in their own **History** tab, so the **Conversation** tab holds only messages.
 - 📜 **Audit log** (Settings → Audit log, admins):
   - Records every change to users, roles, groups, organizations, settings, integrations and scheduled reports, plus staff sign-ins (also failed and blocked ones), bulk edits, merges and CSV exports.

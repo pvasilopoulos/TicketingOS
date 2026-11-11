@@ -297,10 +297,12 @@ function update_ticket(string $ticketId, array $in, array $user, string $tenantI
 
     // Staff field-level permissions (customers keep their requester/collaborator rights).
     if (is_staff($user['role'])) {
-        if (!can($user, 'tickets.edit')) { $status = $priority = null; $categorySet = false; $categoryId = null; }
+        if (!can($user, 'tickets.status')) $status = null;
+        if (!can($user, 'tickets.priority')) $priority = null;
+        if ($categorySet && !can($user, 'tickets.category')) { $categorySet = false; $categoryId = null; }
         // Taking a ticket yourself is always allowed; assigning to someone else needs the permission.
         if ($assigneeSet && $assigneeId !== $user['id'] && !can($user, 'tickets.assign')) { $assigneeSet = false; $assigneeId = null; }
-        if ($groupSet && !can($user, 'tickets.assign')) { $groupSet = false; $groupId = null; }
+        if ($groupSet && !can($user, 'tickets.group')) { $groupSet = false; $groupId = null; }
         if (!$status && !$priority && !$assigneeSet && !$categorySet && !$groupSet) return false;
     }
 

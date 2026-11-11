@@ -55,7 +55,7 @@ function public_kb_suggest(array $tenant): never
 function export_audit_csv(): never
 {
     [$user, $tenantId] = require_tenant_user();
-    if (!is_tenant_admin($user['role'])) abort(403, 'Forbidden');
+    if (!can($user, 'audit.view')) abort(403, 'Forbidden');
     [$where, $params] = audit_filter_sql($tenantId, $_GET);
     header('Content-Type: text/csv; charset=utf-8');
     header('Content-Disposition: attachment; filename="audit-log-' . date('Y-m-d') . '.csv"');

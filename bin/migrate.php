@@ -123,10 +123,10 @@ foreach (q_all('SELECT "id" FROM "Tenant"') as $t) {
     if ((int) tenant_setting($t['id'], 'permissionsVersion', 1) >= 2) continue;
     foreach (q_all('SELECT "id","permissions" FROM "Role" WHERE "tenantId" = ?', [$t['id']]) as $r) {
         $p = json_decode((string) $r['permissions'], true) ?: [];
-        db_update('Role', ['permissions' => json_encode(clean_permissions(array_merge($p, $added)))], '"id" = ?', [$r['id']]);
+        db_update('Role', ['permissions' => json_encode(perms_for_storage(array_merge($p, $added)))], '"id" = ?', [$r['id']]);
     }
     $ap = tenant_setting($t['id'], 'agentPermissions');
-    if (is_array($ap)) tenant_setting_set($t['id'], 'agentPermissions', clean_permissions(array_merge($ap, $added)));
+    if (is_array($ap)) tenant_setting_set($t['id'], 'agentPermissions', perms_for_storage(array_merge($ap, $added)));
     tenant_setting_set($t['id'], 'permissionsVersion', 2);
 }
 

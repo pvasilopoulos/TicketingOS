@@ -114,6 +114,8 @@ function ticket_visible(array $ticket, array $user): bool
     if (is_staff($user['role']) && can($user, 'tickets.view_all')) return true;
     if ($ticket['requesterId'] === $user['id'] || ($ticket['assigneeId'] ?? null) === $user['id']) return true;
     if (q_val('SELECT 1 FROM "TicketWatcher" WHERE "ticketId" = ? AND "userId" = ?', [$ticket['id'], $user['id']])) return true;
+    // Agents allowed to see the unassigned queue.
+    if (is_staff($user['role']) && empty($ticket['assigneeId']) && can($user, 'tickets.view_unassigned')) return true;
     // Agents see their groups' tickets.
     if (is_staff($user['role']) && !empty($ticket['groupId']) && in_array($ticket['groupId'], user_group_ids($user['id']), true)) return true;
     // Organization managers see their organization's tickets.

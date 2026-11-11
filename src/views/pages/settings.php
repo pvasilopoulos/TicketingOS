@@ -1,9 +1,11 @@
 <?php
-[$me, $tenantId] = require_perm('settings.*', 'users.manage');
-$canUsers = can($me, 'users.manage');
+[$me, $tenantId] = require_perm('settings.*', 'users.*', 'groups.manage', 'orgs.manage', 'audit.view');
+$canUsers = can($me, 'users.*');
+$canGroups = can($me, 'groups.manage');
+$canOrgs = can($me, 'orgs.manage');
 $isAdminMe = is_tenant_admin($me['role']);
 /** May the current user open a settings section? */
-$sec = fn (string $id) => isset(SETTINGS_SECTIONS[$id]) && can($me, SETTINGS_SECTIONS[$id]);
+$sec = fn (string $id) => can_settings_tab($me, $id);
 page_title('Settings');
 
 $tenant = q_one('SELECT * FROM "Tenant" WHERE "id" = ?', [$tenantId]);
@@ -51,11 +53,11 @@ $s = fn (string $form) => flash($form);
       ], fn ($t) => $sec($t[0])),
       'People & access' => array_filter([
           $canUsers ? ['users', 'Users', 'users'] : null,
-          $canUsers ? ['groups', 'Groups', 'users-round'] : null,
-          $canUsers ? ['orgs', 'Organizations', 'building-2'] : null,
+          $canGroups ? ['groups', 'Groups', 'users-round'] : null,
+          $canOrgs ? ['orgs', 'Organizations', 'building-2'] : null,
           $isAdminMe ? ['roles', 'Roles & permissions', 'shield-check'] : null,
           $isAdminMe ? ['security', 'Security', 'key-round'] : null,
-          $isAdminMe ? ['audit', 'Audit log', 'scroll-text'] : null,
+          can($me, 'audit.view') ? ['audit', 'Audit log', 'scroll-text'] : null,
       ]),
       'Platform' => $me['role'] === 'SUPER_ADMIN' ? [['branding', 'Branding', 'sparkles']] : [],
   ];
@@ -75,6 +77,7 @@ $s = fn (string $form) => flash($form);
   <section id="general" data-settings-section="general" class="scroll-mt-24 space-y-6">
   <!-- Workspace -->
   <div class="space-y-6">
+    <?php if (can($me, 'settings.general')): ?>
     <div class="rounded-xl border border-border bg-surface p-6">
       <h3 class="mb-4 text-sm font-semibold">Workspace</h3>
       <form method="post" action="/action/workspace-rename" class="space-y-4">
@@ -93,6 +96,8 @@ $s = fn (string $form) => flash($form);
       </form>
     </div>
 
+    <?php endif; ?>
+    <?php if (can($me, 'settings.categories')): ?>
     <!-- Categories -->
     <div class="rounded-xl border border-border bg-surface">
       <?= card_header('Ticket categories') ?>
@@ -120,7 +125,9 @@ $s = fn (string $form) => flash($form);
       </form>
       <?php if ($b = banner($s('category'))): ?><div class="px-5 pb-5"><?= $b ?></div><?php endif; ?>
     </div>
+    <?php endif; ?>
   </div>
+    <?php if (can($me, 'settings.general')): ?>
     <!-- Mobile bottom menu -->
     <?php
     $navState = $s('nav');
@@ -166,6 +173,7 @@ $s = fn (string $form) => flash($form);
         </div>
       </form>
     </div>
+    <?php endif; ?>
   </section>
   <?php endif; ?>
 
@@ -278,6 +286,7 @@ $s = fn (string $form) => flash($form);
 
   <?php if ($sec('replies')): ?>
   <section id="replies" data-settings-section="replies" class="scroll-mt-24 space-y-6">
+  <?php if (can($me, 'settings.tags')): ?>
   <!-- Tags -->
   <div class="rounded-xl border border-border bg-surface">
     <?= card_header(titled('hash', 'Tags')) ?>
@@ -304,7 +313,9 @@ $s = fn (string $form) => flash($form);
     <?php $ts = $s('tag'); ?>
     <?= inline_error($ts, 'px-5 pb-5') ?><?= inline_success($ts, 'px-5 pb-5') ?>
   </div>
+  <?php endif; ?>
 
+  <?php if (can($me, 'settings.canned')): ?>
   <!-- Canned responses -->
   <div class="rounded-xl border border-border bg-surface">
     <?= card_header(titled('message-square-plus', 'Canned responses')) ?>
@@ -350,6 +361,8 @@ $s = fn (string $form) => flash($form);
       <button type="submit" class="<?= btn_cls() ?>">Add template</button>
     </form>
   </div>
+  <?php endif; ?>
+  <?php if (can($me, 'settings.macros')): ?>
   <!-- Macros -->
   <?php
   $macros = q_all('SELECT * FROM "Macro" WHERE "tenantId" = ? ORDER BY "name" ASC', [$tenantId]);
@@ -417,6 +430,7 @@ $s = fn (string $form) => flash($form);
       <button type="submit" class="<?= btn_cls('secondary') ?>"><?= icon('plus', 16) ?> Add macro</button>
     </form>
   </div>
+  <?php endif; ?>
   </section>
   <?php endif; ?>
 
@@ -500,6 +514,7 @@ $s = fn (string $form) => flash($form);
 
   <?php if ($sec('notifications')): ?>
   <section id="notifications" data-settings-section="notifications" class="scroll-mt-24 space-y-6">
+  <?php if (can($me, 'settings.notifications')): ?>
   <!-- Notification policy -->
   <?php $ps = $s('policy'); ?>
   <div class="rounded-xl border border-border bg-surface">
@@ -545,6 +560,8 @@ $s = fn (string $form) => flash($form);
     </form>
   </div>
 
+  <?php endif; ?>
+  <?php if (can($me, 'settings.email')): ?>
   <!-- Email -->
   <?php
   $es = $s('email');
@@ -643,6 +660,7 @@ $s = fn (string $form) => flash($form);
     </div>
     <?php if ($et): ?><div class="px-6 pb-5"><?= banner($et, true) ?></div><?php endif; ?>
   </div>
+  <?php endif; ?>
   </section>
   <?php endif; ?>
 
@@ -661,9 +679,13 @@ $s = fn (string $form) => flash($form);
   <section id="users" data-settings-section="users" class="scroll-mt-24 space-y-6">
     <?php require ROOT . '/src/views/partials/users_admin.php'; ?>
   </section>
+  <?php endif; ?>
+  <?php if ($canGroups): ?>
   <section id="groups" data-settings-section="groups" class="scroll-mt-24 space-y-6">
     <?php require ROOT . '/src/views/partials/groups_admin.php'; ?>
   </section>
+  <?php endif; ?>
+  <?php if ($canOrgs): ?>
   <section id="orgs" data-settings-section="orgs" class="scroll-mt-24 space-y-6">
     <?php require ROOT . '/src/views/partials/orgs_admin.php'; ?>
   </section>
@@ -676,6 +698,8 @@ $s = fn (string $form) => flash($form);
   <section id="security" data-settings-section="security" class="scroll-mt-24 space-y-6">
     <?php require ROOT . '/src/views/partials/security_admin.php'; ?>
   </section>
+  <?php endif; ?>
+  <?php if (can($me, 'audit.view')): ?>
   <section id="audit" data-settings-section="audit" class="scroll-mt-24 space-y-6">
     <?php require ROOT . '/src/views/partials/audit_admin.php'; ?>
   </section>

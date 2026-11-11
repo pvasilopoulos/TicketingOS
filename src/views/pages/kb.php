@@ -1,7 +1,7 @@
 <?php
 [$user, $tenantId] = require_tenant_user();
 page_title('Knowledge base');
-$staff = can($user, 'kb.manage'); // editors: drafts, stats, edit buttons
+$staff = can($user, 'kb.edit'); // editors: drafts, stats, edit buttons
 $q = mb_substr(trim((string) ($_GET['q'] ?? '')), 0, 200);
 $articles = kb_find($tenantId, $q, $staff, $q !== '' ? 50 : 500);
 $sections = [];

@@ -5,6 +5,10 @@
  */
 $isAdminMe = is_tenant_admin($me['role']);
 $isSuperMe = $me['role'] === 'SUPER_ADMIN';
+$canInvite = can($me, 'users.invite');
+$canEditUsers = can($me, 'users.edit');
+$canAccess = can($me, 'users.access');
+$canRemove = can($me, 'users.remove');
 $roles = q_all('SELECT r.*, (SELECT COUNT(*) FROM "User" u WHERE u."customRoleId" = r."id" AND u."role" = \'AGENT\') AS "members" FROM "Role" r WHERE r."tenantId" = ? ORDER BY r."name"', [$tenantId]);
 $rolesById = key_by($roles, 'id');
 $roleCounts = array_column(q_all('SELECT "role", COUNT(*) AS n FROM "User" WHERE "tenantId" = ? GROUP BY "role"', [$tenantId]), 'n', 'role');
@@ -101,7 +105,7 @@ $tile = function (string $label, int $n, string $key, string $ic, string $tone) 
       <h2 class="font-semibold">Users <span class="font-normal text-muted">· <?= number_format($allCount) ?></span></h2>
       <p class="text-xs text-muted">Invite people, change their role and control who can sign in.<?php if ($isAdminMe): ?> <a href="#roles" data-settings-jump="roles" class="font-medium text-brand hover:underline">Edit roles</a><?php endif; ?></p>
     </div>
-    <button type="button" data-toggle-target="#invite-card" class="<?= btn_cls('primary', 'sm') ?>"><?= icon('user-plus', 14) ?> Invite user</button>
+    <?php if ($canInvite): ?><button type="button" data-toggle-target="#invite-card" class="<?= btn_cls('primary', 'sm') ?>"><?= icon('user-plus', 14) ?> Invite user</button><?php endif; ?>
   </div>
 
   <!-- Invite -->
@@ -216,25 +220,33 @@ $tile = function (string $label, int $n, string $key, string $ic, string $tone) 
             <?php if ($u['role'] !== 'CUSTOMER'): ?><p><?= (int) $u['openAssigned'] ?> open assigned</p><?php endif; ?>
           </div>
           <div class="flex items-center justify-end gap-1 max-xl:order-2">
-            <?php if (!$locked): ?>
+            <?php if (!$locked && ($canEditUsers || $canAccess || $canRemove || $isSuperMe)): ?>
+              <?php if ($canEditUsers): ?>
               <button type="button" data-toggle-target="#edit-<?= e($u['id']) ?>" aria-label="Edit <?= e($u['name']) ?>" class="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border px-2.5 text-xs font-medium hover:bg-surface-2 cursor-pointer"><?= icon('pen-line', 13) ?><span class="max-sm:hidden">Edit</span></button>
+              <?php endif; ?>
               <?php
               $menu = '<div class="py-1">'
-                  . '<p class="truncate border-b border-border px-3 pb-2 pt-1 text-xs text-muted">' . e($u['email']) . '</p>'
-                  . '<form method="post" action="/action/member-password" data-ajax>' . form_meta('users') . '<input type="hidden" name="userId" value="' . e($u['id']) . '"><input type="hidden" name="mode" value="link">'
+                  . '<p class="truncate border-b border-border px-3 pb-2 pt-1 text-xs text-muted">' . e($u['email']) . '</p>';
+              if ($canAccess) {
+                  $menu .= '<form method="post" action="/action/member-password" data-ajax>' . form_meta('users') . '<input type="hidden" name="userId" value="' . e($u['id']) . '"><input type="hidden" name="mode" value="link">'
                   . '<button type="submit" data-dropdown-close class="' . $menuItem . '">' . icon('mail', 15, 'text-muted') . 'Send password reset link</button></form>'
                   . '<form method="post" action="/action/member-password" data-ajax data-ask="New password for ' . e($u['name']) . '" data-ask-field="password" data-ask-type="text" data-ask-placeholder="At least ' . password_min_length($tenantId) . ' characters" data-ask-ok="Set password">' . form_meta('users')
                   . '<input type="hidden" name="userId" value="' . e($u['id']) . '"><input type="hidden" name="mode" value="set"><input type="hidden" name="password" value="">'
                   . '<button type="submit" data-dropdown-close class="' . $menuItem . '">' . icon('key-round', 15, 'text-muted') . 'Set a new password</button></form>';
+              }
               if ($isSuperMe && !$isMe && $active && $u['role'] !== 'SUPER_ADMIN') {
                   $menu .= '<form method="post" action="/action/impersonate">' . form_meta('users') . '<input type="hidden" name="userId" value="' . e($u['id']) . '">'
                       . '<button type="submit" data-dropdown-close class="' . $menuItem . ' text-brand">' . icon('log-in', 15) . 'Sign in as ' . e(strtok($u['name'], ' ')) . '</button></form>';
               }
-              if (!$isMe) {
-                  $menu .= '<div class="my-1 border-t border-border"></div>'
-                      . '<form method="post" action="/action/member-status" data-ajax' . ($active ? ' data-confirm="Deactivate ' . e($u['name']) . '? They are signed out at once and can’t sign in until you reactivate them. Their tickets and history stay."' : '') . '>' . form_meta('users') . '<input type="hidden" name="userId" value="' . e($u['id']) . '"><input type="hidden" name="active" value="' . ($active ? '0' : '1') . '">'
-                      . '<button type="submit" data-dropdown-close class="' . $menuItem . ' ' . ($active ? 'text-amber-700 dark:text-amber-400' : 'text-emerald-700 dark:text-emerald-400') . '">' . icon($active ? 'user-x' : 'user-round-check', 15) . ($active ? 'Deactivate…' : 'Reactivate') . '</button></form>'
-                      . '<form method="post" action="/action/member-remove" data-ajax data-confirm="Remove ' . e($u['name']) . '? This permanently deletes the tickets they opened and every reply they wrote; tickets assigned to them become unassigned. Deactivating keeps all history.">' . form_meta('users') . '<input type="hidden" name="userId" value="' . e($u['id']) . '">'
+              if (!$isMe && ($canAccess || $canRemove)) {
+                  $menu .= '<div class="my-1 border-t border-border"></div>';
+              }
+              if (!$isMe && $canAccess) {
+                  $menu .= '<form method="post" action="/action/member-status" data-ajax' . ($active ? ' data-confirm="Deactivate ' . e($u['name']) . '? They are signed out at once and can’t sign in until you reactivate them. Their tickets and history stay."' : '') . '>' . form_meta('users') . '<input type="hidden" name="userId" value="' . e($u['id']) . '"><input type="hidden" name="active" value="' . ($active ? '0' : '1') . '">'
+                      . '<button type="submit" data-dropdown-close class="' . $menuItem . ' ' . ($active ? 'text-amber-700 dark:text-amber-400' : 'text-emerald-700 dark:text-emerald-400') . '">' . icon($active ? 'user-x' : 'user-round-check', 15) . ($active ? 'Deactivate…' : 'Reactivate') . '</button></form>';
+              }
+              if (!$isMe && $canRemove) {
+                  $menu .= '<form method="post" action="/action/member-remove" data-ajax data-confirm="Remove ' . e($u['name']) . '? This permanently deletes the tickets they opened and every reply they wrote; tickets assigned to them become unassigned. Deactivating keeps all history.">' . form_meta('users') . '<input type="hidden" name="userId" value="' . e($u['id']) . '">'
                       . '<button type="submit" data-dropdown-close class="' . $menuItem . ' text-red-600 dark:text-red-400">' . icon('trash-2', 15) . 'Remove permanently…</button></form>';
               }
               $menu .= '</div>';
@@ -246,7 +258,7 @@ $tile = function (string $label, int $n, string $key, string $ic, string $tone) 
           </div>
         </div>
 
-        <?php if (!$locked): ?>
+        <?php if (!$locked && $canEditUsers): ?>
           <form method="post" action="/action/member-update" id="edit-<?= e($u['id']) ?>" hidden class="mt-3 rounded-xl border border-border bg-surface p-4 shadow-sm xl:ml-[3.25rem]" data-ajax>
             <?= form_meta('users') ?><input type="hidden" name="userId" value="<?= e($u['id']) ?>">
             <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">

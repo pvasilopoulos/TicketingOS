@@ -15,7 +15,7 @@ const MACRO_PLACEHOLDERS = [
 
 function act_macro_create(array $in): ?array
 {
-    [, $tenantId] = require_tenant_admin('settings.replies');
+    [, $tenantId] = require_tenant_admin('settings.macros');
     $name = mb_substr(str_in($in, 'name'), 0, 60);
     if (mb_strlen($name) < 2) return ['error' => 'Macro name is too short'];
     $body = sanitize_rich_html((string) ($in['body'] ?? ''));
@@ -49,7 +49,7 @@ function act_macro_create(array $in): ?array
 
 function act_macro_delete(array $in): ?array
 {
-    [, $tenantId] = require_tenant_admin('settings.replies');
+    [, $tenantId] = require_tenant_admin('settings.macros');
     q('DELETE FROM "Macro" WHERE "id" = ? AND "tenantId" = ?', [str_in($in, 'id'), $tenantId]);
     return ['ok' => true];
 }
@@ -177,7 +177,7 @@ function act_ticket_link(array $in): ?array
     $a = find_ticket(str_in($in, 'ticketId'), $tenantId);
     if (!$a || !can_manage_ticket($a, $user)) return ['error' => 'Not allowed'];
     // Linking reveals other tickets, so it is a staff permission.
-    if (!is_staff($user['role']) || !can($user, 'tickets.merge')) return ['error' => 'You don’t have permission to link tickets'];
+    if (!is_staff($user['role']) || !can($user, 'tickets.link')) return ['error' => 'You don’t have permission to link tickets'];
     $b = find_ticket_ref(str_in($in, 'target'), $tenantId);
     if (!$b) return ['error' => 'Ticket not found — use its number, e.g. #42'];
     if ($b['id'] === $a['id']) return ['error' => 'A ticket cannot be linked to itself'];
@@ -196,7 +196,7 @@ function act_ticket_unlink(array $in): ?array
     $a = find_ticket(str_in($in, 'ticketId'), $tenantId);
     if (!$a || !can_manage_ticket($a, $user)) return ['error' => 'Not allowed'];
     // Linking reveals other tickets, so it is a staff permission.
-    if (!is_staff($user['role']) || !can($user, 'tickets.merge')) return ['error' => 'You don’t have permission to link tickets'];
+    if (!is_staff($user['role']) || !can($user, 'tickets.link')) return ['error' => 'You don’t have permission to link tickets'];
     $other = str_in($in, 'otherId');
     q('DELETE FROM "TicketLink" WHERE "tenantId" = ? AND (("ticketId" = ? AND "linkedId" = ?) OR ("ticketId" = ? AND "linkedId" = ?))', [$tenantId, $a['id'], $other, $other, $a['id']]);
     return ['ok' => true];
@@ -222,7 +222,7 @@ function kb_search_text(string $title, string $section, string $body): string
 function act_kb_save(array $in): ?array
 {
     [$user, $tenantId] = require_tenant_user();
-    if (!can($user, 'kb.manage')) return ['error' => 'Not allowed'];
+    if (!can($user, 'kb.edit')) return ['error' => 'You don’t have permission to edit articles'];
     $id = str_in($in, 'id');
     $title = mb_substr(str_in($in, 'title'), 0, 160);
     $section = mb_substr(str_in($in, 'section'), 0, 60);
@@ -234,8 +234,11 @@ function act_kb_save(array $in): ?array
         'published' => ($in['published'] ?? '') === 'on' ? 1 : 0,
         'searchText' => kb_search_text($title, $section, $body), 'updatedAt' => now_iso(),
     ];
+    // Publishing (or unpublishing) needs its own permission; otherwise the article keeps its state (new ones stay drafts).
+    $current = $id ? q_one('SELECT "published" FROM "KbArticle" WHERE "id" = ? AND "tenantId" = ?', [$id, $tenantId]) : null;
+    if (!can($user, 'kb.publish')) $data['published'] = (int) ($current['published'] ?? 0);
     if ($id) {
-        if (!q_val('SELECT 1 FROM "KbArticle" WHERE "id" = ? AND "tenantId" = ?', [$id, $tenantId])) return ['error' => 'Article not found'];
+        if (!$current) return ['error' => 'Article not found'];
         db_update('KbArticle', $data, '"id" = ? AND "tenantId" = ?', [$id, $tenantId]);
     } else {
         $id = cuid();
@@ -247,7 +250,7 @@ function act_kb_save(array $in): ?array
 function act_kb_delete(array $in): ?array
 {
     [$user, $tenantId] = require_tenant_user();
-    if (!can($user, 'kb.manage')) return ['error' => 'Not allowed'];
+    if (!can($user, 'kb.delete')) return ['error' => 'You don’t have permission to delete articles'];
     q('DELETE FROM "KbArticle" WHERE "id" = ? AND "tenantId" = ?', [str_in($in, 'id'), $tenantId]);
     redirect('/kb');
 }

@@ -23,6 +23,8 @@ function ticket_scope_sql(array $user, string $tenantId, array &$params): string
     if (is_staff($user['role'])) {
         $or[] = 't."groupId" IN (SELECT gm."groupId" FROM "AgentGroupMember" gm WHERE gm."userId" = ?)';
         $params[] = $user['id'];
+        // …and the shared queue of unassigned tickets, when allowed.
+        if (can($user, 'tickets.view_unassigned')) $or[] = 't."assigneeId" IS NULL';
     }
     // …and, for organization managers, every ticket of their organization.
     if (!is_staff($user['role']) && !empty($user['organizationId']) && (int) ($user['orgManager'] ?? 0)) {

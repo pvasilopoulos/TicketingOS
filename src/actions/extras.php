@@ -19,7 +19,7 @@ const NOT_ALLOWED = ['error' => 'You don’t have permission to do that'];
 
 function act_group_save(array $in): ?array
 {
-    if (!($ctx = ctx_with('users.manage'))) return NOT_ALLOWED;
+    if (!($ctx = ctx_with('groups.manage'))) return NOT_ALLOWED;
     [, $tenantId] = $ctx;
     $id = str_in($in, 'id');
     $name = mb_substr(str_in($in, 'name'), 0, 60);
@@ -50,7 +50,7 @@ function act_group_save(array $in): ?array
 
 function act_group_delete(array $in): ?array
 {
-    if (!($ctx = ctx_with('users.manage'))) return NOT_ALLOWED;
+    if (!($ctx = ctx_with('groups.manage'))) return NOT_ALLOWED;
     [, $tenantId] = $ctx;
     $g = q_one('SELECT * FROM "AgentGroup" WHERE "id" = ? AND "tenantId" = ?', [str_in($in, 'id'), $tenantId]);
     if (!$g) return ['error' => 'Group not found'];
@@ -63,7 +63,7 @@ function act_group_delete(array $in): ?array
 /** Category → group routing for new tickets. */
 function act_group_routing(array $in): ?array
 {
-    if (!($ctx = ctx_with('users.manage'))) return NOT_ALLOWED;
+    if (!($ctx = ctx_with('groups.manage'))) return NOT_ALLOWED;
     [, $tenantId] = $ctx;
     $groups = array_column(tenant_groups($tenantId), 'id', 'id');
     foreach ((array) ($in['route'] ?? []) as $catId => $gid) {
@@ -77,7 +77,7 @@ function act_group_routing(array $in): ?array
 
 function act_org_save(array $in): ?array
 {
-    if (!($ctx = ctx_with('users.manage'))) return NOT_ALLOWED;
+    if (!($ctx = ctx_with('orgs.manage'))) return NOT_ALLOWED;
     [, $tenantId] = $ctx;
     $id = str_in($in, 'id');
     $name = mb_substr(str_in($in, 'name'), 0, 80);
@@ -106,7 +106,7 @@ function act_org_save(array $in): ?array
 
 function act_org_delete(array $in): ?array
 {
-    if (!($ctx = ctx_with('users.manage'))) return NOT_ALLOWED;
+    if (!($ctx = ctx_with('orgs.manage'))) return NOT_ALLOWED;
     [, $tenantId] = $ctx;
     $o = q_one('SELECT * FROM "Organization" WHERE "id" = ? AND "tenantId" = ?', [str_in($in, 'id'), $tenantId]);
     if (!$o) return ['error' => 'Organization not found'];
@@ -118,7 +118,7 @@ function act_org_delete(array $in): ?array
 /** Add/remove a customer from an organization, or toggle manager. */
 function act_org_member(array $in): ?array
 {
-    if (!($ctx = ctx_with('users.manage'))) return NOT_ALLOWED;
+    if (!($ctx = ctx_with('orgs.manage'))) return NOT_ALLOWED;
     [, $tenantId] = $ctx;
     $u = q_one('SELECT * FROM "User" WHERE "id" = ? AND "tenantId" = ? AND "role" = \'CUSTOMER\'', [str_in($in, 'userId'), $tenantId]);
     if (!$u) return ['error' => 'Customer not found'];
@@ -133,7 +133,7 @@ function act_org_member(array $in): ?array
 
 function act_field_save(array $in): ?array
 {
-    if (!($ctx = ctx_with('settings.workflow'))) return NOT_ALLOWED;
+    if (!($ctx = ctx_with('settings.fields'))) return NOT_ALLOWED;
     [, $tenantId] = $ctx;
     $id = str_in($in, 'id');
     $label = mb_substr(str_in($in, 'label'), 0, 60);
@@ -163,7 +163,7 @@ function act_field_save(array $in): ?array
 
 function act_field_delete(array $in): ?array
 {
-    if (!($ctx = ctx_with('settings.workflow'))) return NOT_ALLOWED;
+    if (!($ctx = ctx_with('settings.fields'))) return NOT_ALLOWED;
     [, $tenantId] = $ctx;
     $f = q_one('SELECT * FROM "CustomField" WHERE "id" = ? AND "tenantId" = ?', [str_in($in, 'id'), $tenantId]);
     if (!$f) return ['error' => 'Field not found'];
@@ -173,7 +173,7 @@ function act_field_delete(array $in): ?array
 
 function act_field_move(array $in): ?array
 {
-    if (!($ctx = ctx_with('settings.workflow'))) return NOT_ALLOWED;
+    if (!($ctx = ctx_with('settings.fields'))) return NOT_ALLOWED;
     [, $tenantId] = $ctx;
     $ids = pluck(tenant_fields($tenantId), 'id');
     $i = array_search(str_in($in, 'id'), $ids, true);
@@ -190,7 +190,7 @@ function act_ticket_fields(array $in): ?array
 {
     [$user, $tenantId] = require_tenant_user();
     $ticket = find_ticket(str_in($in, 'ticketId'), $tenantId);
-    if (!$ticket || !is_staff($user['role']) || !ticket_visible($ticket, $user) || !can($user, 'tickets.edit')) return NOT_ALLOWED;
+    if (!$ticket || !is_staff($user['role']) || !ticket_visible($ticket, $user) || !can($user, 'tickets.fields')) return NOT_ALLOWED;
     $values = validate_fields(fields_for($tenantId, $ticket['categoryId'], false), (array) ($in['cf'] ?? []), false);
     if (is_string($values)) return ['error' => $values];
     $changed = save_field_values($ticket['id'], $tenantId, $values);
@@ -209,7 +209,7 @@ function act_ticket_fields(array $in): ?array
 
 function act_csat_settings(array $in): ?array
 {
-    if (!($ctx = ctx_with('settings.workflow'))) return NOT_ALLOWED;
+    if (!($ctx = ctx_with('settings.csat'))) return NOT_ALLOWED;
     [, $tenantId] = $ctx;
     $q = mb_substr(str_in($in, 'question'), 0, 200);
     tenant_setting_set($tenantId, 'csat', ['enabled' => ($in['enabled'] ?? '') === 'on', 'question' => $q ?: 'How would you rate the support you received?']);
@@ -241,7 +241,7 @@ function act_csat_answer(array $in): ?array
 
 function act_report_schedule_save(array $in): ?array
 {
-    if (!($ctx = ctx_with('reports.view'))) return NOT_ALLOWED;
+    if (!($ctx = ctx_with('reports.schedule'))) return NOT_ALLOWED;
     [$user, $tenantId] = $ctx;
     $id = str_in($in, 'id');
     $name = mb_substr(str_in($in, 'name'), 0, 80) ?: 'Helpdesk report';
@@ -267,7 +267,7 @@ function act_report_schedule_save(array $in): ?array
 
 function act_report_schedule_delete(array $in): ?array
 {
-    if (!($ctx = ctx_with('reports.view'))) return NOT_ALLOWED;
+    if (!($ctx = ctx_with('reports.schedule'))) return NOT_ALLOWED;
     [, $tenantId] = $ctx;
     $n = q('DELETE FROM "ScheduledReport" WHERE "id" = ? AND "tenantId" = ?', [str_in($in, 'id'), $tenantId])->rowCount();
     return $n ? ['success' => 'Schedule deleted'] : ['error' => 'Schedule not found'];
@@ -275,7 +275,7 @@ function act_report_schedule_delete(array $in): ?array
 
 function act_report_schedule_send(array $in): ?array
 {
-    if (!($ctx = ctx_with('reports.view'))) return NOT_ALLOWED;
+    if (!($ctx = ctx_with('reports.schedule'))) return NOT_ALLOWED;
     [, $tenantId] = $ctx;
     $s = q_one('SELECT * FROM "ScheduledReport" WHERE "id" = ? AND "tenantId" = ?', [str_in($in, 'id'), $tenantId]);
     if (!$s) return ['error' => 'Schedule not found'];
@@ -289,7 +289,7 @@ function act_report_schedule_send(array $in): ?array
 
 function act_apikey_create(array $in): ?array
 {
-    if (!($ctx = ctx_with('settings.integrations'))) return NOT_ALLOWED;
+    if (!($ctx = ctx_with('settings.api'))) return NOT_ALLOWED;
     [$user, $tenantId] = $ctx;
     $name = mb_substr(str_in($in, 'name'), 0, 60);
     if (mb_strlen($name) < 2) return ['error' => 'Give the key a name (e.g. “CRM sync”)'];
@@ -305,7 +305,7 @@ function act_apikey_create(array $in): ?array
 
 function act_apikey_revoke(array $in): ?array
 {
-    if (!($ctx = ctx_with('settings.integrations'))) return NOT_ALLOWED;
+    if (!($ctx = ctx_with('settings.api'))) return NOT_ALLOWED;
     [, $tenantId] = $ctx;
     $n = q('UPDATE "ApiKey" SET "revokedAt" = ? WHERE "id" = ? AND "tenantId" = ? AND "revokedAt" IS NULL', [now_iso(), str_in($in, 'id'), $tenantId])->rowCount();
     return $n ? ['success' => 'Key revoked. Apps using it stop working immediately.'] : ['error' => 'Key not found'];
@@ -313,7 +313,7 @@ function act_apikey_revoke(array $in): ?array
 
 function act_webhook_save(array $in): ?array
 {
-    if (!($ctx = ctx_with('settings.integrations'))) return NOT_ALLOWED;
+    if (!($ctx = ctx_with('settings.api'))) return NOT_ALLOWED;
     [, $tenantId] = $ctx;
     $id = str_in($in, 'id');
     $name = mb_substr(str_in($in, 'name'), 0, 60) ?: 'Webhook';
@@ -337,7 +337,7 @@ function act_webhook_save(array $in): ?array
 
 function act_webhook_delete(array $in): ?array
 {
-    if (!($ctx = ctx_with('settings.integrations'))) return NOT_ALLOWED;
+    if (!($ctx = ctx_with('settings.api'))) return NOT_ALLOWED;
     [, $tenantId] = $ctx;
     $n = q('DELETE FROM "Webhook" WHERE "id" = ? AND "tenantId" = ?', [str_in($in, 'id'), $tenantId])->rowCount();
     return $n ? ['success' => 'Webhook deleted'] : ['error' => 'Webhook not found'];
@@ -346,7 +346,7 @@ function act_webhook_delete(array $in): ?array
 /** Send a sample event right now and report what the endpoint answered. */
 function act_webhook_test(array $in): ?array
 {
-    if (!($ctx = ctx_with('settings.integrations'))) return NOT_ALLOWED;
+    if (!($ctx = ctx_with('settings.api'))) return NOT_ALLOWED;
     [$user, $tenantId] = $ctx;
     $h = q_one('SELECT * FROM "Webhook" WHERE "id" = ? AND "tenantId" = ?', [str_in($in, 'id'), $tenantId]);
     if (!$h) return ['error' => 'Webhook not found'];
@@ -380,7 +380,7 @@ function webform_settings(string $tenantId): array
 
 function act_webform_save(array $in): ?array
 {
-    if (!($ctx = ctx_with('settings.integrations'))) return NOT_ALLOWED;
+    if (!($ctx = ctx_with('settings.webform'))) return NOT_ALLOWED;
     [, $tenantId] = $ctx;
     tenant_setting_set($tenantId, 'webform', [
         'enabled' => ($in['enabled'] ?? '') === 'on',

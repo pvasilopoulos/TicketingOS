@@ -19,13 +19,17 @@ if (!ticket_visible($ticket, $user)) abort(404);
 $perm = fn (string $p) => $staff && can($user, $p);
 $canInternal = $perm('tickets.internal');
 // Disabled selects are not submitted, so locked fields are never sent.
-$lockEdit = $staff && !can($user, 'tickets.edit') ? 'disabled title="You don’t have permission to change this"' : '';
-$lockAssign = $staff && !can($user, 'tickets.assign') ? 'disabled title="You don’t have permission to assign tickets"' : '';
+$noPerm = fn (string $p, string $what) => $staff && !can($user, $p) ? 'disabled title="You don’t have permission to ' . $what . '"' : '';
+$lockEdit = $noPerm('tickets.status', 'change the status');
+$lockPriority = $noPerm('tickets.priority', 'change the priority');
+$lockCategory = $noPerm('tickets.category', 'change the category');
+$lockAssign = $noPerm('tickets.assign', 'assign tickets');
+$lockGroup = $noPerm('tickets.group', 'move tickets between groups');
 
 page_title('#' . $ticket['number'] . ' ' . $ticket['subject']);
 $canManage = $staff || $ticket['requesterId'] === $user['id'] || $ticket['assigneeId'] === $user['id'] || ($myWatch['watchRole'] ?? null) === 'COLLABORATOR';
 // Staff are limited by their role; customers by ticket ownership.
-$canLink = $perm('tickets.merge');
+$canLink = $perm('tickets.link');
 $canTeam = $canManage && (!$staff || can($user, 'tickets.team'));
 $canTag = $canManage && (!$staff || can($user, 'tickets.tags'));
 $canReply = !$staff || can($user, 'tickets.reply') || $ticket['requesterId'] === $user['id'];
@@ -36,7 +40,7 @@ $group = !empty($ticket['groupId']) ? q_one('SELECT "id","name","color" FROM "Ag
 $org = !empty($requester['organizationId']) ? q_one('SELECT "id","name","notes" FROM "Organization" WHERE "id" = ?', [$requester['organizationId']]) : null;
 $ticketFields = fields_for($tenantId, $ticket['categoryId'], !$staff);
 $fieldValues = $ticketFields ? ticket_field_values($ticket['id']) : [];
-$canEditFields = $staff && can($user, 'tickets.edit');
+$canEditFields = $staff && can($user, 'tickets.fields');
 $csatPending = !$staff && $ticket['requesterId'] === $user['id'] ? csat_pending($ticket['id']) : null;
 $csatDone = csat_latest_answer($ticket['id']);
 $orgTickets = $staff && $org ? (int) q_val('SELECT COUNT(*) FROM "Ticket" t JOIN "User" u ON u."id" = t."requesterId" WHERE t."tenantId" = ? AND u."organizationId" = ?', [$tenantId, $org['id']]) : 0;
@@ -295,7 +299,7 @@ $row = fn (string $label, string $valueHtml) => '<div class="flex items-center j
             </div>
             <div>
               <label for="s-priority" class="<?= LABEL_CLS ?>">Priority</label>
-              <select id="s-priority" name="priority" <?= $lockEdit ?> class="<?= SELECT_CLS ?>"><?= select_options(array_column($priorities, 'label', 'key'), $ticket['priority']) ?></select>
+              <select id="s-priority" name="priority" <?= $lockPriority ?> class="<?= SELECT_CLS ?>"><?= select_options(array_column($priorities, 'label', 'key'), $ticket['priority']) ?></select>
             </div>
             <div>
               <label for="s-assignee" class="<?= LABEL_CLS ?>">Assignee</label>
@@ -303,12 +307,12 @@ $row = fn (string $label, string $valueHtml) => '<div class="flex items-center j
             </div>
             <div>
               <label for="s-category" class="<?= LABEL_CLS ?>">Category</label>
-              <select id="s-category" name="categoryId" <?= $lockEdit ?> class="<?= SELECT_CLS ?>"><?= select_options(['' => '— None —'] + array_column($categories, 'name', 'id'), $ticket['categoryId'] ?? '') ?></select>
+              <select id="s-category" name="categoryId" <?= $lockCategory ?> class="<?= SELECT_CLS ?>"><?= select_options(['' => '— None —'] + array_column($categories, 'name', 'id'), $ticket['categoryId'] ?? '') ?></select>
             </div>
             <?php if ($staff && $groups): ?>
               <div>
                 <label for="s-group" class="<?= LABEL_CLS ?>">Group</label>
-                <select id="s-group" name="groupId" <?= $lockAssign ?> class="<?= SELECT_CLS ?>"><?= select_options(['' => '— No group —'] + array_column($groups, 'name', 'id'), $ticket['groupId'] ?? '') ?></select>
+                <select id="s-group" name="groupId" <?= $lockGroup ?> class="<?= SELECT_CLS ?>"><?= select_options(['' => '— No group —'] + array_column($groups, 'name', 'id'), $ticket['groupId'] ?? '') ?></select>
               </div>
             <?php endif; ?>
           </form>

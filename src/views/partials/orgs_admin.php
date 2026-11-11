@@ -1,6 +1,6 @@
 <?php
 /**
- * Settings → Organizations (users.manage).
+ * Settings → Organizations (orgs.manage).
  * @var array $me @var string $tenantId @var callable $s
  */
 $closed = closed_status_keys(tenant_statuses($tenantId));

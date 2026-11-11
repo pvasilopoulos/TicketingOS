@@ -262,6 +262,7 @@ $bar = fn (int $n, int $max, string $color) => '<span class="block h-2 rounded-f
   </div>
   <?php endif; ?>
 
+  <?php if (can($user, 'reports.schedule')): ?>
   <!-- Scheduled emails -->
   <div class="mt-6 rounded-xl border border-border bg-surface" id="schedules">
     <?= card_header(titled('calendar-clock', 'Scheduled emails'), '<button type="button" data-toggle-target="#sched-new" class="' . btn_cls('outline', 'sm') . '">' . icon('plus', 13) . ' New schedule</button>') ?>
@@ -302,6 +303,7 @@ $bar = fn (int $n, int $max, string $color) => '<span class="block h-2 rounded-f
       <?php endforeach; ?>
     </div>
   </div>
+  <?php endif; ?>
 
   <p class="mt-3 text-xs text-muted">First response = first public reply by staff. Resolution = time from opening until a closed status. Merged tickets are excluded from “Resolved”.</p>
 </div>

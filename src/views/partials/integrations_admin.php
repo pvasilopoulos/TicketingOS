@@ -43,6 +43,7 @@ $hookForm = function (?array $h) use ($toggle): string {
     return $out . '</div></form>';
 };
 ?>
+<?php if (can($me, 'settings.webform')): ?>
 <!-- Support form & widget -->
 <div class="rounded-xl border border-border bg-surface">
   <div class="flex flex-wrap items-start gap-4 p-5 sm:p-6">
@@ -75,7 +76,9 @@ $hookForm = function (?array $h) use ($toggle): string {
     <?php endif; ?>
   </form>
 </div>
+<?php endif; ?>
 
+<?php if (can($me, 'settings.api')): ?>
 <!-- API keys -->
 <div class="rounded-xl border border-border bg-surface">
   <?= card_header(titled('key-round', 'API keys'), '<a href="#api-docs" class="text-xs font-medium text-brand hover:underline">API reference</a>') ?>
@@ -192,3 +195,4 @@ $hookForm = function (?array $h) use ($toggle): string {
        "requester":{"email":"jane@acme.com","name":"Jane"}}'</pre>
   </div>
 </details>
+<?php endif; ?>

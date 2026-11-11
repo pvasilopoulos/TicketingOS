@@ -15,13 +15,13 @@ $isActive = fn (string $href) => $path === $href || str_starts_with($path, $href
 $nav = [['/dashboard', 'Dashboard', 'layout-dashboard'], ['/tickets', 'Tickets', 'ticket']];
 $nav[] = ['/kb', 'Knowledge base', 'book-open'];
 if (can($user, 'reports.view')) $nav[] = ['/reports', 'Reports', 'chart-column'];
-if (can($user, 'users.manage')) $nav[] = ['/team', 'Users & roles', 'users'];
+if (can($user, 'users.*')) $nav[] = ['/settings#users', 'Users & roles', 'users'];
 if (can($user, 'settings.*')) $nav[] = ['/settings', 'Settings', 'settings'];
 
 $sidebar = function (bool $drawer = false) use ($nav, $isActive, $tenantName, $isStaffUser): string {
     $h = '<aside class="flex h-full w-72 max-w-[85vw] flex-col border-r border-border bg-surface lg:w-64">';
-    $h .= '<div class="flex h-16 items-center gap-2.5 border-b border-border px-5"><span class="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-brand text-brand-fg">' . icon('life-buoy', 20) . '</span>'
-        . '<div class="min-w-0"><p class="truncate text-sm font-semibold leading-tight">' . e($tenantName ?? app_name()) . '</p><p class="text-xs text-muted">Helpdesk</p></div>'
+    $h .= '<div class="flex h-16 items-center gap-2.5 border-b border-border px-5">' . brand_mark(36, 'rounded-lg')
+        . '<div class="min-w-0"><p class="truncate text-sm font-semibold leading-tight">' . e(app_name()) . '</p><p class="truncate text-xs text-muted">' . e($tenantName ?? 'Helpdesk') . '</p></div>'
         . ($drawer ? '<button type="button" data-drawer-close class="ml-auto inline-flex h-9 w-9 items-center justify-center rounded-lg text-muted hover:bg-surface-2" aria-label="Close menu">' . icon('x', 20) . '</button>' : '')
         . '</div>';
     $h .= '<div class="px-3 pt-4"><a href="/tickets/new" class="flex items-center justify-center gap-2 rounded-lg bg-brand px-3 py-2.5 text-sm font-medium text-brand-fg hover:opacity-90 transition">' . icon('circle-plus', 18) . 'New ticket</a></div>';
@@ -131,8 +131,8 @@ ob_start(); ?>
     <header class="relative z-40 flex h-14 shrink-0 items-center gap-2 border-b border-border bg-surface/95 px-3 backdrop-blur sm:h-16 sm:gap-3 sm:px-4 lg:px-6 <?= $impersonating ? '' : 'pt-[env(safe-area-inset-top)] box-content' ?>">
       <!-- Mobile: brand -->
       <a href="/dashboard" class="flex min-w-0 items-center gap-2 lg:hidden">
-        <span class="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand text-brand-fg"><?= icon('life-buoy', 18) ?></span>
-        <span class="truncate text-sm font-semibold" data-mobile-title><?= e($tenantName ?? app_name()) ?></span>
+        <?= brand_mark(32, 'rounded-lg') ?>
+        <span class="truncate text-sm font-semibold" data-mobile-title><?= e(app_name()) ?></span>
       </a>
 
       <!-- Search: inline on tablet/desktop, expandable on phones -->

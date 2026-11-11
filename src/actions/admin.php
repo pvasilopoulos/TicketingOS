@@ -17,7 +17,7 @@ function act_workspace_rename(array $in): ?array
 
 function act_category_create(array $in): ?array
 {
-    [, $tenantId] = require_tenant_admin('settings.general');
+    [, $tenantId] = require_tenant_admin('settings.categories');
     $name = str_in($in, 'name');
     $color = safe_color(str_in($in, 'color'), '#64748b');
     if ($name === '') return ['error' => 'Category name is required'];
@@ -30,7 +30,7 @@ function act_category_create(array $in): ?array
 
 function act_category_delete(array $in): ?array
 {
-    [, $tenantId] = require_tenant_admin('settings.general');
+    [, $tenantId] = require_tenant_admin('settings.categories');
     q('DELETE FROM "Category" WHERE "id" = ? AND "tenantId" = ?', [str_in($in, 'id'), $tenantId]);
     return ['ok' => true];
 }
@@ -204,7 +204,7 @@ function clean_tag(string $name): string
 
 function act_tag_create(array $in): ?array
 {
-    [, $tenantId] = require_tenant_admin('settings.replies');
+    [, $tenantId] = require_tenant_admin('settings.tags');
     $name = clean_tag((string) ($in['name'] ?? ''));
     if ($name === '') return ['error' => 'Tag name is required'];
     if (q_val('SELECT 1 FROM "Tag" WHERE "tenantId" = ? AND "name" = ?', [$tenantId, $name])) return ['error' => 'That tag already exists'];
@@ -214,7 +214,7 @@ function act_tag_create(array $in): ?array
 
 function act_tag_rename(array $in): ?array
 {
-    [, $tenantId] = require_tenant_admin('settings.replies');
+    [, $tenantId] = require_tenant_admin('settings.tags');
     $id = str_in($in, 'id');
     $name = clean_tag((string) ($in['name'] ?? ''));
     if (!$id || $name === '') return null;
@@ -226,7 +226,7 @@ function act_tag_rename(array $in): ?array
 
 function act_tag_delete(array $in): ?array
 {
-    [, $tenantId] = require_tenant_admin('settings.replies');
+    [, $tenantId] = require_tenant_admin('settings.tags');
     q('DELETE FROM "Tag" WHERE "id" = ? AND "tenantId" = ?', [str_in($in, 'id'), $tenantId]);
     return ['ok' => true];
 }
@@ -235,7 +235,7 @@ function act_tag_delete(array $in): ?array
 
 function act_canned_create(array $in): ?array
 {
-    [, $tenantId] = require_tenant_admin('settings.replies');
+    [, $tenantId] = require_tenant_admin('settings.canned');
     $title = mb_substr(str_in($in, 'title'), 0, 80);
     $body = sanitize_rich_html((string) ($in['body'] ?? ''));
     if (mb_strlen($title) < 2) return ['error' => 'Title is too short'];
@@ -247,7 +247,7 @@ function act_canned_create(array $in): ?array
 
 function act_canned_update(array $in): ?array
 {
-    [, $tenantId] = require_tenant_admin('settings.replies');
+    [, $tenantId] = require_tenant_admin('settings.canned');
     $id = str_in($in, 'id');
     $title = mb_substr(str_in($in, 'title'), 0, 80);
     $body = sanitize_rich_html((string) ($in['body'] ?? ''));
@@ -259,7 +259,7 @@ function act_canned_update(array $in): ?array
 
 function act_canned_delete(array $in): ?array
 {
-    [, $tenantId] = require_tenant_admin('settings.replies');
+    [, $tenantId] = require_tenant_admin('settings.canned');
     q('DELETE FROM "CannedResponse" WHERE "id" = ? AND "tenantId" = ?', [str_in($in, 'id'), $tenantId]);
     return ['ok' => true];
 }
@@ -308,7 +308,7 @@ function act_rule_delete(array $in): ?array
 
 function act_policy_save(array $in): ?array
 {
-    [, $tenantId] = require_tenant_admin('settings.email');
+    [, $tenantId] = require_tenant_admin('settings.notifications');
     $defaults = [];
     foreach (NOTIFY_CATEGORIES as $c) {
         foreach (CHANNELS as $ch) $defaults[$c][$ch] = ($in["def_{$c}_{$ch}"] ?? '') === 'on';
@@ -440,7 +440,7 @@ function pick_role(array $manager, string $tenantId, array $in): array|string
 function act_member_create(array $in): ?array
 {
     [$user, $tenantId] = require_tenant_user();
-    if (!can($user, 'users.manage')) return ['error' => 'You don’t have permission to add users'];
+    if (!can($user, 'users.invite')) return ['error' => 'You don’t have permission to add users'];
     $name = str_in($in, 'name');
     $email = strtolower(str_in($in, 'email'));
     $invite = ($in['invite'] ?? '') === 'on';
@@ -476,7 +476,7 @@ function act_member_create(array $in): ?array
 function act_member_update(array $in): ?array
 {
     [$user, $tenantId] = require_tenant_user();
-    if (!can($user, 'users.manage')) return ['error' => 'Not allowed'];
+    if (!can($user, 'users.edit')) return ['error' => 'Not allowed'];
     $target = managed_user($user, $tenantId, str_in($in, 'userId'));
     if (is_string($target)) return ['error' => $target];
 
@@ -524,7 +524,7 @@ function act_member_role(array $in): ?array
 function act_member_status(array $in): ?array
 {
     [$user, $tenantId] = require_tenant_user();
-    if (!can($user, 'users.manage')) return ['error' => 'Not allowed'];
+    if (!can($user, 'users.access')) return ['error' => 'Not allowed'];
     $target = managed_user($user, $tenantId, str_in($in, 'userId'));
     if (is_string($target)) return ['error' => $target];
     $active = ($in['active'] ?? '') === '1';
@@ -548,7 +548,7 @@ function act_member_status(array $in): ?array
 function act_member_password(array $in): ?array
 {
     [$user, $tenantId] = require_tenant_user();
-    if (!can($user, 'users.manage')) return ['error' => 'Not allowed'];
+    if (!can($user, 'users.access')) return ['error' => 'Not allowed'];
     $target = managed_user($user, $tenantId, str_in($in, 'userId'));
     if (is_string($target)) return ['error' => $target];
     if (($in['mode'] ?? '') === 'set') {
@@ -564,7 +564,7 @@ function act_member_password(array $in): ?array
 function act_member_remove(array $in): ?array
 {
     [$user, $tenantId] = require_tenant_user();
-    if (!can($user, 'users.manage')) return ['error' => 'Not allowed'];
+    if (!can($user, 'users.remove')) return ['error' => 'Not allowed'];
     $userId = str_in($in, 'userId');
     if (!$userId || $userId === $user['id']) return ['error' => 'You can’t remove yourself'];
     $target = managed_user($user, $tenantId, $userId);
@@ -598,7 +598,7 @@ function act_role_save(array $in): ?array
     if (q_val('SELECT 1 FROM "Role" WHERE "tenantId" = ? AND "name" = ?' . ($id ? ' AND "id" <> ?' : ''), $id ? [$tenantId, $name, $id] : [$tenantId, $name])) {
         return ['error' => 'A role with that name already exists'];
     }
-    $perms = clean_permissions(array_keys(array_filter($in['perm'] ?? [], fn ($v) => $v === 'on')));
+    $perms = perms_for_storage(array_keys(array_filter($in['perm'] ?? [], fn ($v) => $v === 'on')));
     $data = [
         'name' => $name,
         'description' => mb_substr(str_in($in, 'description'), 0, 160) ?: null,
@@ -633,10 +633,10 @@ function act_agent_perms_save(array $in): ?array
 {
     [, $tenantId] = require_roles_admin();
     if (($in['reset'] ?? '') === '1') {
-        tenant_setting_set($tenantId, 'agentPermissions', AGENT_DEFAULT_PERMISSIONS);
+        tenant_setting_set($tenantId, 'agentPermissions', perms_for_storage(AGENT_DEFAULT_PERMISSIONS));
         return ['success' => 'Agent permissions reset to the defaults'];
     }
-    tenant_setting_set($tenantId, 'agentPermissions', clean_permissions(array_keys(array_filter($in['perm'] ?? [], fn ($v) => $v === 'on'))));
+    tenant_setting_set($tenantId, 'agentPermissions', perms_for_storage(array_keys(array_filter($in['perm'] ?? [], fn ($v) => $v === 'on'))));
     return ['success' => 'Agent permissions saved'];
 }
 
@@ -646,10 +646,10 @@ function act_admin_perms_save(array $in): ?array
     [$me, $tenantId] = require_roles_admin();
     if ($me['role'] !== 'SUPER_ADMIN') return ['error' => 'Only a super admin can change Administrator permissions'];
     if (($in['reset'] ?? '') === '1') {
-        tenant_setting_set($tenantId, 'adminPermissions', all_permissions());
+        tenant_setting_set($tenantId, 'adminPermissions', perms_for_storage(all_permissions()));
         return ['success' => 'Administrators have full access again'];
     }
-    tenant_setting_set($tenantId, 'adminPermissions', clean_permissions(array_keys(array_filter($in['perm'] ?? [], fn ($v) => $v === 'on'))));
+    tenant_setting_set($tenantId, 'adminPermissions', perms_for_storage(array_keys(array_filter($in['perm'] ?? [], fn ($v) => $v === 'on'))));
     return ['success' => 'Administrator permissions saved'];
 }
 

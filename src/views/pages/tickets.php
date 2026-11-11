@@ -183,7 +183,7 @@ $pagerOpts = ['perPageOptions' => [25, 50, 100]];
       </div>
     </div>
   <?php elseif ($view === 'board'): ?>
-    <?= render_partial('partials/ticket_board', ['columns' => $columns, 'statuses' => $statuses, 'canManage' => $staff && can($user, 'tickets.edit'), 'url' => $url]) ?>
+    <?= render_partial('partials/ticket_board', ['columns' => $columns, 'statuses' => $statuses, 'canManage' => $staff && can($user, 'tickets.status'), 'url' => $url]) ?>
   <?php else: ?>
     <?= pager($page, $pages, $total, $perPage, $url, $pagerOpts + ['class' => 'mb-3']) ?>
     <?php if ($staff && can($user, 'tickets.bulk')): ?>

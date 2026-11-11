@@ -42,7 +42,7 @@ const NAV_ITEMS = [
     'kb' => ['label' => 'Help', 'href' => '/kb', 'icon' => 'book-open', 'audience' => 'all'],
     'reports' => ['label' => 'Reports', 'href' => '/reports', 'icon' => 'chart-column', 'audience' => 'staff', 'perm' => 'reports.view'],
     'alerts' => ['label' => 'Alerts', 'href' => '/notifications', 'icon' => 'bell', 'audience' => 'all'],
-    'team' => ['label' => 'Users', 'href' => '/team', 'icon' => 'users', 'audience' => 'admin', 'perm' => 'users.manage'],
+    'team' => ['label' => 'Users', 'href' => '/team', 'icon' => 'users', 'audience' => 'admin', 'perm' => 'users.*'],
     'settings' => ['label' => 'Settings', 'href' => '/settings', 'icon' => 'settings', 'audience' => 'admin', 'perm' => 'settings.*'],
 ];
 const NAV_MAX_ITEMS = 4;

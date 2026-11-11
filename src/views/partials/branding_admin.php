@@ -12,7 +12,7 @@ $bs = $s('branding');
     <span class="hidden h-11 w-11 shrink-0 place-items-center rounded-xl bg-amber-500/10 text-amber-600 sm:grid"><?= icon('sparkles', 22) ?></span>
     <div class="min-w-0 flex-1">
       <h2 class="font-semibold">Branding</h2>
-      <p class="mt-0.5 text-sm text-muted">The app’s name and logo, shown on the sign-in pages, the browser tab, the installed app and emails. Applies to every workspace. Only super admins see this.</p>
+      <p class="mt-0.5 text-sm text-muted">The app’s name and logo, shown in the side menu and the phone header, on the sign-in pages, the browser tab, the installed app and emails. Applies to every workspace. Only super admins see this.</p>
     </div>
   </div>
 

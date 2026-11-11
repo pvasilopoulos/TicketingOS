@@ -1,6 +1,6 @@
 <?php
 /**
- * Settings → Groups (users.manage).
+ * Settings → Groups (groups.manage).
  * @var array $me @var string $tenantId @var callable $s
  */
 $groups = q_all('SELECT g.*, (SELECT COUNT(*) FROM "AgentGroupMember" m WHERE m."groupId" = g."id") AS "members" FROM "AgentGroup" g WHERE g."tenantId" = ? ORDER BY g."name"', [$tenantId]);

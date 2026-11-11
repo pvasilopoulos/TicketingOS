@@ -29,7 +29,7 @@ $ticketCount = (int) q_val('SELECT COUNT(*) FROM "Ticket" WHERE "tenantId" = ?',
     </form>
   </div>
 
-  <div class="mt-6 grid gap-6 lg:grid-cols-[1fr_320px]">
+  <div class="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px] xl:grid-cols-[minmax(0,1fr)_400px]">
     <div class="rounded-xl border border-border bg-surface">
       <?= card_header('Recent tickets') ?>
       <div class="divide-y divide-border">
@@ -54,15 +54,15 @@ $ticketCount = (int) q_val('SELECT COUNT(*) FROM "Ticket" WHERE "tenantId" = ?',
       <div class="divide-y divide-border">
         <?php foreach ($users as $u): ?>
           <div class="flex items-center gap-3 px-4 py-3 sm:px-5">
-            <?= avatar($u['name'], $u['avatarColor'], 34) ?>
+            <?= avatar($u['name'], $u['avatarColor'], 36) ?>
             <div class="min-w-0 flex-1">
-              <p class="truncate text-sm font-medium"><?= e($u['name']) ?></p>
-              <p class="truncate text-xs text-muted"><?= e($u['email']) ?></p>
+              <p class="truncate text-sm font-medium" title="<?= e($u['name']) ?>"><?= e($u['name']) ?></p>
+              <p class="truncate text-xs text-muted" title="<?= e($u['email']) ?>"><?= e($u['email']) ?></p>
+              <span class="mt-1 inline-flex items-center rounded-full bg-surface-2 px-2 py-0.5 text-[11px] font-medium text-muted"><?= e(role_label($u['role'])) ?></span>
             </div>
-            <span class="rounded bg-surface-2 px-2 py-0.5 text-xs text-muted"><?= e(role_label($u['role'])) ?></span>
             <?php if ($u['role'] !== 'SUPER_ADMIN' && (int) $u['active']): ?>
               <form method="post" action="/action/impersonate" class="shrink-0"><?= form_meta() ?><input type="hidden" name="userId" value="<?= e($u['id']) ?>">
-                <button type="submit" title="Sign in as <?= e($u['name']) ?>" class="<?= btn_cls('outline', 'sm') ?>"><?= icon('log-in', 13) ?><span class="max-sm:hidden">Sign in as</span></button></form>
+                <button type="submit" title="Sign in as <?= e($u['name']) ?>" aria-label="Sign in as <?= e($u['name']) ?>" class="<?= btn_cls('outline', 'sm', 'max-xl:w-8 max-xl:px-0') ?>"><?= icon('log-in', 14) ?><span class="max-xl:hidden">Sign in as</span></button></form>
             <?php endif; ?>
           </div>
         <?php endforeach; ?>

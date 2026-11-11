@@ -27,7 +27,7 @@ $keys = ['super', 'admin', 'agent', 'customer', 'new', ...array_column($roles, '
 $sel = in_array($_GET['role'] ?? '', $keys, true) ? $_GET['role'] : 'agent';
 $rolesById = key_by($roles, 'id');
 $from = (string) ($_GET['from'] ?? '');
-$newPerms = $from === 'agent' ? $agentPerms : (isset($rolesById[$from]) ? (json_decode($rolesById[$from]['permissions'], true) ?: []) : ROLE_TEMPLATES['junior'][2]);
+$newPerms = $from === 'agent' ? $agentPerms : (isset($rolesById[$from]) ? clean_permissions(json_decode($rolesById[$from]['permissions'], true) ?: []) : clean_permissions(ROLE_TEMPLATES['junior'][2]));
 $newName = $from === 'agent' ? 'Copy of Agent' : (isset($rolesById[$from]) ? 'Copy of ' . $rolesById[$from]['name'] : '');
 $rs = $s('roles');
 $swatches = ['#6366f1', '#8b5cf6', '#ec4899', '#ef4444', '#f59e0b', '#22c55e', '#14b8a6', '#0ea5e9', '#64748b'];
@@ -181,7 +181,7 @@ $listItem = function (string $key, string $name, string $sub, string $color, str
           <?= $avatars($membersOf('admin'), 'ADMIN') ?>
         </div>
         <ul class="mt-4 grid gap-2 text-sm sm:grid-cols-2">
-          <?php foreach (['Create and edit roles', 'Add, change and remove administrators', 'Security and password rules', 'Audit log'] as $t): ?>
+          <?php foreach (['Create and edit roles', 'Add, change and remove administrators', 'Security and password rules'] as $t): ?>
             <li class="flex items-center gap-2"><?= icon('circle-check', 15, 'text-emerald-600') ?><?= e($t) ?> <span class="text-xs text-muted">· always</span></li>
           <?php endforeach; ?>
         </ul>
@@ -269,8 +269,8 @@ $listItem = function (string $key, string $name, string $sub, string $color, str
           <div class="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             <?php foreach (ROLE_TEMPLATES as $tk => [$tname, $tdesc, $tperms]): ?>
               <label class="flex cursor-pointer items-start gap-3 rounded-xl border border-border p-3 transition-colors hover:bg-surface-2/50 has-[:checked]:border-brand has-[:checked]:bg-brand/5">
-                <input type="radio" name="template" value="<?= e($tk) ?>" data-template='<?= e(json_encode($tperms)) ?>' <?= $tk === 'junior' ? 'checked' : '' ?> class="mt-0.5 accent-brand">
-                <span class="min-w-0"><span class="block text-sm font-medium"><?= e($tname) ?></span><span class="block text-xs text-muted"><?= e($tdesc) ?></span><span class="mt-1 block text-[11px] text-muted"><?= count($tperms) ?> permissions</span></span>
+                <input type="radio" name="template" value="<?= e($tk) ?>" data-template='<?= e(json_encode(clean_permissions($tperms))) ?>' <?= $tk === 'junior' ? 'checked' : '' ?> class="mt-0.5 accent-brand">
+                <span class="min-w-0"><span class="block text-sm font-medium"><?= e($tname) ?></span><span class="block text-xs text-muted"><?= e($tdesc) ?></span><span class="mt-1 block text-[11px] text-muted"><?= count(clean_permissions($tperms)) ?> permissions</span></span>
               </label>
             <?php endforeach; ?>
           </div>

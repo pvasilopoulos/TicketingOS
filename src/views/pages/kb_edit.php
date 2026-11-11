@@ -1,7 +1,7 @@
 <?php
 /** @var ?string $id */
 [$user, $tenantId] = require_tenant_user();
-if (!can($user, 'kb.manage')) redirect('/kb');
+if (!can($user, 'kb.edit')) redirect('/kb');
 $a = $id ? q_one('SELECT * FROM "KbArticle" WHERE "id" = ? AND "tenantId" = ?', [$id, $tenantId]) : null;
 if ($id && !$a) abort(404);
 page_title($a ? 'Edit article' : 'New article');
@@ -33,9 +33,13 @@ $published = $failed ? (old('kb-edit', 'published') === 'on') : (bool) ($a['publ
       <label class="<?= LABEL_CLS ?>">Article</label>
       <?= rich_editor('body', ['minHeight' => 260, 'placeholder' => 'Step-by-step answer…', 'html' => sanitize_rich_html($v('body'))]) ?>
     </div>
+    <?php if (can($user, 'kb.publish')): ?>
     <label class="flex items-center gap-2 text-sm cursor-pointer select-none">
       <input type="checkbox" name="published" <?= $published ? 'checked' : '' ?> class="h-4 w-4 rounded border-border accent-brand"> Published
     </label>
+    <?php else: ?>
+      <p class="flex items-center gap-2 text-sm text-muted"><?= icon('lock', 14) ?> <?= $published && !empty($a) ? 'Published — only editors who can publish can take it down.' : 'Saved as a draft. Someone who can publish will make it public.' ?></p>
+    <?php endif; ?>
     <button type="submit" class="<?= btn_cls() ?>"><?= icon('check', 16) ?> Save article</button>
   </form>
 </div>

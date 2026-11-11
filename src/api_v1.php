@@ -117,7 +117,7 @@ function api_v1(string $method, string $path): never
             $requester = q_one('SELECT * FROM "User" WHERE "email" = ?', [$email]);
             if ($requester && $requester['tenantId'] !== $tenantId) api_error(422, 'invalid', 'requester.email belongs to another workspace');
             if (!$requester) {
-                api_need($user, 'users.manage');
+                api_need($user, 'users.invite');
                 $count = (int) q_val('SELECT COUNT(*) FROM "User" WHERE "tenantId" = ?', [$tenantId]);
                 $requester = [
                     'id' => cuid(), 'email' => $email, 'name' => mb_substr((string) ($b['requester']['name'] ?? strstr($email, '@', true)), 0, 80),
@@ -160,7 +160,7 @@ function api_v1(string $method, string $path): never
             }
             if ($in && !update_ticket($t['id'], $in, $user, $tenantId)) api_error(422, 'not_applied', 'Nothing changed (invalid value or missing permission)');
             if (!empty($b['fields']) && is_array($b['fields'])) {
-                api_need($user, 'tickets.edit');
+                api_need($user, 'tickets.fields');
                 $values = validate_fields(fields_for($tenantId, $t['categoryId'], false), $b['fields'], false);
                 if (is_string($values)) api_error(422, 'invalid', $values);
                 if (save_field_values($t['id'], $tenantId, $values)) {
@@ -192,7 +192,7 @@ function api_v1(string $method, string $path): never
     }
 
     if ($route === '/users' && $method === 'GET') {
-        api_need($user, 'users.manage');
+        api_need($user, 'users.*');
         $params = [$tenantId];
         $where = '"tenantId" = ?';
         if (in_array($_GET['role'] ?? '', TENANT_ROLES, true)) { $where .= ' AND "role" = ?'; $params[] = $_GET['role']; }
@@ -201,7 +201,7 @@ function api_v1(string $method, string $path): never
         json_out(['data' => array_map(fn ($u) => ['active' => (bool) $u['active']] + $u, $rows)]);
     }
     if ($route === '/organizations' && $method === 'GET') {
-        api_need($user, 'users.manage');
+        api_need($user, 'orgs.manage');
         json_out(['data' => array_map(fn ($o) => ['id' => $o['id'], 'name' => $o['name'], 'domains' => org_domains($o['domain']), 'createdAt' => $o['createdAt']], tenant_orgs($tenantId))]);
     }
     if ($route === '/groups' && $method === 'GET') {
