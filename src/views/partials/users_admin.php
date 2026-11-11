@@ -42,7 +42,7 @@ elseif ($urole !== '') { $where .= ' AND u."role" = \'AGENT\' AND u."customRoleI
 if ($ustatus === 'active') $where .= ' AND u."active" = 1';
 elseif ($ustatus === 'inactive') $where .= ' AND u."active" = 0';
 elseif ($ustatus === 'never') $where .= ' AND u."lastLoginAt" IS NULL AND u."role" <> \'CUSTOMER\'';
-if ($uorg) { $where .= ' AND u."organizationId" = ?'; $params[] = $uorg; }
+if ($uorg) { $where .= ' AND EXISTS (SELECT 1 FROM "UserOrganization" fo WHERE fo."userId" = u."id" AND fo."organizationId" = ?)'; $params[] = $uorg; }
 
 $total = (int) q_val("SELECT COUNT(*) FROM \"User\" u WHERE $where", $params);
 $upages = max(1, (int) ceil($total / $uper));
@@ -50,6 +50,9 @@ $upage = min(max(1, (int) ($_GET['upage'] ?? 1)), $upages);
 $ids = pluck(q_all("SELECT u.\"id\" FROM \"User\" u WHERE $where ORDER BY CASE u.\"role\" WHEN 'SUPER_ADMIN' THEN 0 WHEN 'ADMIN' THEN 1 WHEN 'AGENT' THEN 2 ELSE 3 END, u.\"active\" DESC, u.\"name\" ASC LIMIT $uper OFFSET " . (($upage - 1) * $uper), $params), 'id');
 $users = $ids ? q_all('SELECT u.*, (SELECT COUNT(*) FROM "Ticket" t WHERE t."assigneeId" = u."id" AND t."closedAt" IS NULL) AS "openAssigned" FROM "User" u WHERE u."id" IN (' . in_ph($ids) . ')', $ids) : [];
 $users = array_values(array_replace(array_flip($ids), key_by($users, 'id')));
+// Every organization of the listed people (primary first).
+$memberships = [];
+if ($ids) foreach (q_all('SELECT uo."userId", uo."organizationId", uo."isManager" FROM "UserOrganization" uo WHERE uo."userId" IN (' . in_ph($ids) . ')', $ids) as $m) $memberships[$m['userId']][$m['organizationId']] = (int) $m['isManager'] === 1;
 
 $uurl = function (array $c) use ($uq, $urole, $ustatus, $upage, $uper, $uorg): string {
     $p = array_merge(['uq' => $uq, 'urole' => $urole, 'ustatus' => $ustatus, 'uorg' => $uorg, 'upage' => $upage, 'uper' => $uper], $c);
@@ -205,7 +208,7 @@ $tile = function (string $label, int $n, string $key, string $ic, string $tone) 
             <?= avatar($u['name'], $u['avatarColor'], 38, $active ? '' : 'opacity-50 grayscale') ?>
             <div class="min-w-0">
               <p class="flex items-center gap-1.5"><span class="truncate text-sm font-medium <?= $active ? '' : 'text-muted' ?>"><?= e($u['name']) ?></span><?php if ($isMe): ?><span class="shrink-0 rounded bg-surface-2 px-1.5 text-[10px] font-semibold uppercase text-muted">You</span><?php endif; ?></p>
-              <p class="truncate text-xs text-muted"><?= e($u['email']) ?><?php if ($u['organizationId'] && isset($orgNames[$u['organizationId']])): ?> · <span class="inline-flex items-center gap-0.5"><?= icon('building-2', 11) ?><?= e($orgNames[$u['organizationId']]) ?><?= (int) $u['orgManager'] ? ' (manager)' : '' ?></span><?php endif; ?></p>
+              <p class="truncate text-xs text-muted"><?= e($u['email']) ?><?php $mine = $memberships[$u['id']] ?? []; if ($mine): ?> · <span class="inline-flex items-center gap-0.5"><?= icon('building-2', 11) ?><?= e(implode(', ', array_map(fn ($oid) => ($orgNames[$oid] ?? '?') . ($mine[$oid] ? ' (manager)' : ''), array_keys($mine)))) ?></span><?php endif; ?></p>
             </div>
           </div>
           <div class="min-w-0 max-xl:order-3 max-xl:ml-[3.25rem]"><?= $roleBadge($u) ?></div>
@@ -270,9 +273,18 @@ $tile = function (string $label, int $n, string $key, string $ic, string $tone) 
               <div data-custom-role-wrap><label class="mb-1 block text-xs font-medium text-muted">Permissions</label>
                 <select name="customRoleId" class="<?= SELECT_CLS ?>"><?= select_options($customOptions, $u['customRoleId'] ?? '') ?></select></div>
               <?php if ($orgs): ?>
-                <div data-org-wrap><label class="mb-1 block text-xs font-medium text-muted">Organization</label>
-                  <select name="organizationId" class="<?= SELECT_CLS ?>"><?= select_options(['' => '— None —'] + $orgNames, $u['organizationId'] ?? '') ?></select></div>
-                <label data-org-wrap class="flex items-center gap-2 self-end pb-2.5 text-sm"><input type="checkbox" name="orgManager" value="1" <?= (int) $u['orgManager'] ? 'checked' : '' ?> class="h-4 w-4 rounded border-border accent-brand"> Organization manager</label>
+                <div class="sm:col-span-2 xl:col-span-4">
+                  <input type="hidden" name="orgsSent" value="1">
+                  <p class="mb-1 text-xs font-medium text-muted">Organizations <span class="font-normal">— customers: where they belong (<?= icon('crown', 10, 'inline') ?> manager sees all of it); staff: the organizations they handle (they see all of their tickets)</span></p>
+                  <div class="grid max-h-44 gap-1 overflow-y-auto rounded-lg border border-border p-1 sm:grid-cols-2 xl:grid-cols-3">
+                    <?php $mine = $memberships[$u['id']] ?? []; foreach ($orgNames as $oid => $oname): ?>
+                      <div class="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-surface-2">
+                        <label class="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-sm"><input type="checkbox" name="orgs[]" value="<?= e($oid) ?>" <?= isset($mine[$oid]) ? 'checked' : '' ?> class="h-4 w-4 rounded border-border accent-brand"><span class="truncate"><?= e($oname) ?></span></label>
+                        <label data-org-wrap class="flex shrink-0 cursor-pointer items-center gap-1 text-[11px] text-muted" title="Manager: sees all of this organization’s tickets"><input type="checkbox" name="orgManagers[]" value="<?= e($oid) ?>" <?= !empty($mine[$oid]) ? 'checked' : '' ?> class="h-3.5 w-3.5 rounded border-border accent-brand"><?= icon('crown', 11) ?></label>
+                      </div>
+                    <?php endforeach; ?>
+                  </div>
+                </div>
               <?php endif; ?>
             </div>
             <div class="mt-3 flex flex-wrap items-center gap-2">

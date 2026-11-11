@@ -163,13 +163,105 @@ function ts(?string $iso): ?float
  * (hosts like Plesk often have no shell for bin/migrate.php). A marker file in
  * storage/ keeps this to one cheap check per request.
  */
-const RUNTIME_SCHEMA_VERSION = 1;
+const RUNTIME_SCHEMA_VERSION = 3;
+
+/** Does a table have a column? (works for SQLite and MySQL/MariaDB) */
+function db_column_exists(string $table, string $col): bool
+{
+    if (db_driver() === 'mysql') {
+        return (bool) q_val('SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND LOWER(TABLE_NAME) = LOWER(?) AND COLUMN_NAME = ?', [$table, $col]);
+    }
+    foreach (q_all('PRAGMA table_info(' . qi($table) . ')') as $c) if ($c['name'] === $col) return true;
+    return false;
+}
 
 function ensure_runtime_schema(): void
 {
     $marker = ROOT . '/storage/.schema-version';
-    if ((int) @file_get_contents($marker) >= RUNTIME_SCHEMA_VERSION) return;
+    $have = (int) @file_get_contents($marker);
+    if ($have >= RUNTIME_SCHEMA_VERSION) return;
     try {
+        if ($have < 1) runtime_schema_v1();
+        if ($have < 2) runtime_schema_v2();
+        runtime_schema_v3();
+        @file_put_contents($marker, (string) RUNTIME_SCHEMA_VERSION);
+    } catch (Throwable $e) {
+        error_log('[schema] ' . $e->getMessage());
+    }
+}
+
+/** v3: people can belong to several organizations (manager rights per organization). */
+function runtime_schema_v3(): void
+{
+    $my = db_driver() === 'mysql';
+    $T = $my ? 'VARCHAR(40)' : 'TEXT';
+    db()->exec('CREATE TABLE IF NOT EXISTS "UserOrganization" (
+  "userId" ' . $T . ' NOT NULL,
+  "organizationId" ' . $T . ' NOT NULL,
+  "isManager" ' . ($my ? 'INT' : 'INTEGER') . ' NOT NULL DEFAULT 0,
+  "createdAt" ' . ($my ? 'VARCHAR(30)' : 'TEXT') . ' NOT NULL,
+  PRIMARY KEY ("userId", "organizationId")' . ($my ? ',
+  KEY "UserOrganization_org_idx" ("organizationId"),
+  FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE,
+  FOREIGN KEY ("organizationId") REFERENCES "Organization" ("id") ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci' : '
+)'));
+    if (!$my) db()->exec('CREATE INDEX IF NOT EXISTS "UserOrganization_org_idx" ON "UserOrganization"("organizationId")');
+    backfill_user_orgs();
+}
+
+/** Copy each user's single organization (User.organizationId) into UserOrganization. Idempotent. */
+function backfill_user_orgs(): void
+{
+    $rows = q_all('SELECT u."id", u."organizationId", u."orgManager" FROM "User" u WHERE u."organizationId" IS NOT NULL
+        AND NOT EXISTS (SELECT 1 FROM "UserOrganization" x WHERE x."userId" = u."id" AND x."organizationId" = u."organizationId")');
+    $now = now_iso();
+    foreach ($rows as $r) db_insert('UserOrganization', ['userId' => $r['id'], 'organizationId' => $r['organizationId'], 'isManager' => (int) $r['orgManager'], 'createdAt' => $now]);
+}
+
+/** v2: ticket templates, sub-tickets (Ticket.parentId) and CC email addresses. */
+function runtime_schema_v2(): void
+{
+    $my = db_driver() === 'mysql';
+    $T = $my ? 'VARCHAR(40)' : 'TEXT';
+    $S = $my ? 'VARCHAR(191)' : 'TEXT';
+    $L = $my ? 'MEDIUMTEXT' : 'TEXT';
+    $D = $my ? 'VARCHAR(30)' : 'TEXT';
+    $I = $my ? 'INT' : 'INTEGER';
+    $engine = $my ? ' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci' : '';
+    db()->exec("CREATE TABLE IF NOT EXISTS \"TicketTemplate\" (
+  \"id\" $T NOT NULL PRIMARY KEY,
+  \"tenantId\" $T NOT NULL,
+  \"name\" $S NOT NULL,
+  \"audience\" $S NOT NULL DEFAULT 'everyone',
+  \"categoryId\" $T NULL,
+  \"priority\" $S NULL,
+  \"subject\" $S NULL,
+  \"body\" $L NULL,
+  \"tags\" $L NULL,
+  \"assigneeIds\" $L NULL,
+  \"subtasks\" $L NULL,
+  \"order\" $I NOT NULL DEFAULT 0,
+  \"createdAt\" $D NOT NULL,
+  \"updatedAt\" $D NOT NULL" . ($my ? ",\n  KEY \"TicketTemplate_tenant_idx\" (\"tenantId\"),\n  FOREIGN KEY (\"tenantId\") REFERENCES \"Tenant\" (\"id\") ON DELETE CASCADE" : '') . "
+)$engine");
+    db()->exec("CREATE TABLE IF NOT EXISTS \"TicketCc\" (
+  \"ticketId\" $T NOT NULL,
+  \"email\" $S NOT NULL,
+  \"addedById\" $T NULL,
+  \"createdAt\" $D NOT NULL,
+  PRIMARY KEY (\"ticketId\", \"email\")" . ($my ? ",\n  FOREIGN KEY (\"ticketId\") REFERENCES \"Ticket\" (\"id\") ON DELETE CASCADE" : '') . "
+)$engine");
+    if (!$my) db()->exec('CREATE INDEX IF NOT EXISTS "TicketTemplate_tenant_idx" ON "TicketTemplate"("tenantId")');
+    if (!db_column_exists('Ticket', 'parentId')) {
+        db()->exec('ALTER TABLE "Ticket" ADD COLUMN "parentId" ' . ($my ? 'VARCHAR(40) NULL' : 'TEXT'));
+        db()->exec('CREATE INDEX ' . ($my ? '' : 'IF NOT EXISTS ') . '"Ticket_parent_idx" ON "Ticket" ("parentId")');
+    }
+}
+
+/** v1: several assignees per ticket. */
+function runtime_schema_v1(): void
+{
         if (db_driver() === 'mysql') {
             db()->exec('CREATE TABLE IF NOT EXISTS "TicketAssignee" (
   "ticketId" VARCHAR(40) NOT NULL,
@@ -189,8 +281,4 @@ function ensure_runtime_schema(): void
 )');
             db()->exec('CREATE INDEX IF NOT EXISTS "TicketAssignee_userId_idx" ON "TicketAssignee"("userId")');
         }
-        @file_put_contents($marker, (string) RUNTIME_SCHEMA_VERSION);
-    } catch (Throwable $e) {
-        error_log('[schema] ' . $e->getMessage());
-    }
 }

@@ -71,6 +71,7 @@ const PERMISSIONS = [
         'settings.tags' => ['Tags', 'Create, rename and delete tags.', ['sensitive' => true]],
         'settings.canned' => ['Canned replies', 'The shared library of saved replies.', ['sensitive' => true]],
         'settings.macros' => ['Macros', 'Create and delete macros.', ['sensitive' => true]],
+        'settings.templates' => ['Ticket templates', 'Ready-made tickets people can start from on the new-ticket form.', ['sensitive' => true]],
         'settings.automations' => ['Automations', 'Rules that change tickets automatically.', ['sensitive' => true]],
         'settings.notifications' => ['Notification policy', 'Which notifications people can receive and the defaults.', ['sensitive' => true]],
         'settings.email' => ['Email server', 'Outgoing email (SMTP / Microsoft 365) and its passwords.', ['sensitive' => true]],
@@ -101,7 +102,7 @@ const PERMS_ADMIN_MARKER = '_ax';
 const SETTINGS_SECTIONS = [
     'general' => ['settings.general', 'settings.categories'],
     'workflow' => ['settings.workflow'],
-    'replies' => ['settings.tags', 'settings.canned', 'settings.macros'],
+    'replies' => ['settings.tags', 'settings.canned', 'settings.macros', 'settings.templates'],
     'automations' => ['settings.automations'],
     'notifications' => ['settings.notifications', 'settings.email'],
     'fields' => ['settings.fields', 'settings.csat'],
@@ -126,7 +127,7 @@ const PERMS_LEGACY = [
     'tickets.edit' => ['tickets.status', 'tickets.priority', 'tickets.category', 'tickets.fields'],
     'kb.manage' => ['kb.edit', 'kb.publish', 'kb.delete'],
     'users.manage' => ['users.invite', 'users.edit', 'users.access', 'users.remove', 'groups.manage', 'orgs.manage'],
-    'settings.replies' => ['settings.tags', 'settings.canned', 'settings.macros'],
+    'settings.replies' => ['settings.tags', 'settings.canned', 'settings.macros', 'settings.templates'],
     'settings.integrations' => ['settings.api', 'settings.webform'],
     // Keys that were split: the old meaning included these too.
     'tickets.assign' => ['tickets.group'],

@@ -42,6 +42,7 @@ const AUDITED_ACTIONS = [
     'webhook-save' => ['integrations', 'Saved a webhook'], 'webhook-delete' => ['integrations', 'Deleted a webhook'],
     'webform-save' => ['integrations', 'Changed the support form'],
     'branding-save' => ['settings', 'Changed the app name or logo'],
+    'template-save' => ['settings', 'Saved a ticket template'], 'template-delete' => ['settings', 'Deleted a ticket template'],
     // These two redirect, so they log themselves (src/actions/platform.php); listed here for labels.
     'impersonate' => ['security', 'Signed in as another user'], 'impersonate-stop' => ['security', 'Returned to their own account'],
     'report-schedule-save' => ['reports', 'Saved a scheduled report'], 'report-schedule-delete' => ['reports', 'Deleted a scheduled report'],

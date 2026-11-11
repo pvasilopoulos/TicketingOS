@@ -24,13 +24,16 @@ function ticket_scope_sql(array $user, string $tenantId, array &$params): string
     if (is_staff($user['role'])) {
         $or[] = 't."groupId" IN (SELECT gm."groupId" FROM "AgentGroupMember" gm WHERE gm."userId" = ?)';
         $params[] = $user['id'];
+        // …the organizations they handle…
+        $or[] = REQUESTER_IN_MY_ORGS_SQL;
+        $params[] = $user['id'];
         // …and the shared queue of unassigned tickets, when allowed.
         if (can($user, 'tickets.view_unassigned')) $or[] = 't."assigneeId" IS NULL';
     }
     // …and, for organization managers, every ticket of their organization.
-    if (!is_staff($user['role']) && !empty($user['organizationId']) && (int) ($user['orgManager'] ?? 0)) {
-        $or[] = 'EXISTS (SELECT 1 FROM "User" ro WHERE ro."id" = t."requesterId" AND ro."organizationId" = ?)';
-        $params[] = $user['organizationId'];
+    if (!is_staff($user['role']) && user_manages_any_org($user['id'])) {
+        $or[] = REQUESTER_IN_MANAGED_ORG_SQL;
+        $params[] = $user['id'];
     }
     return 't."tenantId" = ? AND (' . implode(' OR ', $or) . ')';
 }
@@ -51,7 +54,7 @@ function ticket_filter_sql(array $user, string $tenantId, array $sp, array &$par
     if (($sp['group'] ?? '') === 'mine') { $where[] = 't."groupId" IN (SELECT gm2."groupId" FROM "AgentGroupMember" gm2 WHERE gm2."userId" = ?)'; $params[] = $user['id']; }
     elseif (($sp['group'] ?? '') === 'none') { $where[] = 't."groupId" IS NULL'; }
     elseif (!empty($sp['group'])) { $where[] = 't."groupId" = ?'; $params[] = $sp['group']; }
-    if (!empty($sp['org'])) { $where[] = 'EXISTS (SELECT 1 FROM "User" ro2 WHERE ro2."id" = t."requesterId" AND ro2."organizationId" = ?)'; $params[] = $sp['org']; }
+    if (!empty($sp['org'])) { $where[] = REQUESTER_IN_ORG_SQL; $params[] = $sp['org']; }
     if (!empty($sp['source'])) { $where[] = 't."source" = ?'; $params[] = $sp['source']; }
     if (!empty($sp['tag'])) { $where[] = 'EXISTS (SELECT 1 FROM "TicketTag" tt WHERE tt."ticketId" = t."id" AND tt."tagId" = ?)'; $params[] = $sp['tag']; }
     if (($sp['assignee'] ?? '') === 'me') { $where[] = ASSIGNED_TO_SQL; array_push($params, $user['id'], $user['id']); }

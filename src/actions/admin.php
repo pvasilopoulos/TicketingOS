@@ -465,6 +465,7 @@ function act_member_create(array $in): ?array
         'avatarColor' => AVATAR_COLORS[$count % count(AVATAR_COLORS)], 'createdAt' => $now, 'updatedAt' => $now, 'tenantId' => $tenantId,
     ];
     db_insert('User', $new);
+    if ($new['organizationId']) add_user_org($new['id'], $new['organizationId'], (bool) $new['orgManager']);
     if ($invite) {
         $r = send_reset_link($new, 72 * 3600, true);
         return ['success' => $r['emailed'] ? "Invitation sent to $email" : "$name added. Email is not set up, so share this link to let them choose a password (valid 72h): {$r['link']}"];
@@ -504,14 +505,18 @@ function act_member_update(array $in): ?array
         $data += $roles;
     }
     $finalRole = $data['role'] ?? $target['role'];
-    if ($finalRole !== 'CUSTOMER') {
-        $data['organizationId'] = null;
-        $data['orgManager'] = 0;
-    } elseif (array_key_exists('organizationId', $in)) {
-        $data['organizationId'] = pick_org($tenantId, $in);
-        $data['orgManager'] = $data['organizationId'] && ($in['orgManager'] ?? '') === '1' ? 1 : 0;
-    }
     db_update('User', $data, '"id" = ?', [$target['id']]);
+    // Organizations: staff never belong to one; customers can belong to several.
+    if (!empty($in['orgsSent'])) {
+        $valid = array_flip(pluck(tenant_orgs($tenantId), 'id'));
+        $mgr = array_flip(array_map('strval', (array) ($in['orgManagers'] ?? [])));
+        $map = [];
+        foreach ((array) ($in['orgs'] ?? []) as $oid) if (isset($valid[(string) $oid])) $map[(string) $oid] = $finalRole === 'CUSTOMER' && isset($mgr[(string) $oid]);
+        set_user_orgs($target['id'], $map);
+    } elseif (array_key_exists('organizationId', $in)) {
+        $oid = pick_org($tenantId, $in);
+        set_user_orgs($target['id'], $oid ? [$oid => ($in['orgManager'] ?? '') === '1'] : []);
+    }
     return ['success' => 'Saved ' . ($data['name'] ?? $target['name'])];
 }
 

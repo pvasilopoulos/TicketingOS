@@ -126,7 +126,7 @@ function api_v1(string $method, string $path): never
                     'organizationId' => org_for_email($tenantId, $email)['id'] ?? null, 'orgManager' => 0,
                     'avatarColor' => AVATAR_COLORS[$count % count(AVATAR_COLORS)], 'createdAt' => now_iso(), 'updatedAt' => now_iso(), 'tenantId' => $tenantId,
                 ];
-                db_insert('User', $requester);
+                db_insert('User', $requester); if (!empty($requester['organizationId'])) add_user_org($requester['id'], $requester['organizationId']);
             }
         }
         $desc = (string) ($b['description'] ?? '');

@@ -1,6 +1,6 @@
 <?php
 /** @var string $id */
-require_super_admin();
+$user = require_super_admin();
 $tenant = q_one('SELECT * FROM "Tenant" WHERE "id" = ?', [$id]);
 if (!$tenant) abort(404);
 page_title($tenant['name']);
@@ -22,11 +22,21 @@ $ticketCount = (int) q_val('SELECT COUNT(*) FROM "Ticket" WHERE "tenantId" = ?',
       <h1 class="text-2xl font-bold tracking-tight"><?= e($tenant['name']) ?></h1>
       <p class="text-sm text-muted">/<?= e($tenant['slug']) ?> · <?= number_format($userCount) ?> users · <?= number_format($ticketCount) ?> tickets</p>
     </div>
-    <form method="post" action="/action/platform-enter" class="w-full sm:ml-auto sm:w-auto">
-      <?= form_meta() ?>
-      <input type="hidden" name="tenantId" value="<?= e($tenant['id']) ?>">
-      <button type="submit" class="<?= btn_cls('primary', 'md', 'w-full sm:w-auto') ?>"><?= icon('log-in', 16) ?> Enter board</button>
-    </form>
+    <div class="flex w-full flex-wrap gap-2 sm:ml-auto sm:w-auto">
+      <?php if (($user['tenantId'] ?? null) === $tenant['id']): ?>
+        <span class="inline-flex h-10 items-center gap-1.5 rounded-lg bg-emerald-500/10 px-3 text-sm font-medium text-emerald-700 dark:text-emerald-400"><?= icon('house', 15) ?> Your workspace — you work here as an agent</span>
+      <?php else: ?>
+        <form method="post" action="/action/platform-home" data-confirm="Make <?= e($tenant['name']) ?> your own workspace? You’ll appear there as an agent (assignee lists, notifications) and land there after signing in.">
+          <?= form_meta() ?><input type="hidden" name="tenantId" value="<?= e($tenant['id']) ?>">
+          <button type="submit" class="<?= btn_cls('outline', 'md') ?>"><?= icon('house', 16) ?> Make this my workspace</button>
+        </form>
+      <?php endif; ?>
+      <form method="post" action="/action/platform-enter" class="flex-1 sm:flex-none">
+        <?= form_meta() ?>
+        <input type="hidden" name="tenantId" value="<?= e($tenant['id']) ?>">
+        <button type="submit" class="<?= btn_cls('primary', 'md', 'w-full sm:w-auto') ?>"><?= icon('log-in', 16) ?> Enter board</button>
+      </form>
+    </div>
   </div>
 
   <div class="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px] xl:grid-cols-[minmax(0,1fr)_400px]">

@@ -137,7 +137,7 @@ function search_sql(string $q, array $ctx, array &$where, array &$params): void
                 $params[] = like_arg($vn);
                 break;
             case 'org':
-                $where[] = "EXISTS (SELECT 1 FROM \"User\" uo JOIN \"Organization\" o ON o.\"id\" = uo.\"organizationId\" WHERE uo.\"id\" = t.\"requesterId\" AND LOWER(o.\"name\") LIKE ? ESCAPE '!')";
+                $where[] = "EXISTS (SELECT 1 FROM \"UserOrganization\" uo JOIN \"Organization\" o ON o.\"id\" = uo.\"organizationId\" WHERE uo.\"userId\" = t.\"requesterId\" AND LOWER(o.\"name\") LIKE ? ESCAPE '!')";
                 $params[] = like_arg($vn);
                 break;
             case 'source':

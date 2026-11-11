@@ -98,7 +98,10 @@ function act_org_save(array $in): ?array
     $added = 0;
     if (($in['attach'] ?? '') === 'on' && $domains) {
         foreach ($domains as $d) {
-            $added += q('UPDATE "User" SET "organizationId" = ? WHERE "tenantId" = ? AND "role" = \'CUSTOMER\' AND "organizationId" IS NULL AND LOWER("email") LIKE ?', [$id, $tenantId, '%@' . $d])->rowCount();
+            foreach (q_all('SELECT "id" FROM "User" u WHERE "tenantId" = ? AND "role" = \'CUSTOMER\' AND LOWER("email") LIKE ? AND NOT EXISTS (SELECT 1 FROM "UserOrganization" x WHERE x."userId" = u."id" AND x."organizationId" = ?)', [$tenantId, '%@' . $d, $id]) as $cu) {
+                add_user_org($cu['id'], $id);
+                $added++;
+            }
         }
     }
     return ['success' => "Saved “{$name}”" . ($added ? " and added $added existing customer(s)" : ''), 'back' => '/settings?org=' . $id . '#orgs'];
@@ -110,8 +113,11 @@ function act_org_delete(array $in): ?array
     [, $tenantId] = $ctx;
     $o = q_one('SELECT * FROM "Organization" WHERE "id" = ? AND "tenantId" = ?', [str_in($in, 'id'), $tenantId]);
     if (!$o) return ['error' => 'Organization not found'];
+    $members = pluck(q_all('SELECT "userId" FROM "UserOrganization" WHERE "organizationId" = ?', [$o['id']]), 'userId');
+    q('DELETE FROM "UserOrganization" WHERE "organizationId" = ?', [$o['id']]);
     q('UPDATE "User" SET "organizationId" = NULL, "orgManager" = 0 WHERE "organizationId" = ?', [$o['id']]);
     q('DELETE FROM "Organization" WHERE "id" = ?', [$o['id']]);
+    foreach ($members as $uid) sync_primary_org($uid);
     return ['success' => "Deleted “{$o['name']}”. Its people stay as customers.", 'back' => '/settings#orgs'];
 }
 
@@ -120,13 +126,18 @@ function act_org_member(array $in): ?array
 {
     if (!($ctx = ctx_with('orgs.manage'))) return NOT_ALLOWED;
     [, $tenantId] = $ctx;
-    $u = q_one('SELECT * FROM "User" WHERE "id" = ? AND "tenantId" = ? AND "role" = \'CUSTOMER\'', [str_in($in, 'userId'), $tenantId]);
-    if (!$u) return ['error' => 'Customer not found'];
+    $u = q_one('SELECT * FROM "User" WHERE "id" = ? AND "tenantId" = ?', [str_in($in, 'userId'), $tenantId]);
+    if (!$u) return ['error' => 'Person not found'];
     $orgId = str_in($in, 'organizationId');
-    if ($orgId !== '' && !q_val('SELECT 1 FROM "Organization" WHERE "id" = ? AND "tenantId" = ?', [$orgId, $tenantId])) return ['error' => 'Organization not found'];
-    $manager = ($in['orgManager'] ?? '') === '1' && $orgId !== '';
-    db_update('User', ['organizationId' => $orgId ?: null, 'orgManager' => $manager ? 1 : 0, 'updatedAt' => now_iso()], '"id" = ?', [$u['id']]);
-    return ['success' => $orgId ? "{$u['name']} updated" : "{$u['name']} removed from the organization"];
+    $org = q_one('SELECT "id","name" FROM "Organization" WHERE "id" = ? AND "tenantId" = ?', [$orgId, $tenantId]);
+    if (!$org) return ['error' => 'Organization not found'];
+    if (($in['op'] ?? '') === 'remove') {
+        remove_user_org($u['id'], $org['id']);
+        return ['success' => "{$u['name']} removed from {$org['name']}"];
+    }
+    // Add (or change manager rights); other organizations of the person stay as they are.
+    add_user_org($u['id'], $org['id'], $u['role'] === 'CUSTOMER' && ($in['orgManager'] ?? '') === '1');
+    return ['success' => "{$u['name']} updated in {$org['name']}"];
 }
 
 /* ---------- Custom ticket fields ---------- */
@@ -447,7 +458,7 @@ function support_submit(array $tenant, array $in): array
             'role' => 'CUSTOMER', 'active' => 1, 'organizationId' => $org['id'] ?? null, 'orgManager' => 0,
             'avatarColor' => AVATAR_COLORS[$count % count(AVATAR_COLORS)], 'createdAt' => now_iso(), 'updatedAt' => now_iso(), 'tenantId' => $tenantId,
         ];
-        db_insert('User', $user);
+        db_insert('User', $user); if (!empty($user['organizationId'])) add_user_org($user['id'], $user['organizationId']);
         $isNew = true;
     }
     $html = '<p>' . nl2br(e(mb_substr($text, 0, 20000)), false) . '</p>';

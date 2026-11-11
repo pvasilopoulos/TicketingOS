@@ -84,3 +84,22 @@ function act_impersonate_stop(array $in): ?array
     start_session_for($super);
     redirect(home_for($super));
 }
+
+/* ---------- Super admin's own workspace ---------- */
+
+/**
+ * Give the super admin a home workspace: they appear there as staff (assignee
+ * lists, notifications, reports) and land there after signing in.
+ */
+function act_platform_home(array $in): ?array
+{
+    $me = current_user();
+    if (!$me || $me['role'] !== 'SUPER_ADMIN' || impersonator()) return ['error' => 'Only a super admin can do that'];
+    $tenant = q_one('SELECT "id","name" FROM "Tenant" WHERE "id" = ?', [str_in($in, 'tenantId')]);
+    if (!$tenant) return ['error' => 'Workspace not found'];
+    db_update('User', ['tenantId' => $tenant['id'], 'organizationId' => null, 'orgManager' => 0, 'updatedAt' => now_iso()], '"id" = ?', [$me['id']]);
+    audit($tenant['id'], $me, 'member-role', "{$me['name']} made {$tenant['name']} their home workspace", 'member', $me['id']);
+    clear_active_tenant_id();
+    start_session_for(array_merge($me, ['tenantId' => $tenant['id']]));
+    redirect('/dashboard');
+}

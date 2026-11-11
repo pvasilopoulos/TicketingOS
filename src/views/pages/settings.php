@@ -433,6 +433,9 @@ $s = fn (string $form) => flash($form);
     </form>
   </div>
   <?php endif; ?>
+  <?php if (can($me, 'settings.templates')): ?>
+    <?php require ROOT . '/src/views/partials/templates_admin.php'; ?>
+  <?php endif; ?>
   </section>
   <?php endif; ?>
 

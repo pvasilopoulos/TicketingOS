@@ -117,11 +117,14 @@ function ticket_visible(array $ticket, array $user): bool
     if (q_val('SELECT 1 FROM "TicketWatcher" WHERE "ticketId" = ? AND "userId" = ?', [$ticket['id'], $user['id']])) return true;
     // Agents allowed to see the unassigned queue.
     if (is_staff($user['role']) && empty($ticket['assigneeId']) && can($user, 'tickets.view_unassigned')) return true;
+    // Agents see the tickets of organizations they handle.
+    if (is_staff($user['role']) && q_val('SELECT 1 FROM "UserOrganization" ruo JOIN "UserOrganization" auo ON auo."organizationId" = ruo."organizationId" WHERE ruo."userId" = ? AND auo."userId" = ?', [$ticket['requesterId'], $user['id']])) return true;
     // Agents see their groups' tickets.
     if (is_staff($user['role']) && !empty($ticket['groupId']) && in_array($ticket['groupId'], user_group_ids($user['id']), true)) return true;
     // Organization managers see their organization's tickets.
-    if (!is_staff($user['role']) && !empty($user['organizationId']) && (int) ($user['orgManager'] ?? 0)) {
-        return (bool) q_val('SELECT 1 FROM "User" WHERE "id" = ? AND "organizationId" = ?', [$ticket['requesterId'], $user['organizationId']]);
+    if (!is_staff($user['role'])) {
+        return (bool) q_val('SELECT 1 FROM "UserOrganization" ruo JOIN "UserOrganization" muo ON muo."organizationId" = ruo."organizationId"
+            WHERE ruo."userId" = ? AND muo."userId" = ? AND muo."isManager" = 1', [$ticket['requesterId'], $user['id']]);
     }
     return false;
 }

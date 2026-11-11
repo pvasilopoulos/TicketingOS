@@ -29,6 +29,10 @@ $lockAssign = $noPerm('tickets.assign', 'assign tickets');
 $lockGroup = $noPerm('tickets.group', 'move tickets between groups');
 
 page_title('#' . $ticket['number'] . ' ' . $ticket['subject']);
+$parentTicket = !empty($ticket['parentId']) ? q_one('SELECT "id","number","subject" FROM "Ticket" WHERE "id" = ? AND "tenantId" = ?', [$ticket['parentId'], $tenantId]) : null;
+$children = $staff ? ticket_children($ticket['id']) : [];
+$ccList = ticket_cc($ticket['id']);
+$canCc = cc_allowed($ticket, $user);
 $canManage = $staff || $ticket['requesterId'] === $user['id'] || $ticket['assigneeId'] === $user['id'] || ($myWatch['watchRole'] ?? null) === 'COLLABORATOR';
 // Staff are limited by their role; customers by ticket ownership.
 $canLink = $perm('tickets.link');
@@ -39,6 +43,7 @@ $notesOnly = !$canReply && $canInternal;
 // Groups, organization, custom fields, satisfaction.
 $groups = $staff ? tenant_groups($tenantId) : [];
 $group = !empty($ticket['groupId']) ? q_one('SELECT "id","name","color" FROM "AgentGroup" WHERE "id" = ?', [$ticket['groupId']]) : null;
+$requesterOrgs = user_orgs($requester['id']);
 $org = !empty($requester['organizationId']) ? q_one('SELECT "id","name","notes" FROM "Organization" WHERE "id" = ?', [$requester['organizationId']]) : null;
 $ticketFields = fields_for($tenantId, $ticket['categoryId'], !$staff);
 $fieldValues = $ticketFields ? ticket_field_values($ticket['id']) : [];
@@ -85,6 +90,9 @@ $historyIcons = [
 $replyCount = count($timeline) + 1;
 
 $agents = $canManage ? q_all('SELECT "id","name" FROM "User" WHERE "tenantId" = ? AND "role" IN (\'SUPER_ADMIN\',\'ADMIN\',\'AGENT\') ORDER BY "name" ASC', [$tenantId]) : [];
+// Agents who handle the requester's organization(s) come first in the assignee picker.
+$orgAgentIds = $agents && $staff ? array_flip(pluck(q_all('SELECT DISTINCT auo."userId" FROM "UserOrganization" ruo JOIN "UserOrganization" auo ON auo."organizationId" = ruo."organizationId" WHERE ruo."userId" = ?', [$ticket['requesterId']]), 'userId')) : [];
+if ($orgAgentIds) usort($agents, fn ($x, $y) => [isset($orgAgentIds[$y['id']]) ? 1 : 0, $x['name']] <=> [isset($orgAgentIds[$x['id']]) ? 1 : 0, $y['name']]);
 $categories = $canManage ? q_all('SELECT "id","name" FROM "Category" WHERE "tenantId" = ? ORDER BY "name" ASC', [$tenantId]) : [];
 $excluded = array_flip([$ticket['requesterId'], ...array_column($watchers, 'id')]);
 $candidates = $canManage
@@ -123,6 +131,11 @@ $row = fn (string $label, string $valueHtml) => '<div class="flex items-center j
 ?>
 <div>
   <a href="/tickets" class="mb-4 inline-flex items-center gap-1.5 text-sm text-muted hover:text-fg"><?= icon('arrow-left', 16) ?> Back to tickets</a>
+  <?php if ($parentTicket): ?>
+    <a href="/tickets/<?= e($parentTicket['id']) ?>" class="mb-4 flex items-center gap-2 rounded-xl border border-brand/30 bg-brand/5 px-3 py-2 text-sm hover:bg-brand/10">
+      <?= icon('list-tree', 15, 'text-brand') ?><span class="text-muted">Sub-ticket of</span> <span class="min-w-0 truncate font-medium">#<?= (int) $parentTicket['number'] ?> <?= e($parentTicket['subject']) ?></span>
+    </a>
+  <?php endif; ?>
 
   <div class="flex flex-wrap items-start justify-between gap-3">
     <div class="min-w-0">
@@ -330,6 +343,7 @@ $row = fn (string $label, string $valueHtml) => '<div class="flex items-center j
                       <input type="checkbox" name="assigneeIds[]" value="<?= e($ag['id']) ?>" <?= $on ? 'checked' : '' ?> <?= $lockThis ? 'disabled' : '' ?> class="h-4 w-4 rounded border-border accent-brand">
                       <?php if ($lockThis && $on): ?><input type="hidden" name="assigneeIds[]" value="<?= e($ag['id']) ?>"><?php endif; ?>
                       <span class="min-w-0 flex-1 truncate"><?= e($ag['name']) ?><?= $ag['id'] === $user['id'] ? ' <span class="text-muted">(you)</span>' : '' ?></span>
+                      <?php if (isset($orgAgentIds[$ag['id']])): ?><span class="shrink-0 rounded-full bg-sky-500/10 px-1.5 text-[10px] font-semibold text-sky-700 dark:text-sky-300" title="Handles this customer’s organization">Org</span><?php endif; ?>
                       <?php if ($isLead && count($assigneeIds) > 1): ?><span class="rounded-full bg-brand/10 px-1.5 text-[10px] font-semibold uppercase text-brand" title="Lead: counted in reports, SLA and satisfaction">Lead</span><?php endif; ?>
                     </label>
                   <?php endforeach; ?>
@@ -394,6 +408,70 @@ $row = fn (string $label, string $valueHtml) => '<div class="flex items-center j
       </div>
       <?php endif; ?>
 
+      <?php if ($staff && empty($ticket['parentId']) && ($children || $canManage)):
+          $doneKids = count(array_filter($children, fn ($c) => resolve_status($statuses, $c['status'])['isClosed'])); ?>
+      <!-- Sub-tickets -->
+      <div class="rounded-xl border border-border bg-surface p-5">
+        <div class="mb-3 flex items-center justify-between gap-2">
+          <h3 class="flex items-center gap-1.5 text-sm font-semibold"><?= icon('list-tree', 15, 'text-muted') ?> Sub-tickets</h3>
+          <?php if ($children): ?><span class="text-xs tabular-nums text-muted"><?= $doneKids ?>/<?= count($children) ?> done</span><?php endif; ?>
+        </div>
+        <?php if ($children): ?>
+          <div class="mb-3 h-1.5 overflow-hidden rounded-full bg-surface-2"><div class="h-full rounded-full bg-emerald-500 transition-all" style="width:<?= round($doneKids / count($children) * 100) ?>%"></div></div>
+          <ul class="space-y-1.5">
+            <?php foreach ($children as $ch): $chs = resolve_status($statuses, $ch['status']); ?>
+              <li><a href="/tickets/<?= e($ch['id']) ?>" class="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-surface-2">
+                <?= $chs['isClosed'] ? icon('circle-check', 15, 'shrink-0 text-emerald-600') : icon('circle-dot', 15, 'shrink-0 text-muted') ?>
+                <span class="min-w-0 flex-1 truncate <?= $chs['isClosed'] ? 'text-muted line-through' : '' ?>"><span class="text-muted">#<?= (int) $ch['number'] ?></span> <?= e($ch['subject']) ?></span>
+                <?php if ($ch['aName']): ?><?= avatar($ch['aName'], $ch['aColor'], 20) ?><?php endif; ?>
+              </a></li>
+            <?php endforeach; ?>
+          </ul>
+        <?php else: ?>
+          <p class="text-xs text-muted">Split the work into smaller tickets with their own assignee and status.</p>
+        <?php endif; ?>
+        <?php if ($canManage): ?>
+          <form method="post" action="/action/subticket-create" data-ajax class="mt-3 space-y-2 border-t border-border pt-3">
+            <?= form_meta() ?><input type="hidden" name="ticketId" value="<?= e($ticket['id']) ?>">
+            <input name="subject" required minlength="3" maxlength="140" placeholder="New sub-ticket…" class="<?= INPUT_CLS ?>">
+            <div class="flex gap-2">
+              <select name="assigneeId" class="<?= SELECT_CLS ?> min-w-0 flex-1"><?= select_options(['' => 'Unassigned'] + (can($user, 'tickets.assign') ? array_column($agents, 'name', 'id') : [$user['id'] => $user['name']]), '') ?></select>
+              <button type="submit" class="<?= btn_cls('secondary') ?>"><?= icon('plus', 15) ?> Add</button>
+            </div>
+          </form>
+        <?php endif; ?>
+      </div>
+      <?php endif; ?>
+
+      <?php if ($canCc): ?>
+      <!-- CC by email -->
+      <div class="rounded-xl border border-border bg-surface p-5">
+        <h3 class="mb-1 flex items-center gap-1.5 text-sm font-semibold"><?= icon('at-sign', 15, 'text-muted') ?> CC by email</h3>
+        <p class="mb-3 text-xs text-muted">They get public replies and status changes by email<?= email_settings($tenantId)['enabled'] ?? false ? '' : ' (once email is set up)' ?>.</p>
+        <?php if ($ccList): ?>
+          <ul class="mb-3 space-y-1">
+            <?php foreach ($ccList as $em): ?>
+              <li class="flex items-center gap-2 rounded-lg bg-surface-2 px-2.5 py-1.5 text-sm">
+                <span class="min-w-0 flex-1 truncate"><?= e($em) ?></span>
+                <form method="post" action="/action/cc-remove" data-ajax><?= form_meta() ?><input type="hidden" name="ticketId" value="<?= e($ticket['id']) ?>"><input type="hidden" name="email" value="<?= e($em) ?>">
+                  <button type="submit" aria-label="Remove <?= e($em) ?>" class="text-muted hover:text-red-600 cursor-pointer"><?= icon('x', 14) ?></button></form>
+              </li>
+            <?php endforeach; ?>
+          </ul>
+        <?php endif; ?>
+        <form method="post" action="/action/cc-add" data-ajax class="flex gap-2">
+          <?= form_meta() ?><input type="hidden" name="ticketId" value="<?= e($ticket['id']) ?>">
+          <input name="emails" type="text" required placeholder="name@company.com" class="<?= INPUT_CLS ?> min-w-0 flex-1">
+          <button type="submit" class="<?= btn_cls('secondary') ?>"><?= icon('plus', 15) ?></button>
+        </form>
+      </div>
+      <?php elseif ($ccList): ?>
+      <div class="rounded-xl border border-border bg-surface p-5 text-sm">
+        <h3 class="mb-2 text-sm font-semibold">CC by email</h3>
+        <p class="text-muted"><?= e(implode(', ', $ccList)) ?></p>
+      </div>
+      <?php endif; ?>
+
       <!-- Team -->
       <div class="rounded-xl border border-border bg-surface p-5">
         <div class="mb-3 flex items-center justify-between">
@@ -411,7 +489,7 @@ $row = fn (string $label, string $valueHtml) => '<div class="flex items-center j
           endif; ?>
         </div>
         <?php if ($canTeam && !$staff && !$candidates): ?>
-          <p class="mb-3 text-xs text-muted"><?= empty($user['organizationId']) ? 'You can add colleagues once your account belongs to an organization.' : 'Everyone from your organization is already on this ticket.' ?></p>
+          <p class="mb-3 text-xs text-muted"><?= !user_org_ids($user['id']) ? 'You can add colleagues once your account belongs to an organization.' : 'Everyone from your organization is already on this ticket.' ?></p>
         <?php endif; ?>
         <?php if (!$watchers): ?>
           <p class="text-sm text-muted">No team members yet.</p>
@@ -467,7 +545,7 @@ $row = fn (string $label, string $valueHtml) => '<div class="flex items-center j
         <div class="space-y-2 border-t border-border px-5 py-4 text-sm">
           <?= $row('Created', e(format_date($ticket['createdAt']))) ?>
           <?= $row('Updated', e(time_ago($ticket['updatedAt']))) ?>
-          <?php if ($staff && ($ticket['source'] ?? 'web') !== 'web'): ?><?= $row('Received via', e(['api' => 'API', 'form' => 'Support form', 'email' => 'Email'][$ticket['source']] ?? $ticket['source'])) ?><?php endif; ?>
+          <?php if ($staff && ($ticket['source'] ?? 'web') !== 'web'): ?><?= $row('Received via', e((['api' => 'API', 'form' => 'Support form'] + TICKET_CHANNELS)[$ticket['source']] ?? $ticket['source'])) ?><?php endif; ?>
           <?php if ($ticket['closedAt']) echo $row('Closed', e(time_ago($ticket['closedAt']))); ?>
         </div>
       </div>

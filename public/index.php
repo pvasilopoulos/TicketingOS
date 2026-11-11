@@ -53,7 +53,8 @@ $ACTIONS = [
     'report-schedule-save' => 'act_report_schedule_save', 'report-schedule-delete' => 'act_report_schedule_delete', 'report-schedule-send' => 'act_report_schedule_send',
     'apikey-create' => 'act_apikey_create', 'apikey-revoke' => 'act_apikey_revoke',
     'webhook-save' => 'act_webhook_save', 'webhook-delete' => 'act_webhook_delete', 'webhook-test' => 'act_webhook_test', 'webform-save' => 'act_webform_save',
-    'branding-save' => 'act_branding_save', 'admin-perms-save' => 'act_admin_perms_save', 'impersonate' => 'act_impersonate', 'impersonate-stop' => 'act_impersonate_stop',
+    'branding-save' => 'act_branding_save', 'template-save' => 'act_template_save', 'template-delete' => 'act_template_delete',
+    'platform-home' => 'act_platform_home', 'subticket-create' => 'act_subticket_create', 'cc-add' => 'act_cc_add', 'cc-remove' => 'act_cc_remove', 'admin-perms-save' => 'act_admin_perms_save', 'impersonate' => 'act_impersonate', 'impersonate-stop' => 'act_impersonate_stop',
     'role-save' => 'act_role_save', 'role-delete' => 'act_role_delete', 'agent-perms-save' => 'act_agent_perms_save', 'security-save' => 'act_security_save', 'member-role' => 'act_member_role', 'member-remove' => 'act_member_remove',
 ];
 
@@ -133,6 +134,8 @@ try {
     if ($path === '/api/search' && $method === 'GET') api_search();
     if ($path === '/api/presence' && $method === 'POST') api_presence();
     if ($path === '/api/kb/suggest' && $method === 'GET') api_kb_suggest();
+    if ($path === '/api/customers' && $method === 'GET') api_customers_search();
+    if ($path === '/api/tickets/similar' && $method === 'GET') api_similar_tickets();
     if ($path === '/manifest.webmanifest') api_manifest();
     if ($path === '/tickets/export' && $method === 'GET') export_tickets_csv();
     if ($path === '/settings/audit.csv' && $method === 'GET') export_audit_csv();

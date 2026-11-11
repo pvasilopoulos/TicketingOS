@@ -1237,6 +1237,126 @@
       .catch(function () { location.reload(); });
   }, true);
 
+  /* ---------- New-ticket form: customer, duplicates, SLA, templates ---------- */
+  function bindNewTicket(form) {
+    var esc = function (s) { var d = document.createElement("div"); d.textContent = s == null ? "" : String(s); return d.innerHTML; };
+    var debounce = function (fn, ms) { var t; return function () { var a = arguments; clearTimeout(t); t = setTimeout(function () { fn.apply(null, a); }, ms); }; };
+    var reqId = form.querySelector("[data-requester-id]");
+
+    // Who is this for?
+    function showMode() {
+      var m = (form.querySelector("[data-requester-mode]:checked") || {}).value || "self";
+      $$("[data-mode-panel]", form).forEach(function (p) { p.hidden = p.getAttribute("data-mode-panel") !== m; });
+      checkSimilar();
+    }
+    $$("[data-requester-mode]", form).forEach(function (r) { r.addEventListener("change", showMode); });
+
+    var search = form.querySelector("[data-customer-search]");
+    var results = form.querySelector("[data-customer-results]");
+    var chosen = form.querySelector("[data-customer-chosen]");
+    function pick(c) {
+      reqId.value = c.id;
+      chosen.querySelector("[data-customer-label]").textContent = c.name + " · " + c.email + (c.org ? " · " + c.org : "");
+      chosen.hidden = false; search.hidden = true; results.hidden = true;
+      checkSimilar();
+    }
+    if (search) {
+      search.addEventListener("input", debounce(function () {
+        var q = search.value.trim();
+        if (q.length < 2) { results.hidden = true; return; }
+        fetch("/api/customers?q=" + encodeURIComponent(q), { credentials: "same-origin" }).then(function (r) { return r.json(); }).then(function (j) {
+          var list = (j && j.data) || [];
+          results.innerHTML = list.length ? list.map(function (c, i) {
+            return '<button type="button" data-i="' + i + '" class="flex w-full flex-col items-start rounded-lg px-3 py-2 text-left text-sm hover:bg-surface-2 cursor-pointer"><span class="font-medium">' + esc(c.name) + '</span><span class="text-xs text-muted">' + esc(c.email) + (c.org ? " · " + esc(c.org) : "") + "</span></button>";
+          }).join("") : '<p class="px-3 py-2 text-sm text-muted">No customer found — use “New customer”.</p>';
+          $$("[data-i]", results).forEach(function (b) { b.addEventListener("click", function () { pick(list[+b.getAttribute("data-i")]); }); });
+          results.hidden = false;
+        });
+      }, 250));
+      form.querySelector("[data-customer-clear]").addEventListener("click", function () {
+        reqId.value = ""; chosen.hidden = true; search.hidden = false; search.value = ""; search.focus(); checkSimilar();
+      });
+      document.addEventListener("click", function (e) { if (!results.contains(e.target) && e.target !== search) results.hidden = true; });
+    }
+
+    // Possible duplicates while the subject is typed.
+    var subj = form.querySelector("[data-similar-source]");
+    var simBox = form.querySelector("[data-similar]");
+    var simList = form.querySelector("[data-similar-list]");
+    var lastQ = "";
+    function checkSimilar() {
+      if (!subj || !simBox) return;
+      var q = subj.value.trim();
+      var mode = (form.querySelector("[data-requester-mode]:checked") || {}).value || "self";
+      var rid = mode === "customer" ? (reqId && reqId.value) || "" : "";
+      var key = q + "|" + rid;
+      if (q.length < 6) { simBox.hidden = true; lastQ = ""; return; }
+      if (key === lastQ) return;
+      lastQ = key;
+      fetch("/api/tickets/similar?q=" + encodeURIComponent(q) + (rid ? "&requesterId=" + encodeURIComponent(rid) : ""), { credentials: "same-origin" })
+        .then(function (r) { return r.json(); }).then(function (j) {
+          var list = (j && j.data) || [];
+          simList.innerHTML = list.map(function (t) {
+            return '<li><a href="' + t.url + '" target="_blank" rel="noopener" class="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-white/60 dark:hover:bg-white/5"><span class="font-mono text-xs text-muted">#' + t.number + '</span><span class="min-w-0 flex-1 truncate">' + esc(t.subject) + '</span><span class="shrink-0 text-xs text-muted">' + esc(t.status) + " · " + esc(t.ago) + "</span></a></li>";
+          }).join("");
+          simBox.hidden = !list.length;
+        }).catch(function () {});
+    }
+    if (subj) subj.addEventListener("input", debounce(checkSimilar, 450));
+
+    // Resolution target preview from the priority (or the custom deadline).
+    var sla = {};
+    try { sla = JSON.parse(form.getAttribute("data-sla") || "{}"); } catch (e) {}
+    var prio = form.querySelector("[data-priority]");
+    var prev = form.querySelector("[data-sla-preview]");
+    var due = form.querySelector("[data-due-input]");
+    var fmt = function (d) { return d.toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }); };
+    function showSla() {
+      if (!prev || !prio) return;
+      var span = prev.querySelector("span");
+      if (due && due.value) { span.textContent = "Custom deadline: " + fmt(new Date(due.value)); prev.hidden = false; return; }
+      var h = sla[prio.value] || 0;
+      if (!h) { prev.hidden = true; return; }
+      span.textContent = "Resolution target: " + fmt(new Date(Date.now() + h * 3600e3)) + " (" + (h % 24 ? h + "h" : h / 24 + (h === 24 ? " day" : " days")) + ")";
+      prev.hidden = false;
+    }
+    if (prio) prio.addEventListener("change", showSla);
+    if (due) due.addEventListener("change", showSla);
+    showSla();
+
+    // Templates fill the form.
+    var tpls = [];
+    try { tpls = JSON.parse(form.getAttribute("data-templates") || "[]"); } catch (e) {}
+    $$("[data-use-template]", form).forEach(function (b) {
+      b.addEventListener("click", function () {
+        var t = tpls.filter(function (x) { return x.id === b.getAttribute("data-use-template"); })[0];
+        if (!t) return;
+        $$("[data-use-template]", form).forEach(function (o) { o.dataset.on = o === b ? "true" : "false"; });
+        form.querySelector("[data-template-id]").value = t.id;
+        if (t.subject && subj) { subj.value = t.subject; checkSimilar(); }
+        var ed = form.querySelector('[data-rte] [data-rte-value][name="description"]');
+        if (t.body && ed) {
+          var root = ed.closest("[data-rte]");
+          root.querySelector("[data-rte-input]").innerHTML = t.body;
+          ed.value = t.body;
+        }
+        if (t.priority && prio) { prio.value = t.priority; showSla(); }
+        var cat = form.querySelector("#categoryId");
+        if (t.categoryId && cat) { cat.value = t.categoryId; cat.dispatchEvent(new Event("change", { bubbles: true })); }
+        var tags = form.querySelector("[data-tags-input]");
+        if (tags && t.tags && t.tags.length) tags.value = t.tags.join(", ");
+        var subs = form.querySelector("[data-subtasks-input]");
+        if (subs && t.subtasks && t.subtasks.length) subs.value = t.subtasks.join("\n");
+        $$("[data-assignee-box]", form).forEach(function (c) { if (!c.disabled && t.assigneeIds) c.checked = t.assigneeIds.indexOf(c.value) >= 0; });
+        if ((t.assigneeIds && t.assigneeIds.length) || (t.subtasks && t.subtasks.length) || (t.tags && t.tags.length)) {
+          var det = subs && subs.closest("details"); if (det) det.open = true;
+        }
+      });
+    });
+    showMode();
+  }
+  document.addEventListener("DOMContentLoaded", function () { $$("form[data-new-ticket]").forEach(bindNewTicket); });
+
   // Simple tabs (ticket Conversation / History).
   function showTab(root, key) {
     var btn = root.querySelector('[data-tab="' + key + '"]');

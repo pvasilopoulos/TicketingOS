@@ -184,22 +184,25 @@ function create_ticket(string $tenantId, array $requester, array $data, ?array $
     $fieldDefs = fields_for($tenantId, $categoryId, !is_staff($actor['role']));
     $values = validate_fields($fieldDefs, (array) ($data['fields'] ?? []));
     if (is_string($values)) return $values;
-    $source = in_array($data['source'] ?? 'web', ['web', 'api', 'form', 'email'], true) ? ($data['source'] ?? 'web') : 'web';
+    $source = in_array($data['source'] ?? 'web', TICKET_SOURCES, true) ? ($data['source'] ?? 'web') : 'web';
+    // Staff may set their own deadline instead of the SLA one.
+    $dueOverride = !empty($data['dueAt']) && ts((string) $data['dueAt']) ? iso_from_ts(ts((string) $data['dueAt'])) : null;
+    $parentId = ($data['parentId'] ?? '') ?: null;
 
     $now = now_iso();
     // Per-tenant number = MAX+1. Two simultaneous creates can race for the same
     // number; the UNIQUE(tenantId, number) key rejects one, so retry it.
     for ($attempt = 0; ; $attempt++) {
         try {
-            $ticket = db_tx(function () use ($tenantId, $subject, $description, $priority, $categoryId, $groupId, $requester, $statuses, $sla, $now, $source) {
+            $ticket = db_tx(function () use ($tenantId, $subject, $description, $priority, $categoryId, $groupId, $requester, $statuses, $sla, $now, $source, $dueOverride, $parentId) {
                 $number = (int) q_val('SELECT COALESCE(MAX("number"), 0) FROM "Ticket" WHERE "tenantId" = ?', [$tenantId]) + 1;
                 $t = [
                     'id' => cuid(), 'number' => $number, 'subject' => $subject, 'description' => $description,
                     'status' => initial_status_key($statuses), 'priority' => $priority,
                     'createdAt' => $now, 'updatedAt' => $now, 'closedAt' => null,
-                    'dueAt' => compute_due_at($now, $priority, $sla),
+                    'dueAt' => $dueOverride ?? compute_due_at($now, $priority, $sla),
                     'tenantId' => $tenantId, 'requesterId' => $requester['id'], 'assigneeId' => null, 'categoryId' => $categoryId,
-                    'groupId' => $groupId, 'source' => $source,
+                    'groupId' => $groupId, 'source' => $source, 'parentId' => $parentId,
                 ];
                 db_insert('Ticket', $t);
                 return $t;
@@ -216,7 +219,7 @@ function create_ticket(string $tenantId, array $requester, array $data, ?array $
 
     // Notify all staff in the tenant about the new ticket.
     $staff = pluck(q_all('SELECT "id" FROM "User" WHERE "tenantId" = ? AND "role" IN (\'SUPER_ADMIN\',\'ADMIN\',\'AGENT\') AND "active" = 1 AND "id" <> ?', [$tenantId, $actor['id']]), 'id');
-    if ($staff) {
+    if ($staff && empty($data['skipNotify'])) {
         dispatch([
             'tenantId' => $tenantId, 'recipients' => $staff, 'category' => 'new_ticket', 'ticket' => ticket_ref($ticket),
             'inAppType' => 'NEW_TICKET',
@@ -244,23 +247,105 @@ function act_ticket_create(array $in): ?array
 {
     [$user, $tenantId] = require_tenant_user();
     if (str_in($in, 'priority') === '') return ['error' => 'Priority is required'];
-    $ticket = create_ticket($tenantId, $user, [
+    $staff = is_staff($user['role']);
+
+    // Staff can open the ticket for a customer (existing or new) and say how the request came in.
+    $requester = $user;
+    $source = 'web';
+    if ($staff) {
+        $mode = str_in($in, 'requesterMode');
+        if ($mode === 'customer') {
+            $requester = q_one('SELECT * FROM "User" WHERE "id" = ? AND "tenantId" = ? AND "role" = \'CUSTOMER\'', [str_in($in, 'requesterId'), $tenantId]);
+            if (!$requester) return ['error' => 'Pick the customer this ticket is for'];
+        } elseif ($mode === 'new') {
+            $email = strtolower(str_in($in, 'newEmail'));
+            $exists = $email !== '' && q_val('SELECT 1 FROM "User" WHERE "email" = ? AND "tenantId" = ?', [$email, $tenantId]);
+            if (!$exists && !can($user, 'users.invite')) return ['error' => 'You don’t have permission to add new customers'];
+            $requester = find_or_create_customer($tenantId, $email, str_in($in, 'newName'));
+            if (is_string($requester)) return ['error' => $requester];
+            if ($requester['role'] !== 'CUSTOMER') return ['error' => 'That email belongs to a staff member'];
+        }
+        $channel = str_in($in, 'channel');
+        if (isset(TICKET_CHANNELS[$channel])) $source = $channel;
+    }
+
+    // CC addresses (anyone may add them).
+    $cc = parse_cc_list(str_in($in, 'cc'));
+    if (is_string($cc)) return ['error' => $cc];
+
+    // A template the user may use: its tags, assignees and sub-tasks are applied by staff.
+    $tpl = null;
+    if (($tid = str_in($in, 'templateId')) !== '') {
+        $tpl = q_one('SELECT * FROM "TicketTemplate" WHERE "id" = ? AND "tenantId" = ?', [$tid, $tenantId]);
+        if ($tpl && $tpl['audience'] !== 'everyone' && !$staff) $tpl = null;
+    }
+
+    $due = $staff && can($user, 'tickets.priority') ? str_in($in, 'dueAt') : '';
+    $ticket = create_ticket($tenantId, $requester, [
         'subject' => str_in($in, 'subject'), 'description' => (string) ($in['description'] ?? ''),
         'priority' => str_in($in, 'priority'), 'categoryId' => str_in($in, 'categoryId'),
-        'fields' => (array) ($in['cf'] ?? []), 'source' => 'web',
-    ]);
+        'groupId' => $staff && can($user, 'tickets.group') ? str_in($in, 'groupId') : '',
+        'fields' => (array) ($in['cf'] ?? []), 'source' => $source, 'dueAt' => $due,
+    ], $user);
     if (is_string($ticket)) return ['error' => $ticket];
     $number = $ticket['number'];
     $subject = $ticket['subject'];
 
     save_uploads(uploaded_files('files'), $tenantId, $user['id'], $ticket['id']);
+    if ($cc) add_ticket_cc($ticket['id'], $cc, $user['id']);
+
+    // Opened for a customer: tell them (in the app, by push and email per their settings).
+    if ($requester['id'] !== $user['id']) {
+        dispatch([
+            'tenantId' => $tenantId, 'recipients' => [$requester['id']], 'category' => 'team', 'ticket' => ticket_ref($ticket),
+            'inAppType' => 'NEW_TICKET',
+            'inAppMessage' => "{$user['name']} opened ticket #$number for you: $subject",
+            'pushBody' => "{$user['name']} opened this ticket for you",
+            'emailLine' => "{$user['name']} opened ticket #$number for you: $subject. You can follow and reply to it here.",
+        ]);
+    }
+    // People copied by email hear about the new ticket.
+    if ($cc) notify_ticket_cc($ticket, $tenantId, "New ticket #$number: $subject", sanitize_rich_html((string) ($in['description'] ?? '')));
+
+    if ($staff) {
+        $dec = fn ($v) => json_decode((string) $v, true) ?: [];
+        // Assignees, status and tags chosen on the form (each still needs its permission).
+        $assignees = array_values(array_unique(array_merge(array_map('strval', (array) ($in['assigneeIds'] ?? [])), $tpl ? $dec($tpl['assigneeIds']) : [])));
+        $changes = [];
+        if ($assignees) { $changes['assigneeIds'] = $assignees; $changes['assigneeIdsSent'] = 1; }
+        if (($st = str_in($in, 'status')) !== '') $changes['status'] = $st;
+        if ($changes) update_ticket($ticket['id'], $changes, $user, $tenantId);
+        if (can($user, 'tickets.tags')) {
+            $tagNames = array_merge(preg_split('/[,
+]+/', str_in($in, 'tagsText')) ?: [], $tpl ? $dec($tpl['tags']) : []);
+            foreach (array_unique(array_filter(array_map('clean_tag', $tagNames))) as $tn) {
+                $tagId = q_val('SELECT "id" FROM "Tag" WHERE "tenantId" = ? AND "name" = ?', [$tenantId, $tn]);
+                if (!$tagId) { $tagId = cuid(); db_insert('Tag', ['id' => $tagId, 'name' => $tn, 'tenantId' => $tenantId]); }
+                if (!q_val('SELECT 1 FROM "TicketTag" WHERE "ticketId" = ? AND "tagId" = ?', [$ticket['id'], $tagId])) db_insert('TicketTag', ['ticketId' => $ticket['id'], 'tagId' => $tagId]);
+            }
+            reindex_ticket($ticket['id']);
+        }
+        // A first internal note for the team.
+        $noteText = trim((string) ($in['internalNote'] ?? ''));
+        $note = $noteText === '' ? '' : sanitize_rich_html('<p>' . nl2br(e($noteText)) . '</p>');
+        if (can($user, 'tickets.internal') && mb_strlen(trim(html_to_text($note))) > 0) {
+            add_comment(find_ticket($ticket['id'], $tenantId), $user, $tenantId, $note, true);
+        }
+        // Sub-tickets: one per line (plus the template's).
+        $lines = preg_split('/\r?\n/', (string) ($in['subtasks'] ?? '')) ?: [];
+        $lines = array_merge($tpl ? $dec($tpl['subtasks']) : [], $lines);
+        $parent = find_ticket($ticket['id'], $tenantId);
+        foreach (array_slice(array_values(array_unique(array_filter(array_map(fn ($l) => trim((string) $l), $lines), fn ($l) => mb_strlen($l) >= 3))), 0, 20) as $line) {
+            create_subticket($parent, $user, $tenantId, mb_substr($line, 0, 140));
+        }
+    }
 
     // Team members chosen on the create form.
     $team = parse_team($in['team'] ?? '');
     if ($team) {
         $ids = pluck($team, 'userId');
         $valid = array_flip(pluck(array_filter(q_all('SELECT * FROM "User" WHERE "id" IN (' . in_ph($ids) . ') AND "tenantId" = ?', [...$ids, $tenantId]), fn ($u) => can_add_person($user, $u)), 'id'));
-        $rows = array_values(array_filter($team, fn ($t) => isset($valid[$t['userId']]) && $t['userId'] !== $user['id']));
+        $rows = array_values(array_filter($team, fn ($t) => isset($valid[$t['userId']]) && $t['userId'] !== $user['id'] && $t['userId'] !== $requester['id']));
         foreach ($rows as $r) {
             db_insert('TicketWatcher', ['ticketId' => $ticket['id'], 'userId' => $r['userId'], 'role' => $r['role'], 'createdAt' => now_iso()]);
         }
@@ -415,6 +500,7 @@ function update_ticket(string $ticketId, array $in, array $user, string $tenantI
             'emailLine' => "Ticket #$num is now $statusTo.",
         ]);
     }
+    if ($statusChanged) notify_ticket_cc($ticket, $tenantId, "Ticket #$num is now $statusTo");
     $newlyAssigned = $assigneeChanged ? array_values(array_diff($wantList, $curList, [$user['id']])) : [];
     if ($newlyAssigned) {
         dispatch([
@@ -541,6 +627,8 @@ function add_comment(array $ticket, array $user, string $tenantId, string $body,
     }
     db_update('Ticket', ['updatedAt' => now_iso()], '"id" = ?', [$ticketId]);
     if (!$isInternal) reindex_ticket($ticketId);
+    // People copied by email get public replies.
+    if (!$isInternal) notify_ticket_cc($ticket, $tenantId, $user['name'] . ' replied on ticket #' . (int) $ticket['number'], $body);
 
     // Notify requester, assignee and watchers (internal notes → staff only).
     $watchers = q_all('SELECT u."id", u."role" FROM "TicketWatcher" w JOIN "User" u ON u."id" = w."userId" WHERE w."ticketId" = ?', [$ticketId]);

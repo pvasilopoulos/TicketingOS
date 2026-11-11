@@ -383,14 +383,33 @@
       }
     });
 
-    // Paste images directly as uploads.
+    // Paste or drop screenshots: every image becomes an inline upload.
+    var images = function (list) { return Array.prototype.filter.call(list || [], function (f) { return /^image\//.test(f.type); }); };
     input.addEventListener("paste", function (e) {
-      var items = (e.clipboardData && e.clipboardData.files) || [];
-      if (items.length && /^image\//.test(items[0].type)) {
-        e.preventDefault();
-        self.save();
-        self.uploadImage(items[0]);
-      }
+      var files = images(e.clipboardData && e.clipboardData.files);
+      if (!files.length) return;
+      e.preventDefault();
+      self.save();
+      files.forEach(function (f) { self.uploadImage(f); });
+    });
+    var box = this.root;
+    box.addEventListener("dragover", function (e) {
+      if (!e.dataTransfer || Array.prototype.indexOf.call(e.dataTransfer.types || [], "Files") < 0) return;
+      e.preventDefault();
+      box.classList.add("ring-2", "ring-brand/50", "border-brand");
+    });
+    box.addEventListener("dragleave", function (e) { if (!box.contains(e.relatedTarget)) box.classList.remove("ring-2", "ring-brand/50", "border-brand"); });
+    box.addEventListener("drop", function (e) {
+      box.classList.remove("ring-2", "ring-brand/50", "border-brand");
+      var files = images(e.dataTransfer && e.dataTransfer.files);
+      if (!files.length) return;
+      e.preventDefault();
+      // Put the caret where the image was dropped.
+      var range = document.caretRangeFromPoint ? document.caretRangeFromPoint(e.clientX, e.clientY) : null;
+      if (range && input.contains(range.startContainer)) { var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range); }
+      else input.focus();
+      self.save();
+      files.forEach(function (f) { self.uploadImage(f); });
     });
 
     document.addEventListener("selectionchange", function () {
