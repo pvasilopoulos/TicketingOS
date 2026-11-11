@@ -95,6 +95,20 @@ $tile = function (string $label, int $n, string $key, string $ic, string $tone) 
         . '<span class="min-w-0"><span class="block text-lg font-semibold leading-tight tabular-nums">' . number_format($n) . '</span><span class="block truncate text-xs text-muted">' . e($label) . '</span></span></a>';
 };
 ?>
+<?php if ($isSuperMe && ($me['tenantId'] ?? null) !== $tenantId): ?>
+  <!-- A visiting super admin isn't a member of this workspace -->
+  <div class="flex flex-wrap items-center gap-3 rounded-xl border border-amber-300/60 bg-amber-50 p-4 dark:border-amber-500/30 dark:bg-amber-500/10">
+    <span class="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-amber-500/15 text-amber-700 dark:text-amber-300"><?= icon('shield-check', 18) ?></span>
+    <div class="min-w-0 flex-1 text-sm">
+      <p class="font-medium">You’re not in this list because this isn’t your workspace.</p>
+      <p class="text-xs text-muted">As super admin you’re visiting it from the platform console<?= $me['tenantId'] ? '' : ' and have no workspace of your own yet' ?>. Make it your workspace to appear here, in assignee lists and in notifications as an agent.</p>
+    </div>
+    <form method="post" action="/action/platform-home" data-confirm="Make this your own workspace? You’ll appear here as an agent and land here after signing in.">
+      <?= form_meta() ?><input type="hidden" name="tenantId" value="<?= e($tenantId) ?>">
+      <button type="submit" class="<?= btn_cls('primary', 'sm') ?>"><?= icon('house', 14) ?> Make this my workspace</button>
+    </form>
+  </div>
+<?php endif; ?>
 <!-- Overview -->
 <div class="grid grid-cols-2 gap-3 md:grid-cols-4">
   <?= $tile('Administrators', (int) ($roleCounts['ADMIN'] ?? 0) + (int) ($roleCounts['SUPER_ADMIN'] ?? 0), 'ADMIN', 'crown', 'bg-indigo-500/10 text-indigo-600') ?>
