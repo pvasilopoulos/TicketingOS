@@ -58,6 +58,9 @@ oversee every tenant and step into any board to manage it.
   - The workspace always keeps one active admin.
 - 🔐 **Security** tab: admin backup warning, deactivated and never-signed-in counts, and a minimum password length slider with a letters+numbers rule. The rules apply to invites, resets and admin-set passwords.
 - 👑 **Super admin**: the platform owner, above administrators. Works in their own workspace, can open the platform console (`/platform`) and enter any workspace. Administrators can’t edit, deactivate or remove a super admin; only a super admin can grant the role (Users → Edit). The first one is created with `php bin/make-super-admin.php you@example.com` (or the SQL in that file).
+  - **Branding** (Settings → Branding): the app name and logo for the whole platform (sign-in pages, browser tab, installed app, emails). Stored in `storage/branding/`.
+  - **Sign in as**: from Settings → Users or the platform console, see the app exactly as any user (not other super admins). An amber bar shows who you are acting as, with a button back to your account; every use is in the audit log.
+  - **Administrator permissions**: in Roles → Administrator a super admin can limit what administrators of that workspace may do. Roles, security, users of admins and the audit log always stay with administrators.
 - 🕓 **Ticket history**: changes to a ticket (status, priority, assignee, category, group, fields, followers, links, merges, macros, ratings) are in their own **History** tab, so the **Conversation** tab holds only messages.
 - 📜 **Audit log** (Settings → Audit log, admins):
   - Records every change to users, roles, groups, organizations, settings, integrations and scheduled reports, plus staff sign-ins (also failed and blocked ones), bulk edits, merges and CSV exports.

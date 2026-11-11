@@ -5,6 +5,7 @@
  */
 $roles = q_all('SELECT r.*, (SELECT COUNT(*) FROM "User" u WHERE u."customRoleId" = r."id" AND u."role" = \'AGENT\') AS "members" FROM "Role" r WHERE r."tenantId" = ? ORDER BY r."name"', [$tenantId]);
 $agentPerms = agent_permissions($tenantId);
+$adminPerms = admin_permissions($tenantId);
 $info = permission_info();
 $total = count($info);
 $counts = array_column(q_all('SELECT "role", COUNT(*) AS n FROM "User" WHERE "tenantId" = ? GROUP BY "role"', [$tenantId]), 'n', 'role');
@@ -120,7 +121,7 @@ $listItem = function (string $key, string $name, string $sub, string $color, str
     <p class="hidden px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wider text-muted 2xl:block">Built-in</p>
     <div class="flex shrink-0 gap-1 2xl:flex-col [&>a]:min-w-52 2xl:[&>a]:min-w-0">
       <?= $listItem('super', 'Super admin', number_format(count($superAll)) . ' · every workspace', '#d97706', 'shield-check', $total) ?>
-      <?= $listItem('admin', 'Administrator', number_format((int) ($counts['ADMIN'] ?? 0)) . ' · all permissions', '#4f46e5', 'crown', $total) ?>
+      <?= $listItem('admin', 'Administrator', number_format((int) ($counts['ADMIN'] ?? 0)) . ' · ' . (count($adminPerms) === $total ? 'all permissions' : count($adminPerms) . '/' . $total . ' permissions'), '#4f46e5', 'crown', count($adminPerms)) ?>
       <?= $listItem('agent', 'Agent', $plainAgents . ' · ' . count($agentPerms) . '/' . $total . ' permissions', '#0284c7', 'users-round', count($agentPerms)) ?>
       <?= $listItem('customer', 'Customer', number_format((int) ($counts['CUSTOMER'] ?? 0)) . ' · own tickets only', '#64748b', 'circle-user-round', -1) ?>
     </div>
@@ -164,22 +165,34 @@ $listItem = function (string $key, string $name, string $sub, string $color, str
       </div>
     </div>
 
-    <!-- Administrator -->
-    <div data-role-panel="admin" <?= $sel === 'admin' ? '' : 'hidden' ?> class="space-y-4">
-      <div class="rounded-xl border border-border bg-surface p-5">
+    <!-- Administrator: editable by a super admin, read-only for everyone else -->
+    <?php $superMe = $me['role'] === 'SUPER_ADMIN'; $adminLimited = count($adminPerms) < $total; ?>
+    <?php if ($superMe): ?>
+    <form method="post" action="/action/admin-perms-save" data-role-panel="admin" data-perm-form <?= $sel === 'admin' ? '' : 'hidden' ?>>
+      <?= form_meta('roles', '/settings?role=admin#roles') ?>
+    <?php else: ?>
+    <div data-role-panel="admin" <?= $sel === 'admin' ? '' : 'hidden' ?>>
+    <?php endif; ?>
+      <div class="mb-4 rounded-xl border border-border bg-surface p-5">
         <div class="flex flex-wrap items-center gap-4">
           <span class="grid h-12 w-12 place-items-center rounded-xl bg-indigo-600 text-white"><?= icon('crown', 22) ?></span>
-          <div class="min-w-0 flex-1"><h3 class="font-semibold">Administrator</h3><p class="text-sm text-muted">Full access, always. Can't be edited.</p></div>
+          <div class="min-w-0 flex-1"><h3 class="font-semibold">Administrator <span class="ml-1 rounded-full bg-surface-2 px-2 py-0.5 text-xs font-medium text-muted">Built-in</span></h3>
+            <p class="text-sm text-muted"><?= $superMe ? 'As super admin you decide what administrators of this workspace can do.' : ($adminLimited ? 'Limited by the super admin.' : 'Full access. Only the super admin can change this.') ?></p></div>
           <?= $avatars($membersOf('admin'), 'ADMIN') ?>
         </div>
         <ul class="mt-4 grid gap-2 text-sm sm:grid-cols-2">
-          <?php foreach (['Every permission below', 'Create and edit roles', 'Add, change and remove administrators', 'Security and password rules'] as $t): ?>
-            <li class="flex items-center gap-2"><?= icon('circle-check', 15, 'text-emerald-600') ?><?= e($t) ?></li>
+          <?php foreach (['Create and edit roles', 'Add, change and remove administrators', 'Security and password rules', 'Audit log'] as $t): ?>
+            <li class="flex items-center gap-2"><?= icon('circle-check', 15, 'text-emerald-600') ?><?= e($t) ?> <span class="text-xs text-muted">· always</span></li>
           <?php endforeach; ?>
         </ul>
       </div>
-      <?= $editor(all_permissions(), true) ?>
+      <?= $editor($adminPerms, !$superMe) ?>
+    <?php if ($superMe): ?>
+      <?= $saveBar('<button type="submit" name="reset" value="1" formnovalidate data-confirm="Give administrators every permission again?" title="Full access" class="' . btn_cls('ghost', 'sm') . '">' . icon('rotate-ccw', 14) . '<span class="max-sm:hidden">Full access</span></button>') ?>
+    </form>
+    <?php else: ?>
     </div>
+    <?php endif; ?>
 
     <!-- Customer -->
     <div data-role-panel="customer" <?= $sel === 'customer' ? '' : 'hidden' ?> class="space-y-4">

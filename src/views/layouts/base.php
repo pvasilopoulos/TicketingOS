@@ -1,6 +1,6 @@
 <?php
 /** @var string $content */
-$pageTitle = page_title() ? page_title() . ' · TicketingOS' : 'TicketingOS — Modern Helpdesk';
+$pageTitle = page_title() ? page_title() . ' · ' . app_name() : app_name() . ' — Helpdesk';
 $assetV = @filemtime(ROOT . '/public/assets/app.css') ?: 1;
 $jsIcons = ['bell' => icon('bell', 16), 'x' => icon('x', 15), 'x-sm' => icon('x', 14), 'file-text' => icon('file-text', 15, 'shrink-0 text-muted'), 'loader' => icon('loader-circle', 13, 'animate-spin')];
 ?><!DOCTYPE html>
@@ -10,14 +10,14 @@ $jsIcons = ['bell' => icon('bell', 16), 'x' => icon('x', 15), 'x-sm' => icon('x'
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title><?= e($pageTitle) ?></title>
   <meta name="description" content="A complete, modern support ticketing system.">
-  <link rel="icon" href="/favicon.ico">
+  <link rel="icon" href="<?= e(brand_logo_url() ?? '/favicon.ico') ?>">
   <!-- PWA -->
   <link rel="manifest" href="/manifest.webmanifest">
   <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#121722" media="(prefers-color-scheme: dark)">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="TicketingOS">
+  <meta name="apple-mobile-web-app-title" content="<?= e(app_name()) ?>">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">

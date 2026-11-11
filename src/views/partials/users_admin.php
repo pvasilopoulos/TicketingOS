@@ -226,6 +226,10 @@ $tile = function (string $label, int $n, string $key, string $ic, string $tone) 
                   . '<form method="post" action="/action/member-password" data-ajax data-ask="New password for ' . e($u['name']) . '" data-ask-field="password" data-ask-type="text" data-ask-placeholder="At least ' . password_min_length($tenantId) . ' characters" data-ask-ok="Set password">' . form_meta('users')
                   . '<input type="hidden" name="userId" value="' . e($u['id']) . '"><input type="hidden" name="mode" value="set"><input type="hidden" name="password" value="">'
                   . '<button type="submit" data-dropdown-close class="' . $menuItem . '">' . icon('key-round', 15, 'text-muted') . 'Set a new password</button></form>';
+              if ($isSuperMe && !$isMe && $active && $u['role'] !== 'SUPER_ADMIN') {
+                  $menu .= '<form method="post" action="/action/impersonate">' . form_meta('users') . '<input type="hidden" name="userId" value="' . e($u['id']) . '">'
+                      . '<button type="submit" data-dropdown-close class="' . $menuItem . ' text-brand">' . icon('log-in', 15) . 'Sign in as ' . e(strtok($u['name'], ' ')) . '</button></form>';
+              }
               if (!$isMe) {
                   $menu .= '<div class="my-1 border-t border-border"></div>'
                       . '<form method="post" action="/action/member-status" data-ajax' . ($active ? ' data-confirm="Deactivate ' . e($u['name']) . '? They are signed out at once and can’t sign in until you reactivate them. Their tickets and history stay."' : '') . '>' . form_meta('users') . '<input type="hidden" name="userId" value="' . e($u['id']) . '"><input type="hidden" name="active" value="' . ($active ? '0' : '1') . '">'

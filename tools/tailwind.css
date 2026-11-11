@@ -207,3 +207,33 @@ body { overscroll-behavior-y: none; }
 .overflow-x-auto::-webkit-scrollbar { display: none; }
 /* Installed app: no text selection on chrome, smoother feel. */
 .standalone header, .standalone nav { user-select: none; -webkit-user-select: none; }
+
+/* ---------- Sign-in / sign-up screens ---------- */
+.auth-bg { position: fixed; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
+.auth-bg::before {
+  /* Fine dot grid that fades out towards the edges. */
+  content: ""; position: absolute; inset: 0;
+  background-image: radial-gradient(color-mix(in srgb, var(--fg) 14%, transparent) 1px, transparent 1px);
+  background-size: 22px 22px;
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, #000 30%, transparent 75%);
+  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, #000 30%, transparent 75%);
+}
+.auth-blob { position: absolute; border-radius: 9999px; filter: blur(80px); opacity: .45; will-change: transform; }
+.dark .auth-blob { opacity: .28; }
+.auth-blob-1 { width: 38rem; height: 38rem; left: -12rem; top: -14rem; background: #6366f1; animation: auth-float 22s ease-in-out infinite; }
+.auth-blob-2 { width: 32rem; height: 32rem; right: -10rem; top: 10%; background: #a855f7; animation: auth-float 26s ease-in-out infinite reverse; }
+.auth-blob-3 { width: 30rem; height: 30rem; left: 25%; bottom: -16rem; background: #06b6d4; opacity: .3; animation: auth-float 30s ease-in-out infinite; }
+@keyframes auth-float {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(4rem, 3rem) scale(1.08); }
+  66% { transform: translate(-3rem, 2rem) scale(.95); }
+}
+.auth-card { box-shadow: 0 1px 0 0 color-mix(in srgb, #fff 60%, transparent) inset, 0 30px 80px -20px color-mix(in srgb, var(--brand) 35%, transparent), 0 8px 24px -12px rgb(0 0 0 / .18); }
+.dark .auth-card { box-shadow: 0 1px 0 0 rgb(255 255 255 / .06) inset, 0 30px 80px -20px rgb(0 0 0 / .6); }
+.auth-btn { background-image: linear-gradient(135deg, var(--brand), #7c3aed); transition: transform .15s ease, box-shadow .2s ease, filter .2s ease; box-shadow: 0 10px 24px -10px color-mix(in srgb, var(--brand) 70%, transparent); }
+.auth-btn:hover { transform: translateY(-1px); filter: brightness(1.06); box-shadow: 0 14px 30px -10px color-mix(in srgb, var(--brand) 80%, transparent); }
+.auth-btn:active { transform: translateY(0); }
+.auth-btn svg { transition: transform .2s ease; }
+.auth-btn:hover svg { transform: translateX(3px); }
+.auth-field:focus-within .auth-ic { color: var(--brand); }
+@media (prefers-reduced-motion: reduce) { .auth-blob, .auth-btn, .auth-btn svg { animation: none; transition: none; } }

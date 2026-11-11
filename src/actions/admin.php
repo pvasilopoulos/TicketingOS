@@ -382,8 +382,8 @@ function act_email_test(array $in): ?array
     if (!$s['enabled']) return ['error' => 'Enable email notifications first'];
     $r = send_tenant_email($tenantId, [
         'to' => $user['email'],
-        'subject' => 'TicketingOS — test email',
-        'html' => '<p>Hi ' . e($user['name']) . ',</p><p>This is a test email from <strong>TicketingOS</strong>. If you received it, your '
+        'subject' => app_name() . ' — test email',
+        'html' => '<p>Hi ' . e($user['name']) . ',</p><p>This is a test email from <strong>' . e(app_name()) . '</strong>. If you received it, your '
             . ($s['provider'] === 'MICROSOFT365' ? 'Microsoft 365' : 'SMTP') . ' email notifications are working. ✅</p>',
     ]);
     return $r['ok'] ? ['success' => "Test email sent to {$user['email']}"] : ['error' => $r['error'] ?? 'Could not send test email'];
@@ -638,6 +638,19 @@ function act_agent_perms_save(array $in): ?array
     }
     tenant_setting_set($tenantId, 'agentPermissions', clean_permissions(array_keys(array_filter($in['perm'] ?? [], fn ($v) => $v === 'on'))));
     return ['success' => 'Agent permissions saved'];
+}
+
+/** Super admins only: limit what administrators of this workspace can do. */
+function act_admin_perms_save(array $in): ?array
+{
+    [$me, $tenantId] = require_roles_admin();
+    if ($me['role'] !== 'SUPER_ADMIN') return ['error' => 'Only a super admin can change Administrator permissions'];
+    if (($in['reset'] ?? '') === '1') {
+        tenant_setting_set($tenantId, 'adminPermissions', all_permissions());
+        return ['success' => 'Administrators have full access again'];
+    }
+    tenant_setting_set($tenantId, 'adminPermissions', clean_permissions(array_keys(array_filter($in['perm'] ?? [], fn ($v) => $v === 'on'))));
+    return ['success' => 'Administrator permissions saved'];
 }
 
 function act_security_save(array $in): ?array

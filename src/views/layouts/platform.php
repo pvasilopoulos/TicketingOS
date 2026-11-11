@@ -5,8 +5,8 @@ ob_start(); ?>
 <div class="min-h-screen">
   <header class="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-surface px-4 lg:px-8">
     <a href="/platform" class="flex items-center gap-2.5 font-semibold">
-      <span class="grid h-9 w-9 place-items-center rounded-lg bg-sky-500 text-white"><?= icon('shield-check', 20) ?></span>
-      <span>TicketingOS <span class="text-muted">· Platform</span></span>
+      <?= brand_mark(36, 'rounded-lg') ?>
+      <span><?= e(app_name()) ?> <span class="text-muted">· Platform</span></span>
     </a>
     <div class="ml-auto flex items-center gap-1">
       <?= theme_toggle() ?>

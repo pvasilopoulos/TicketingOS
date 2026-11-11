@@ -1154,6 +1154,66 @@
     if (tab && tab.dataset.active !== "true") tab.click();
   });
 
+  // Sign-in screens: show/hide password, strength meter, Caps Lock hint.
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest("[data-reveal]");
+    if (!b) return;
+    var input = document.getElementById(b.getAttribute("data-reveal"));
+    if (!input) return;
+    var show = input.type === "password";
+    input.type = show ? "text" : "password";
+    b.querySelector("[data-reveal-show]").hidden = show;
+    b.querySelector("[data-reveal-hide]").hidden = !show;
+    b.setAttribute("aria-label", show ? "Hide password" : "Show password");
+    input.focus();
+  });
+  document.addEventListener("input", function (e) {
+    var input = e.target;
+    if (!input.matches || !input.matches("input[data-strength]")) return;
+    var box = document.querySelector('[data-strength-for="' + input.id + '"]');
+    if (!box) return;
+    var v = input.value, score = 0;
+    if (v.length >= 8) score++;
+    if (v.length >= 12) score++;
+    if (/[a-z]/.test(v) && /[A-Z]/.test(v)) score++;
+    if (/\d/.test(v) && /[^A-Za-z0-9]/.test(v)) score++;
+    if (v.length && v.length < 6) score = 0;
+    var levels = [["bg-red-500", "Too short"], ["bg-red-500", "Weak"], ["bg-amber-500", "Fair"], ["bg-lime-500", "Good"], ["bg-emerald-500", "Strong"]];
+    var lvl = v.length ? Math.max(score, v.length >= 6 ? 1 : 0) : -1;
+    $$("[data-bar]", box).forEach(function (bar, i) {
+      bar.className = "h-1 rounded-full transition-colors duration-300 " + (lvl >= 0 && i < Math.max(lvl, 1) ? levels[lvl][0] : "bg-border");
+    });
+    box.querySelector("[data-strength-label]").textContent = lvl < 0 ? "Use 8+ characters with a mix of letters, numbers and symbols." : levels[lvl][1] + (lvl < 4 ? " — add length, capitals, numbers or symbols." : " password.");
+  });
+  ["keyup", "keydown"].forEach(function (ev) {
+    document.addEventListener(ev, function (e) {
+      if (!e.target.matches || !e.target.matches('input[type="password"], input[data-reveal-target]') || !e.getModifierState) return;
+      var hint = document.querySelector('[data-caps-for="' + e.target.id + '"]');
+      if (hint) hint.hidden = !e.getModifierState("CapsLock");
+    });
+  });
+
+  // Settings → Branding: live preview of name and logo.
+  document.addEventListener("input", function (e) {
+    if (!e.target.matches || !e.target.matches("[data-brand-name]")) return;
+    var v = e.target.value.trim() || "TicketingOS";
+    $$("[data-brand-preview-name]").forEach(function (el) { el.textContent = v; });
+    $$("[data-brand-preview-tab]").forEach(function (el) { el.textContent = v + " — Helpdesk"; });
+  });
+  document.addEventListener("change", function (e) {
+    if (!e.target.matches || !e.target.matches("[data-brand-file]")) return;
+    var f = e.target.files && e.target.files[0];
+    if (!f) return;
+    var url = URL.createObjectURL(f);
+    $$("[data-brand-preview-mark]").forEach(function (el) { el.innerHTML = '<img alt="" class="h-8 w-8 rounded-xl object-contain" src="' + url + '">'; });
+    $$("[data-brand-preview-fav]").forEach(function (el) {
+      var img = document.createElement("img"); img.src = url; img.alt = ""; img.className = "h-4 w-4 rounded-sm object-contain"; img.setAttribute("data-brand-preview-fav", "");
+      el.replaceWith(img);
+    });
+    var rm = document.querySelector("[data-brand-remove]"); if (rm) rm.checked = false;
+    var lbl = e.target.closest("label"); if (lbl) { var t = lbl.querySelector(".text-sm"); if (t) t.textContent = f.name; }
+  });
+
   // Simple tabs (ticket Conversation / History).
   function showTab(root, key) {
     var btn = root.querySelector('[data-tab="' + key + '"]');

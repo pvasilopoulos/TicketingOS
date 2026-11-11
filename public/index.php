@@ -53,6 +53,7 @@ $ACTIONS = [
     'report-schedule-save' => 'act_report_schedule_save', 'report-schedule-delete' => 'act_report_schedule_delete', 'report-schedule-send' => 'act_report_schedule_send',
     'apikey-create' => 'act_apikey_create', 'apikey-revoke' => 'act_apikey_revoke',
     'webhook-save' => 'act_webhook_save', 'webhook-delete' => 'act_webhook_delete', 'webhook-test' => 'act_webhook_test', 'webform-save' => 'act_webform_save',
+    'branding-save' => 'act_branding_save', 'admin-perms-save' => 'act_admin_perms_save', 'impersonate' => 'act_impersonate', 'impersonate-stop' => 'act_impersonate_stop',
     'role-save' => 'act_role_save', 'role-delete' => 'act_role_delete', 'agent-perms-save' => 'act_agent_perms_save', 'security-save' => 'act_security_save', 'member-role' => 'act_member_role', 'member-remove' => 'act_member_remove',
 ];
 
@@ -76,6 +77,7 @@ try {
         json_out(run_cron());
     }
     if ($path === '/widget.js') public_widget_js();
+    if ($path === '/brand/logo') brand_logo_out();
     if (preg_match('#^/support/([a-z0-9-]+)(/kb)?$#', $path, $m)) {
         $tenant = q_one('SELECT * FROM "Tenant" WHERE "slug" = ?', [$m[1]]);
         if (!$tenant || !webform_settings($tenant['id'])['enabled']) abort(404);

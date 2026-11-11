@@ -1,19 +1,13 @@
 <?php $state = flash('forgot'); ?>
-<div>
-  <h1 class="text-2xl font-bold">Forgot your password?</h1>
-  <p class="mt-1 text-sm text-muted">Enter your email and we&apos;ll send you a reset link.</p>
+<?= auth_head('mail-check', 'Forgot your password?', 'Enter your email and we’ll send you a reset link.') ?>
 
-  <form method="post" action="/action/forgot" class="mt-8 space-y-4" data-pending="Sending…">
-    <?= form_meta('forgot', '/forgot') ?>
-    <?= banner($state) ?>
-    <div>
-      <label for="email" class="<?= LABEL_CLS ?>">Email</label>
-      <input id="email" name="email" type="email" placeholder="you@company.com" required autocomplete="email" class="<?= INPUT_CLS ?>">
-    </div>
-    <button type="submit" class="<?= btn_cls('primary', 'lg', 'w-full') ?>">Send reset link</button>
-  </form>
+<form method="post" action="/action/forgot" class="space-y-5" data-pending="Sending…">
+  <?= form_meta('forgot', '/forgot') ?>
+  <?= banner($state, true) ?>
+  <?= auth_field(['name' => 'email', 'label' => 'Email', 'icon' => 'mail', 'type' => 'email', 'placeholder' => 'you@company.com', 'autocomplete' => 'email', 'autofocus' => true]) ?>
+  <div class="pt-1"><?= auth_submit('Send reset link') ?></div>
+</form>
 
-  <p class="mt-6 text-sm text-muted">
-    <a href="/login" class="font-medium text-brand hover:underline">Back to sign in</a>
-  </p>
+<div class="mt-7 border-t border-border/70 pt-6 text-center text-sm">
+  <a href="/login" class="inline-flex items-center gap-1.5 font-semibold text-brand hover:underline"><?= icon('arrow-left', 15) ?> Back to sign in</a>
 </div>

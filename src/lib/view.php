@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require VIEWS . '/partials/components.php';
+require VIEWS . '/partials/auth_ui.php';
 
 /**
  * Render a page template inside a layout.

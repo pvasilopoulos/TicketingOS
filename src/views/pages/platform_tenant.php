@@ -60,11 +60,15 @@ $ticketCount = (int) q_val('SELECT COUNT(*) FROM "Ticket" WHERE "tenantId" = ?',
               <p class="truncate text-xs text-muted"><?= e($u['email']) ?></p>
             </div>
             <span class="rounded bg-surface-2 px-2 py-0.5 text-xs text-muted"><?= e(role_label($u['role'])) ?></span>
+            <?php if ($u['role'] !== 'SUPER_ADMIN' && (int) $u['active']): ?>
+              <form method="post" action="/action/impersonate" class="shrink-0"><?= form_meta() ?><input type="hidden" name="userId" value="<?= e($u['id']) ?>">
+                <button type="submit" title="Sign in as <?= e($u['name']) ?>" class="<?= btn_cls('outline', 'sm') ?>"><?= icon('log-in', 13) ?><span class="max-sm:hidden">Sign in as</span></button></form>
+            <?php endif; ?>
           </div>
         <?php endforeach; ?>
       </div>
     </div>
   </div>
 
-  <p class="mt-4 text-xs text-muted">Read-only view. Tenant data is fully isolated from other tenants.</p>
+  <p class="mt-4 text-xs text-muted">Tenant data is fully isolated from other tenants. “Sign in as” opens the app exactly as that person sees it; every use is in the workspace’s audit log.</p>
 </div>

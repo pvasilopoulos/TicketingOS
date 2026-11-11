@@ -2,31 +2,21 @@
 /** @var string $token */
 $state = flash('reset');
 if ($token === ''): ?>
-<div>
-  <h1 class="text-2xl font-bold">Invalid link</h1>
-  <p class="mt-1 text-sm text-muted">This reset link is missing its token.</p>
-  <p class="mt-6 text-sm"><a href="/forgot" class="font-medium text-brand hover:underline">Request a new link</a></p>
-</div>
+  <?= auth_head('key-round', 'Invalid link', 'This reset link is missing its token or has expired.') ?>
+  <a href="/forgot" class="auth-btn inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl text-[15px] font-semibold text-white">Request a new link <?= icon('arrow-right', 17) ?></a>
 <?php else: ?>
-<div>
-  <h1 class="text-2xl font-bold">Set a new password</h1>
-  <p class="mt-1 text-sm text-muted">Choose a strong password you&apos;ll remember.</p>
+  <?= auth_head('key-round', 'Set a new password', 'Choose a strong password you’ll remember.') ?>
 
-  <form method="post" action="/action/reset" class="mt-8 space-y-4" data-pending="Updating…">
+  <form method="post" action="/action/reset" class="space-y-5" data-pending="Updating…">
     <?= form_meta('reset') ?>
     <?= banner($state) ?>
     <input type="hidden" name="token" value="<?= e($token) ?>">
-    <div>
-      <label for="password" class="<?= LABEL_CLS ?>">New password</label>
-      <input id="password" name="password" type="password" placeholder="At least 6 characters" required autocomplete="new-password" class="<?= INPUT_CLS ?>">
-    </div>
-    <div>
-      <label for="confirm" class="<?= LABEL_CLS ?>">Confirm password</label>
-      <input id="confirm" name="confirm" type="password" placeholder="Repeat password" required autocomplete="new-password" class="<?= INPUT_CLS ?>">
-    </div>
-    <button type="submit" class="<?= btn_cls('primary', 'lg', 'w-full') ?>">Set new password</button>
+    <?= auth_field(['name' => 'password', 'label' => 'New password', 'icon' => 'key-round', 'type' => 'password', 'placeholder' => 'Create a password', 'autocomplete' => 'new-password', 'reveal' => true, 'strength' => true, 'autofocus' => true]) ?>
+    <?= auth_field(['name' => 'confirm', 'label' => 'Confirm password', 'icon' => 'lock', 'type' => 'password', 'placeholder' => 'Repeat the password', 'autocomplete' => 'new-password', 'reveal' => true]) ?>
+    <div class="pt-1"><?= auth_submit('Set new password') ?></div>
   </form>
 
-  <p class="mt-6 text-sm text-muted"><a href="/login" class="font-medium text-brand hover:underline">Back to sign in</a></p>
-</div>
+  <div class="mt-7 border-t border-border/70 pt-6 text-center text-sm">
+    <a href="/login" class="inline-flex items-center gap-1.5 font-semibold text-brand hover:underline"><?= icon('arrow-left', 15) ?> Back to sign in</a>
+  </div>
 <?php endif; ?>

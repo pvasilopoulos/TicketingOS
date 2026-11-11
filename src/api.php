@@ -103,7 +103,7 @@ function api_push_test(): never
 {
     $user = api_user_or_401();
     send_push_to_users([$user['id']], [
-        'title' => 'TicketingOS',
+        'title' => app_name(),
         'body' => '🔔 Push notifications are working on this device.',
         'url' => '/dashboard',
     ]);
@@ -117,8 +117,8 @@ function api_manifest(): never
     header('Cache-Control: public, max-age=3600');
     echo json_encode([
         'id' => '/',
-        'name' => 'TicketingOS — Helpdesk',
-        'short_name' => 'TicketingOS',
+        'name' => app_name() . ' — Helpdesk',
+        'short_name' => mb_substr(app_name(), 0, 12),
         'description' => 'Multi-tenant helpdesk: tickets, replies and live notifications.',
         'start_url' => '/dashboard?source=pwa',
         'scope' => '/',

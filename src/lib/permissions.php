@@ -110,12 +110,21 @@ function agent_permissions(string $tenantId): array
     return is_array($saved) ? clean_permissions($saved) : AGENT_DEFAULT_PERMISSIONS;
 }
 
+/** What administrators of a workspace may do (all, unless a super admin limited it). */
+function admin_permissions(string $tenantId): array
+{
+    $saved = $tenantId !== '' ? tenant_setting($tenantId, 'adminPermissions') : null;
+    return is_array($saved) ? clean_permissions($saved) : all_permissions();
+}
+
 /** Effective permissions of a user inside a tenant. */
 function user_permissions(array $user, ?string $tenantId = null): array
 {
     static $cache = [];
     $role = $user['role'];
-    if ($role === 'SUPER_ADMIN' || $role === 'ADMIN') return all_permissions();
+    if ($role === 'SUPER_ADMIN') return all_permissions();
+    // Administrators get everything unless a super admin limited them for this workspace.
+    if ($role === 'ADMIN') return admin_permissions((string) ($tenantId ?? $user['tenantId']));
     if ($role !== 'AGENT') return [];
     $tenantId ??= $user['tenantId'];
     $ck = $user['id'] . ':' . ($user['customRoleId'] ?? '') . ':' . $tenantId;

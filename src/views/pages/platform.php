@@ -34,7 +34,7 @@ $pagerOpts = ['perPageOptions' => [25, 50, 100], 'noun' => ['tenant', 'tenants']
 ?>
 <div>
   <h1 class="text-2xl font-bold tracking-tight">Platform overview</h1>
-  <p class="mt-1 text-sm text-muted">Every tenant on TicketingOS, isolated and self-serve.</p>
+  <p class="mt-1 text-sm text-muted">Every tenant on <?= e(app_name()) ?>, isolated and self-serve.</p>
 
   <div class="mt-6 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
     <?php foreach ($stats as [$label, $value, $ic]): ?>

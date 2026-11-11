@@ -21,7 +21,7 @@ if (can($user, 'settings.*')) $nav[] = ['/settings', 'Settings', 'settings'];
 $sidebar = function (bool $drawer = false) use ($nav, $isActive, $tenantName, $isStaffUser): string {
     $h = '<aside class="flex h-full w-72 max-w-[85vw] flex-col border-r border-border bg-surface lg:w-64">';
     $h .= '<div class="flex h-16 items-center gap-2.5 border-b border-border px-5"><span class="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-brand text-brand-fg">' . icon('life-buoy', 20) . '</span>'
-        . '<div class="min-w-0"><p class="truncate text-sm font-semibold leading-tight">' . e($tenantName ?? 'TicketingOS') . '</p><p class="text-xs text-muted">Helpdesk</p></div>'
+        . '<div class="min-w-0"><p class="truncate text-sm font-semibold leading-tight">' . e($tenantName ?? app_name()) . '</p><p class="text-xs text-muted">Helpdesk</p></div>'
         . ($drawer ? '<button type="button" data-drawer-close class="ml-auto inline-flex h-9 w-9 items-center justify-center rounded-lg text-muted hover:bg-surface-2" aria-label="Close menu">' . icon('x', 20) . '</button>' : '')
         . '</div>';
     $h .= '<div class="px-3 pt-4"><a href="/tickets/new" class="flex items-center justify-center gap-2 rounded-lg bg-brand px-3 py-2.5 text-sm font-medium text-brand-fg hover:opacity-90 transition">' . icon('circle-plus', 18) . 'New ticket</a></div>';
@@ -103,6 +103,18 @@ ob_start(); ?>
   </div>
 
   <div class="flex min-w-0 flex-1 flex-col">
+    <?php if ($actingFor = impersonator()): ?>
+      <div class="flex shrink-0 items-center gap-2 bg-amber-500 px-4 py-1.5 pt-[max(0.375rem,env(safe-area-inset-top))] text-sm text-amber-950 lg:px-6 lg:py-2">
+        <?= icon('eye', 16) ?>
+        <span class="min-w-0 flex-1 truncate"><span class="hidden sm:inline">You’re viewing the app as</span><span class="sm:hidden">As</span> <strong><?= e($user['name']) ?></strong> <span class="opacity-75">· <?= e(role_label($user['role'])) ?><span class="hidden md:inline"> · everything you do is done as them</span></span></span>
+        <form method="post" action="/action/impersonate-stop" class="shrink-0">
+          <?= form_meta() ?>
+          <button type="submit" class="inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-md bg-amber-950/10 px-2.5 text-xs font-semibold ring-1 ring-amber-950/20 hover:bg-amber-950/20 transition-colors cursor-pointer">
+            <?= icon('log-out', 14) ?><span>Back to <?= e(strtok($actingFor['name'], ' ')) ?></span>
+          </button>
+        </form>
+      </div>
+    <?php endif; ?>
     <?php if ($impersonating): ?>
       <div class="flex shrink-0 items-center gap-2 bg-sky-600 px-4 py-1.5 pt-[max(0.375rem,env(safe-area-inset-top))] text-sm text-white lg:px-6 lg:py-2">
         <?= icon('shield-check', 16) ?>
@@ -120,7 +132,7 @@ ob_start(); ?>
       <!-- Mobile: brand -->
       <a href="/dashboard" class="flex min-w-0 items-center gap-2 lg:hidden">
         <span class="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand text-brand-fg"><?= icon('life-buoy', 18) ?></span>
-        <span class="truncate text-sm font-semibold" data-mobile-title><?= e($tenantName ?? 'TicketingOS') ?></span>
+        <span class="truncate text-sm font-semibold" data-mobile-title><?= e($tenantName ?? app_name()) ?></span>
       </a>
 
       <!-- Search: inline on tablet/desktop, expandable on phones -->

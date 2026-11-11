@@ -24,7 +24,7 @@ if (env('APP_DEBUG', '0') === '1') {
 
 foreach ([
     'constants', 'db', 'helpers', 'http', 'session', 'auth', 'crypto', 'sanitize',
-    'storage', 'tenant', 'email', 'smtp', 'push', 'notify', 'search', 'queries', 'nav', 'permissions', 'view', 'icons',
+    'storage', 'tenant', 'email', 'smtp', 'push', 'notify', 'search', 'queries', 'nav', 'permissions', 'view', 'icons', 'branding',
     'audit', 'groups', 'fields', 'csat', 'webhooks', 'reporting',
 ] as $mod) {
     require SRC . "/lib/{$mod}.php";

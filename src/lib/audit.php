@@ -16,7 +16,7 @@ const AUDITED_ACTIONS = [
     'member-status' => ['users', 'Changed sign-in access'], 'member-password' => ['users', 'Reset a password'],
     'member-remove' => ['users', 'Removed a user'], 'member-role' => ['users', 'Changed a role'],
     'role-save' => ['roles', 'Saved a role'], 'role-delete' => ['roles', 'Deleted a role'],
-    'agent-perms-save' => ['roles', 'Changed Agent permissions'], 'security-save' => ['security', 'Changed password rules'],
+    'agent-perms-save' => ['roles', 'Changed Agent permissions'], 'admin-perms-save' => ['roles', 'Changed Administrator permissions'], 'security-save' => ['security', 'Changed password rules'],
     'group-save' => ['users', 'Saved a group'], 'group-delete' => ['users', 'Deleted a group'],
     'group-members' => ['users', 'Changed group members'], 'group-routing' => ['users', 'Changed category routing'],
     'org-save' => ['users', 'Saved an organization'], 'org-delete' => ['users', 'Deleted an organization'],
@@ -41,6 +41,9 @@ const AUDITED_ACTIONS = [
     'apikey-create' => ['integrations', 'Created an API key'], 'apikey-revoke' => ['integrations', 'Revoked an API key'],
     'webhook-save' => ['integrations', 'Saved a webhook'], 'webhook-delete' => ['integrations', 'Deleted a webhook'],
     'webform-save' => ['integrations', 'Changed the support form'],
+    'branding-save' => ['settings', 'Changed the app name or logo'],
+    // These two redirect, so they log themselves (src/actions/platform.php); listed here for labels.
+    'impersonate' => ['security', 'Signed in as another user'], 'impersonate-stop' => ['security', 'Returned to their own account'],
     'report-schedule-save' => ['reports', 'Saved a scheduled report'], 'report-schedule-delete' => ['reports', 'Deleted a scheduled report'],
     // Tickets (bulk / destructive only; single changes are in each ticket's timeline)
     'ticket-bulk' => ['tickets', 'Bulk-edited tickets'], 'ticket-merge' => ['tickets', 'Merged tickets'],

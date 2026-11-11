@@ -123,7 +123,7 @@ function send_reset_link(array $user, int $ttl = RESET_TTL, bool $welcome = fals
         $hours = (int) round($ttl / 3600);
         $r = send_tenant_email($user['tenantId'], [
             'to' => $user['email'],
-            'subject' => $welcome ? 'You’ve been invited to TicketingOS' : 'Reset your TicketingOS password',
+            'subject' => $welcome ? 'You’ve been invited to ' . app_name() : 'Reset your ' . app_name() . ' password',
             'html' => '<p>Hi ' . e($user['name']) . ',</p>'
                 . ($welcome ? '<p>An account was created for you. Choose your password to get started (the link expires in ' . $hours . ' hours):</p>'
                     : '<p>We received a request to reset your password. This link expires in ' . $hours . ' hour' . ($hours === 1 ? '' : 's') . ':</p>')

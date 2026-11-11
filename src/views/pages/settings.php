@@ -57,6 +57,7 @@ $s = fn (string $form) => flash($form);
           $isAdminMe ? ['security', 'Security', 'key-round'] : null,
           $isAdminMe ? ['audit', 'Audit log', 'scroll-text'] : null,
       ]),
+      'Platform' => $me['role'] === 'SUPER_ADMIN' ? [['branding', 'Branding', 'sparkles']] : [],
   ];
   ?>
   <nav class="sticky top-0 z-20 -mx-4 mb-5 flex gap-2 overflow-x-auto border-b border-border bg-bg/95 px-4 py-2 backdrop-blur lg:top-6 lg:mx-0 lg:mb-0 lg:flex-col lg:gap-1 lg:self-start lg:border-0 lg:bg-transparent lg:p-0" aria-label="Settings sections">
@@ -677,6 +678,12 @@ $s = fn (string $form) => flash($form);
   </section>
   <section id="audit" data-settings-section="audit" class="scroll-mt-24 space-y-6">
     <?php require ROOT . '/src/views/partials/audit_admin.php'; ?>
+  </section>
+  <?php endif; ?>
+
+  <?php if ($me['role'] === 'SUPER_ADMIN'): ?>
+  <section id="branding" data-settings-section="branding" class="scroll-mt-24 space-y-6">
+    <?php require ROOT . '/src/views/partials/branding_admin.php'; ?>
   </section>
   <?php endif; ?>
 </div>
