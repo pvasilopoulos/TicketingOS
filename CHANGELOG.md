@@ -4,6 +4,17 @@ All notable changes to TicketingOS (PHP edition). Versions follow [Semantic Vers
 **major** for changes that need manual steps when updating, **minor** for new features, **patch** for fixes.
 The app shows this list under **About & what’s new** (menu footer → version number).
 
+## [1.10.0] - 2026-11-12
+
+### Added
+- **AI assistant for customers** (Claude): answers anything customers ask in Messages and, if you want, first in the website chat — with your company’s instructions, matching help-center articles and the customer’s recent tickets. “Talk to a person” hands the conversation to Live chat with its history. Settings → Integrations → AI assistant for customers.
+- **SMS notifications** through Twilio or any SMS gateway with an HTTP API: ticket received, new reply and resolved for customers; high / urgent tickets, assignments and SLA misses for staff. Mobile number per person.
+- **Viber and WhatsApp** as ticket channels: messages open a ticket (or join the customer’s open one), customers are matched by phone number, and agents’ replies go back on the same app.
+- **Invoices** from billable time: drafts per organization and month (one line per ticket at its hourly rate), editable lines, VAT, numbering per series, print / PDF, email, paid / void; billing details (ΑΦΜ, ΔΟΥ, address) per organization; organization managers see their invoices in the portal. Until myDATA is connected, documents can be titled “Billing statement” or “Pro forma”.
+
+### Fixed
+- The “Support form & website widget” heading no longer gets squeezed by its buttons.
+
 ## [1.9.0] - 2026-11-12
 
 ### Added

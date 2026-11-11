@@ -256,6 +256,21 @@ function runtime_schema_v11(): void
         'userId' => $s, 'name' => ['VARCHAR(120) NULL', 'TEXT'], 'phone' => ['VARCHAR(32) NULL', 'TEXT'],
         'createdAt' => ['VARCHAR(30) NOT NULL', 'TEXT NOT NULL'], 'lastInboundAt' => ['VARCHAR(30) NULL', 'TEXT'],
     ], ['ChannelContact_ext_idx' => ['tenantId', 'channel', 'externalId'], 'ChannelContact_user_idx' => ['userId']]);
+    // Invoices from billable time.
+    db_add_column('Organization', 'billing', 'MEDIUMTEXT NULL', 'TEXT');
+    db_add_column('TimeEntry', 'invoiceId', 'VARCHAR(40) NULL', 'TEXT');
+    db_add_index('TimeEntry', 'TimeEntry_invoice_idx', ['invoiceId']);
+    $d = ['VARCHAR(30) NULL', 'TEXT'];
+    $money = ['DECIMAL(12,2) NOT NULL DEFAULT 0', 'REAL NOT NULL DEFAULT 0'];
+    db_create_table('Invoice', [
+        'id' => $s, 'tenantId' => $s, 'organizationId' => $s, 'series' => ['VARCHAR(12) NOT NULL', 'TEXT NOT NULL'], 'seq' => ['INT NULL', 'INTEGER'],
+        'number' => ['VARCHAR(40) NULL', 'TEXT'], 'status' => ['VARCHAR(10) NOT NULL', 'TEXT NOT NULL'], 'issueDate' => ['VARCHAR(10) NOT NULL', 'TEXT NOT NULL'],
+        'dueDate' => ['VARCHAR(10) NOT NULL', 'TEXT NOT NULL'], 'periodFrom' => ['VARCHAR(10) NOT NULL', 'TEXT NOT NULL'], 'periodTo' => ['VARCHAR(10) NOT NULL', 'TEXT NOT NULL'],
+        'currency' => ['VARCHAR(3) NOT NULL', 'TEXT NOT NULL'], 'vatRate' => ['DECIMAL(5,2) NOT NULL DEFAULT 0', 'REAL NOT NULL DEFAULT 0'],
+        'subtotal' => $money, 'vatAmount' => $money, 'total' => $money, 'lines' => ['MEDIUMTEXT NOT NULL', 'TEXT NOT NULL'], 'notes' => ['TEXT NULL', 'TEXT'],
+        'customer' => ['MEDIUMTEXT NULL', 'TEXT'], 'seller' => ['MEDIUMTEXT NULL', 'TEXT'], 'createdById' => $s,
+        'createdAt' => ['VARCHAR(30) NOT NULL', 'TEXT NOT NULL'], 'issuedAt' => $d, 'paidAt' => $d,
+    ], ['Invoice_tenant_status_idx' => ['tenantId', 'status', 'issueDate'], 'Invoice_org_idx' => ['organizationId'], 'Invoice_series_idx' => ['tenantId', 'series', 'seq']]);
 }
 
 /** Add an index if it's missing (MySQL/MariaDB and SQLite). */

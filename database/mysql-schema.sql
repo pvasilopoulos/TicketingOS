@@ -499,6 +499,7 @@ CREATE TABLE IF NOT EXISTS `Organization` (
   `notes` mediumtext DEFAULT NULL,
   `createdAt` varchar(30) NOT NULL,
   `hourlyRate` decimal(10,2) DEFAULT NULL,
+  `billing` mediumtext DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `tenantId` (`tenantId`,`name`),
   KEY `Organization_tenant_domain_idx` (`tenantId`,`domain`),
@@ -726,8 +727,10 @@ CREATE TABLE IF NOT EXISTS `TimeEntry` (
   `note` varchar(500) DEFAULT NULL,
   `workedAt` varchar(30) NOT NULL,
   `createdAt` varchar(30) NOT NULL,
+  `invoiceId` varchar(40) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `TimeEntry_ticket_idx` (`ticketId`),
+  KEY `TimeEntry_invoice_idx` (`invoiceId`),
   KEY `TimeEntry_tenant_day_idx` (`tenantId`,`workedAt`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -808,4 +811,36 @@ CREATE TABLE IF NOT EXISTS `ChannelContact` (
   PRIMARY KEY (`id`),
   KEY `ChannelContact_ext_idx` (`tenantId`,`channel`,`externalId`),
   KEY `ChannelContact_user_idx` (`userId`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Invoices from billable time.
+CREATE TABLE IF NOT EXISTS `Invoice` (
+  `id` varchar(40) NOT NULL,
+  `tenantId` varchar(40) NOT NULL,
+  `organizationId` varchar(40) NOT NULL,
+  `series` varchar(12) NOT NULL,
+  `seq` int(11) DEFAULT NULL,
+  `number` varchar(40) DEFAULT NULL,
+  `status` varchar(10) NOT NULL,
+  `issueDate` varchar(10) NOT NULL,
+  `dueDate` varchar(10) NOT NULL,
+  `periodFrom` varchar(10) NOT NULL,
+  `periodTo` varchar(10) NOT NULL,
+  `currency` varchar(3) NOT NULL,
+  `vatRate` decimal(5,2) NOT NULL DEFAULT 0,
+  `subtotal` decimal(12,2) NOT NULL DEFAULT 0,
+  `vatAmount` decimal(12,2) NOT NULL DEFAULT 0,
+  `total` decimal(12,2) NOT NULL DEFAULT 0,
+  `lines` mediumtext NOT NULL,
+  `notes` text DEFAULT NULL,
+  `customer` mediumtext DEFAULT NULL,
+  `seller` mediumtext DEFAULT NULL,
+  `createdById` varchar(40) NOT NULL,
+  `createdAt` varchar(30) NOT NULL,
+  `issuedAt` varchar(30) DEFAULT NULL,
+  `paidAt` varchar(30) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `Invoice_tenant_status_idx` (`tenantId`,`status`,`issueDate`),
+  KEY `Invoice_org_idx` (`organizationId`),
+  KEY `Invoice_series_idx` (`tenantId`,`series`,`seq`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

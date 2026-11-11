@@ -225,7 +225,7 @@ function billing_report(string $tenantId, string $month): array
         FROM "TimeEntry" te JOIN "Ticket" t ON t."id" = te."ticketId" JOIN "User" u ON u."id" = te."userId" JOIN "User" r ON r."id" = t."requesterId"
         WHERE te."tenantId" = ? AND te."workedAt" >= ? AND te."workedAt" <= ? ORDER BY te."workedAt" ASC, t."number" ASC', [$tenantId, $from, $to]);
     $userOrgs = [];
-    foreach (q_all('SELECT "userId","organizationId" FROM "UserOrganization" WHERE "organizationId" IN (SELECT "id" FROM "Organization" WHERE "tenantId" = ?)', [$tenantId]) as $r) $userOrgs[$r['userId']][] = $r['organizationId'];
+    foreach (q_all('SELECT "userId","organizationId" FROM "UserOrganization" WHERE "organizationId" IN (SELECT "id" FROM "Organization" WHERE "tenantId" = ?) ORDER BY "organizationId"', [$tenantId]) as $r) $userOrgs[$r['userId']][] = $r['organizationId'];
     $rows = [];
     foreach ($entries as &$e) {
         // A ticket belongs to the requester's first organization for billing.

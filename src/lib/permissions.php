@@ -68,6 +68,7 @@ const PERMISSIONS = [
         'groups.manage' => ['Manage groups', 'Create agent groups, choose members, auto-assignment and category routing.', ['sensitive' => true]],
         'orgs.manage' => ['Manage organizations', 'Customer companies, their email domains, members and managers.', ['sensitive' => true]],
         'contracts.manage' => ['Support contracts', 'Hour banks, contract dates and response times per organization.', ['sensitive' => true]],
+        'invoices.manage' => ['Invoices', 'Create, issue and send invoices from billable time; billing details of organizations.', ['sensitive' => true]],
     ]],
     'Workspace settings' => ['settings', 'Configuration of the workspace. Grant carefully.', [
         'settings.general' => ['Workspace name & menu', 'Rename the workspace and arrange the mobile bottom menu.', ['sensitive' => true]],

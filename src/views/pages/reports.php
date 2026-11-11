@@ -298,7 +298,7 @@ $bar = fn (int $n, int $max, string $color) => '<span class="block h-2 rounded-f
       <div class="overflow-x-auto">
         <table class="w-full min-w-[40rem] text-sm">
           <thead><tr class="border-b border-border text-left text-xs text-muted">
-            <th class="px-5 py-2.5 font-medium">Organization</th><th class="px-3 py-2.5 text-right font-medium">Tickets</th><th class="px-3 py-2.5 text-right font-medium">Billable</th><th class="px-3 py-2.5 text-right font-medium">Not billable</th><th class="px-3 py-2.5 text-right font-medium">Rate</th><th class="px-3 py-2.5 text-right font-medium">Amount</th><th class="px-5 py-2.5 font-medium">Contract</th>
+            <th class="px-5 py-2.5 font-medium">Organization</th><th class="px-3 py-2.5 text-right font-medium">Tickets</th><th class="px-3 py-2.5 text-right font-medium">Billable</th><th class="px-3 py-2.5 text-right font-medium">Not billable</th><th class="px-3 py-2.5 text-right font-medium">Rate</th><th class="px-3 py-2.5 text-right font-medium">Amount</th><th class="px-5 py-2.5 font-medium">Contract</th><?php if (can($user, 'invoices.manage')): ?><th data-no-print></th><?php endif; ?>
           </tr></thead>
           <tbody class="divide-y divide-border">
             <?php foreach ($billing['rows'] as $br): $bc = $br['contract']; ?>
@@ -310,9 +310,10 @@ $bar = fn (int $n, int $max, string $color) => '<span class="block h-2 rounded-f
                 <td class="px-3 py-2.5 text-right tabular-nums text-muted"><?= $br['rate'] !== null ? e(money($br['rate'], $billing['currency'])) . '/h' : '<a href="/settings?org=' . e($br['id']) . '#orgs" class="text-xs text-brand">set</a>' ?></td>
                 <td class="px-3 py-2.5 text-right font-semibold tabular-nums"><?= $br['amount'] !== null ? e(money($br['amount'], $billing['currency'])) : '—' ?></td>
                 <td class="px-5 py-2.5 text-xs"><?php if ($bc): ?><span class="font-medium"><?= e($bc['name']) ?></span> · <?= $bc['included'] !== null ? ($bc['left'] >= 0 ? e(fmt_minutes($bc['left'])) . ' left' : '<span class="font-medium text-red-600 dark:text-red-400">over by ' . e(fmt_minutes(-$bc['left'])) . '</span>') : 'unlimited' ?><?php else: ?><span class="text-muted">—</span><?php endif; ?></td>
+                <?php if (can($user, 'invoices.manage')): ?><td class="px-3 py-2" data-no-print><?php if ($br['id'] !== '' && $br['billable']): ?><form method="post" action="/action/invoice-create" data-ajax><?= form_meta() ?><input type="hidden" name="organizationId" value="<?= e($br['id']) ?>"><input type="hidden" name="month" value="<?= e($billMonth) ?>"><button type="submit" class="<?= btn_cls('outline', 'sm') ?>"><?= icon('receipt', 13) ?> Invoice</button></form><?php endif; ?></td><?php endif; ?>
               </tr>
             <?php endforeach; ?>
-            <tr class="bg-surface-2/50 font-semibold"><td class="px-5 py-2.5">Total</td><td></td><td class="px-3 py-2.5 text-right tabular-nums"><?= e(fmt_minutes($billing['billable'])) ?></td><td class="px-3 py-2.5 text-right tabular-nums"><?= e(fmt_minutes($billing['other'])) ?></td><td></td><td class="px-3 py-2.5 text-right tabular-nums"><?= e(money($billing['amount'], $billing['currency'])) ?></td><td></td></tr>
+            <tr class="bg-surface-2/50 font-semibold"><td class="px-5 py-2.5">Total</td><td></td><td class="px-3 py-2.5 text-right tabular-nums"><?= e(fmt_minutes($billing['billable'])) ?></td><td class="px-3 py-2.5 text-right tabular-nums"><?= e(fmt_minutes($billing['other'])) ?></td><td></td><td class="px-3 py-2.5 text-right tabular-nums"><?= e(money($billing['amount'], $billing['currency'])) ?></td><td></td><?php if (can($user, 'invoices.manage')): ?><td></td><?php endif; ?></tr>
           </tbody>
         </table>
       </div>

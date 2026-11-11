@@ -19,6 +19,10 @@ if (is_staff($user['role']) && can($user, 'chat.answer') && chat_settings($tenan
 }
 $nav[] = ['/kb', 'Knowledge base', 'book-open'];
 if (can($user, 'reports.view')) $nav[] = ['/reports', 'Reports', 'chart-column'];
+// Invoices: staff with the permission; customers who manage an organization that has issued invoices.
+if (is_staff($user['role']) ? can($user, 'invoices.manage') : (bool) q_val('SELECT 1 FROM "Invoice" i JOIN "UserOrganization" uo ON uo."organizationId" = i."organizationId" WHERE uo."userId" = ? AND uo."isManager" = 1 AND i."status" <> \'draft\' LIMIT 1', [$user['id']])) {
+    $nav[] = ['/invoices', 'Invoices', 'receipt'];
+}
 // Users & roles live inside Settings (Users / Roles tabs), not in the menu.
 if (can($user, 'settings.*')) $nav[] = ['/settings', 'Settings', 'settings'];
 

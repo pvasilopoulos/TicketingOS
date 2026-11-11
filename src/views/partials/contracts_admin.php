@@ -38,6 +38,22 @@ $contractForm = function (?array $c) use ($sel): string {
   <?php elseif ($ownRate !== null && $ownRate !== ''): ?>
     <p class="mb-3 text-sm">Hourly rate: <strong><?= e(money((float) $ownRate, $bset['currency'])) ?></strong></p>
   <?php endif; ?>
+  <?php if (can($me, 'invoices.manage')): $ob = org_billing($sel); ?>
+    <details class="mb-4 rounded-xl border border-border" <?= $ob['vat'] === '' ? '' : '' ?>>
+      <summary class="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-medium [&::-webkit-details-marker]:hidden"><span class="flex items-center gap-2"><?= icon('receipt', 14) ?> Billing details for invoices <?= $ob['vat'] !== '' ? '<span class="text-xs font-normal text-muted">· ΑΦΜ ' . e($ob['vat']) . '</span>' : '<span class="text-xs font-normal text-amber-600">· not set</span>' ?></span><?= icon('chevron-down', 15, 'text-muted') ?></summary>
+      <form method="post" action="/action/org-billing-save" data-ajax class="grid gap-3 border-t border-border p-4 sm:grid-cols-2">
+        <?= form_meta() ?><input type="hidden" name="organizationId" value="<?= e($sel['id']) ?>">
+        <div><label class="<?= LABEL_CLS ?>">Legal name</label><input name="legalName" value="<?= e($ob['legalName']) ?>" placeholder="<?= e($sel['name']) ?>" class="<?= INPUT_CLS ?>"></div>
+        <div><label class="<?= LABEL_CLS ?>">Activity</label><input name="activity" value="<?= e($ob['activity']) ?>" class="<?= INPUT_CLS ?>"></div>
+        <div><label class="<?= LABEL_CLS ?>">VAT number (ΑΦΜ)</label><input name="vat" value="<?= e($ob['vat']) ?>" class="<?= INPUT_CLS ?>"></div>
+        <div><label class="<?= LABEL_CLS ?>">Tax office (ΔΟΥ)</label><input name="taxOffice" value="<?= e($ob['taxOffice']) ?>" class="<?= INPUT_CLS ?>"></div>
+        <div class="sm:col-span-2"><label class="<?= LABEL_CLS ?>">Address</label><textarea name="address" rows="2" class="<?= INPUT_CLS ?> h-auto py-2"><?= e($ob['address']) ?></textarea></div>
+        <div><label class="<?= LABEL_CLS ?>">Invoice email</label><input type="email" name="email" value="<?= e($ob['email']) ?>" placeholder="accounts@…" class="<?= INPUT_CLS ?>"></div>
+        <div><label class="<?= LABEL_CLS ?>">VAT rate</label><select name="vatRate" class="<?= SELECT_CLS ?>"><?= select_options(['' => 'Workspace default'] + array_combine(VAT_RATES, array_map(fn ($v) => $v . '%', VAT_RATES)), $ob['vatRate'] === null ? '' : (string) $ob['vatRate']) ?></select></div>
+        <div class="sm:col-span-2"><button type="submit" class="<?= btn_cls('outline', 'sm') ?>">Save billing details</button></div>
+      </form>
+    </details>
+  <?php endif; ?>
   <?php if ($canEdit): ?><div id="contract-new" class="mb-4 rounded-xl border border-dashed border-border p-4" <?= $contracts ? 'hidden' : '' ?>><?= $contractForm(null) ?></div><?php endif; ?>
   <?php if (!$contracts): ?><p class="text-sm text-muted">No contract yet — add one to track an hour bank and give this organization its own response times.</p><?php endif; ?>
   <div class="space-y-3">
