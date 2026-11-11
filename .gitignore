@@ -13,3 +13,6 @@
 
 # local editor / assistant config
 /.claude/
+
+# local, machine-specific SQL (may contain personal data)
+/database/local-*.sql

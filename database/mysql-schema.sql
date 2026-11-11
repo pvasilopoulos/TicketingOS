@@ -1,4 +1,4 @@
--- TicketingOS: MySQL 8 / MariaDB 10.5+ schema (41 tables).
+-- TicketingOS: MySQL 8 / MariaDB 10.5+ schema (44 tables).
 -- Import into an EMPTY database (phpMyAdmin → Import), or run: php bin/migrate.php
 -- After importing, open /register to create the first workspace and admin.
 
@@ -641,5 +641,48 @@ CREATE TABLE IF NOT EXISTS `TicketAssignee` (
   FOREIGN KEY (`ticketId`) REFERENCES `Ticket` (`id`) ON DELETE CASCADE,
   FOREIGN KEY (`userId`) REFERENCES `User` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `TicketTemplate` (
+  `id` varchar(40) NOT NULL,
+  `tenantId` varchar(40) NOT NULL,
+  `name` varchar(191) NOT NULL,
+  `audience` varchar(191) NOT NULL DEFAULT 'everyone',
+  `categoryId` varchar(40) DEFAULT NULL,
+  `priority` varchar(191) DEFAULT NULL,
+  `subject` varchar(191) DEFAULT NULL,
+  `body` mediumtext DEFAULT NULL,
+  `tags` mediumtext DEFAULT NULL,
+  `assigneeIds` mediumtext DEFAULT NULL,
+  `subtasks` mediumtext DEFAULT NULL,
+  `order` int(11) NOT NULL DEFAULT 0,
+  `createdAt` varchar(30) NOT NULL,
+  `updatedAt` varchar(30) NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `TicketTemplate_tenant_idx` (`tenantId`),
+  FOREIGN KEY (`tenantId`) REFERENCES `Tenant` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `TicketCc` (
+  `ticketId` varchar(40) NOT NULL,
+  `email` varchar(191) NOT NULL,
+  `addedById` varchar(40) DEFAULT NULL,
+  `createdAt` varchar(30) NOT NULL,
+  PRIMARY KEY (`ticketId`,`email`),
+  FOREIGN KEY (`ticketId`) REFERENCES `Ticket` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `UserOrganization` (
+  `userId` varchar(40) NOT NULL,
+  `organizationId` varchar(40) NOT NULL,
+  `isManager` int(11) NOT NULL DEFAULT 0,
+  `createdAt` varchar(30) NOT NULL,
+  PRIMARY KEY (`userId`,`organizationId`),
+  KEY `UserOrganization_org_idx` (`organizationId`),
+  FOREIGN KEY (`userId`) REFERENCES `User` (`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`organizationId`) REFERENCES `Organization` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Sub-tickets
+ALTER TABLE `Ticket` ADD COLUMN `parentId` varchar(40) DEFAULT NULL, ADD KEY `Ticket_parent_idx` (`parentId`);
 
 SET FOREIGN_KEY_CHECKS = 1;

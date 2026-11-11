@@ -177,14 +177,17 @@ function db_column_exists(string $table, string $col): bool
 
 function ensure_runtime_schema(): void
 {
+    // The marker names the database too: a database that is dropped and imported
+    // again (or a different one in .env) gets every step again. All steps are
+    // idempotent (CREATE IF NOT EXISTS, column checks, backfill of missing rows).
     $marker = ROOT . '/storage/.schema-version';
-    $have = (int) @file_get_contents($marker);
-    if ($have >= RUNTIME_SCHEMA_VERSION) return;
+    $sig = RUNTIME_SCHEMA_VERSION . '|' . db_driver() . '|' . (db_driver() === 'mysql' ? env('DB_HOST', '') . '/' . env('DB_NAME', '') . '|' . (string) q_val('SELECT MIN("createdAt") FROM "Tenant"') : env('DB_PATH', ''));
+    if (trim((string) @file_get_contents($marker)) === $sig) return;
     try {
-        if ($have < 1) runtime_schema_v1();
-        if ($have < 2) runtime_schema_v2();
+        runtime_schema_v1();
+        runtime_schema_v2();
         runtime_schema_v3();
-        @file_put_contents($marker, (string) RUNTIME_SCHEMA_VERSION);
+        @file_put_contents($marker, $sig);
     } catch (Throwable $e) {
         error_log('[schema] ' . $e->getMessage());
     }
