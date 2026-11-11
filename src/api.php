@@ -132,14 +132,14 @@ function api_manifest(): never
         'theme_color' => '#4f46e5',
         'categories' => ['business', 'productivity'],
         'icons' => [
-            ['src' => '/app-icons/icon-192.png', 'sizes' => '192x192', 'type' => 'image/png', 'purpose' => 'any'],
-            ['src' => '/app-icons/icon-512.png', 'sizes' => '512x512', 'type' => 'image/png', 'purpose' => 'any'],
-            ['src' => '/app-icons/maskable-512.png', 'sizes' => '512x512', 'type' => 'image/png', 'purpose' => 'maskable'],
+            ['src' => app_icon('/app-icons/icon-192.png'), 'sizes' => '192x192', 'type' => 'image/png', 'purpose' => 'any'],
+            ['src' => app_icon('/app-icons/icon-512.png'), 'sizes' => '512x512', 'type' => 'image/png', 'purpose' => 'any'],
+            ['src' => app_icon('/app-icons/maskable-512.png'), 'sizes' => '512x512', 'type' => 'image/png', 'purpose' => 'maskable'],
         ],
         'shortcuts' => [
-            ['name' => 'New ticket', 'url' => '/tickets/new', 'icons' => [['src' => '/app-icons/icon-192.png', 'sizes' => '192x192']]],
-            ['name' => 'My tickets', 'url' => '/tickets?assignee=me', 'icons' => [['src' => '/app-icons/icon-192.png', 'sizes' => '192x192']]],
-            ['name' => 'Overdue', 'url' => '/tickets?overdue=1', 'icons' => [['src' => '/app-icons/icon-192.png', 'sizes' => '192x192']]],
+            ['name' => 'New ticket', 'url' => '/tickets/new', 'icons' => [['src' => app_icon('/app-icons/icon-192.png'), 'sizes' => '192x192']]],
+            ['name' => 'My tickets', 'url' => '/tickets?assignee=me', 'icons' => [['src' => app_icon('/app-icons/icon-192.png'), 'sizes' => '192x192']]],
+            ['name' => 'Overdue', 'url' => '/tickets?overdue=1', 'icons' => [['src' => app_icon('/app-icons/icon-192.png'), 'sizes' => '192x192']]],
         ],
     ], JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
     throw new HttpExit();

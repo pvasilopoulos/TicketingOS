@@ -369,7 +369,7 @@ function notify_email_layout(string $tenantId, string $inner, bool $customer = f
     $logo = brand_logo_url();
     $mark = $logo
         ? '<img src="' . e(app_url() . $logo) . '" alt="" width="32" height="32" style="width:32px;height:32px;border-radius:8px;vertical-align:middle">'
-        : '<img src="' . e(app_url() . '/app-icons/logo-64.png') . '" alt="" width="32" height="32" style="width:32px;height:32px;vertical-align:middle">';
+        : '<img src="' . e(app_url() . app_icon('/app-icons/logo-64.png')) . '" alt="" width="32" height="32" style="width:32px;height:32px;vertical-align:middle">';
     $ws = (string) q_val('SELECT "name" FROM "Tenant" WHERE "id" = ?', [$tenantId]);
     return '<!doctype html><html><body style="margin:0;padding:24px 12px;background:#f1f5f9;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">'
         . '<table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td align="center">'

@@ -88,7 +88,7 @@ header('Cache-Control: private, no-store');
       <div class="num">#<?= (int) $ticket['number'] ?> · <?= e($workspace) ?></div>
       <h1><?= e($ticket['subject']) ?></h1>
     </div>
-    <div class="brand"><img src="<?= e(brand_logo_url() ?? '/app-icons/logo.svg') ?>" alt=""><span><?= e(app_name()) ?></span></div>
+    <div class="brand"><img src="<?= e(brand_logo_url() ?? app_icon('/app-icons/logo.svg')) ?>" alt=""><span><?= e(app_name()) ?></span></div>
   </header>
   <dl>
     <div><dt>Status</dt><dd><?= e($status['label']) ?></dd></div>

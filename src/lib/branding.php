@@ -53,6 +53,13 @@ function brand_logo_url(): ?string
 }
 
 /** The logo mark: the uploaded image, or the default gradient ticket badge. */
+/** URL of a built-in icon file with its change time, so browsers fetch a new logo right away. */
+function app_icon(string $path): string
+{
+    $file = ROOT . '/public' . $path;
+    return $path . '?v=' . (@filemtime($file) ?: 1);
+}
+
 function brand_mark(int $size = 36, string $radius = 'rounded-xl'): string
 {
     $url = brand_logo_url();
@@ -60,7 +67,7 @@ function brand_mark(int $size = 36, string $radius = 'rounded-xl'): string
         return '<img src="' . e($url) . '" alt="" width="' . $size . '" height="' . $size . '" class="' . $radius . ' shrink-0 object-contain" style="width:' . $size . 'px;height:' . $size . 'px">';
     }
     // Built-in TicketingOS logo (public/app-icons/logo.svg).
-    return '<img src="/app-icons/logo.svg" alt="" width="' . $size . '" height="' . $size . '" class="shrink-0 drop-shadow-sm" style="width:' . $size . 'px;height:' . $size . 'px">';
+    return '<img src="' . e(app_icon('/app-icons/logo.svg')) . '" alt="" width="' . $size . '" height="' . $size . '" class="shrink-0 drop-shadow-sm" style="width:' . $size . 'px;height:' . $size . 'px">';
 }
 
 function branding_save(array $data): void

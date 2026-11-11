@@ -11,7 +11,7 @@ $jsIcons = ['bell' => icon('bell', 16), 'x' => icon('x', 15), 'x-sm' => icon('x'
   <title><?= e($pageTitle) ?></title>
   <meta name="description" content="A complete, modern support ticketing system.">
   <?php if ($bl = brand_logo_url()): ?><link rel="icon" href="<?= e($bl) ?>"><?php else: ?>
-  <link rel="icon" href="/favicon.ico" sizes="48x48"><link rel="icon" href="/app-icons/logo.svg" type="image/svg+xml"><?php endif; ?>
+  <link rel="icon" href="<?= e(app_icon('/favicon.ico')) ?>" sizes="48x48"><link rel="icon" href="<?= e(app_icon('/app-icons/logo.svg')) ?>" type="image/svg+xml"><?php endif; ?>
   <!-- PWA -->
   <link rel="manifest" href="/manifest.webmanifest">
   <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
@@ -20,7 +20,7 @@ $jsIcons = ['bell' => icon('bell', 16), 'x' => icon('x', 15), 'x-sm' => icon('x'
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="<?= e(app_name()) ?>">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <link rel="apple-touch-icon" href="/app-icons/apple-touch-icon.png">
+  <link rel="apple-touch-icon" href="<?= e(app_icon('/app-icons/apple-touch-icon.png')) ?>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
