@@ -300,7 +300,7 @@ $row = fn (string $label, string $valueHtml) => '<div class="flex items-center j
     <a href="#reply" data-jump-reply class="<?= $quick ?> lg:hidden"><?= icon('send', 15) ?> Reply</a>
   </div>
 
-  <div class="mt-5 grid gap-5 lg:mt-6 lg:grid-cols-[1fr_300px] lg:gap-6">
+  <div class="mt-5 grid grid-cols-1 gap-5 lg:mt-6 lg:grid-cols-[minmax(0,1fr)_300px] lg:gap-6">
     <!-- Conversation / History tabs -->
     <div class="min-w-0 space-y-4" data-tabs>
       <div class="flex gap-1 rounded-xl border border-border bg-surface-2/50 p-1" role="tablist">

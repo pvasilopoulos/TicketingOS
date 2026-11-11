@@ -307,8 +307,9 @@
     if (!this.mentions.length) return;
     var q = this.mentionQuery();
     if (!q) { this.closePopup(); return; }
-    var query = q.query.toLowerCase();
-    var items = this.mentions.filter(function (u) { return u.label.toLowerCase().indexOf(query) !== -1; }).slice(0, 6);
+    var fold = window.TOSfold || function (s) { return String(s).toLowerCase(); };
+    var query = fold(q.query);
+    var items = this.mentions.filter(function (u) { return fold(u.label).indexOf(query) !== -1; }).slice(0, 6);
     var prevSel = this.mentionState ? this.mentionState.selected : 0;
     this.mentionState = { q: q, items: items, selected: Math.min(prevSel, Math.max(0, items.length - 1)) };
     this.renderPopup();

@@ -9,6 +9,15 @@
   var $ = function (sel, root) { return (root || document).querySelector(sel); };
   var $$ = function (sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); };
 
+  // Search ignores case and accents: "ΠΡΟΔΡΟΜΟΣ", "Προδρομος" and "Πρόδρομος" all match.
+  // Character by character, so positions stay the same for highlighting.
+  var fold = window.TOSfold = function (s) {
+    s = s == null ? "" : String(s);
+    var o = "";
+    for (var i = 0; i < s.length; i++) { var c = s.charAt(i).normalize("NFD").charAt(0).toLowerCase(); o += c === "ς" ? "σ" : c; }
+    return o;
+  };
+
   /* ---------- helpers ---------- */
 
   function post(url, data) {
@@ -460,7 +469,7 @@
     var mark = function (text, q) {
       var t = esc(text);
       if (!q) return t;
-      var i = String(text).toLowerCase().indexOf(q.toLowerCase());
+      var i = fold(text).indexOf(fold(q));
       return i < 0 ? t : esc(text.slice(0, i)) + '<mark class="rounded bg-brand/15 px-0.5 text-fg">' + esc(text.slice(i, i + q.length)) + "</mark>" + esc(text.slice(i + q.length));
     };
     var initials = function (n) { return String(n).split(/\s+/).map(function (p) { return p.charAt(0); }).join("").slice(0, 2).toUpperCase(); };
@@ -912,16 +921,21 @@
   ];
   function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
   function highlight(text, q) {
-    var html = esc(text);
+    text = String(text);
     var words = (q.match(/"[^"]+"|\S+/g) || [])
       .filter(function (w) { return !/^\w+:/.test(w) && !/^#?\d+$/.test(w); })
-      .map(function (w) { return w.replace(/"/g, "").toLowerCase(); })
+      .map(function (w) { return fold(w.replace(/"/g, "")); })
       .filter(function (w) { return w.length > 1; });
-    words.forEach(function (w) {
-      var re = new RegExp("(" + esc(w).replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + ")", "gi");
-      html = html.replace(re, '<mark class="rounded bg-amber-200/70 px-0.5 text-inherit dark:bg-amber-400/30">$1</mark>');
-    });
-    return html;
+    // Mark the matching ranges on the folded text, then wrap the original characters.
+    var f = fold(text), hit = new Array(text.length);
+    words.forEach(function (w) { for (var i = f.indexOf(w); i !== -1; i = f.indexOf(w, i + w.length)) for (var k = i; k < i + w.length; k++) hit[k] = true; });
+    var html = "", open = false;
+    for (var i = 0; i < text.length; i++) {
+      if (hit[i] && !open) { html += '<mark class="rounded bg-amber-200/70 px-0.5 text-inherit dark:bg-amber-400/30">'; open = true; }
+      if (!hit[i] && open) { html += "</mark>"; open = false; }
+      html += esc(text.charAt(i));
+    }
+    return html + (open ? "</mark>" : "");
   }
   function bindLiveSearch(input) {
     var form = input.form;
@@ -1193,8 +1207,8 @@
   // Group member picker filter.
   document.addEventListener('input', function (e) {
     if (!e.target.matches || !e.target.matches('[data-member-filter]')) return;
-    var q = e.target.value.trim().toLowerCase();
-    $$('[data-member-name]', e.target.form).forEach(function (l) { l.hidden = q && l.getAttribute('data-member-name').indexOf(q) < 0; });
+    var q = fold(e.target.value.trim());
+    $$('[data-member-name]', e.target.form).forEach(function (l) { l.hidden = q && fold(l.getAttribute('data-member-name')).indexOf(q) < 0; });
   });
   document.addEventListener('change', function (e) {
     if (!e.target.matches || !e.target.matches('[data-member-list] input')) return;

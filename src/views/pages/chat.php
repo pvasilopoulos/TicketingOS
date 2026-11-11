@@ -117,6 +117,7 @@ $chip = 'inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg
   var store = { get: function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } }, set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) {} } };
   var soundOn = store.get("tos-chat-sound") !== "0", desktopOn = store.get("tos-chat-desktop") === "1";
 
+  var fold = function (s) { s = s == null ? "" : String(s); var o = ""; for (var i = 0; i < s.length; i++) { var c = s.charAt(i).normalize("NFD").charAt(0).toLowerCase(); o += c === "ς" ? "σ" : c; } return o; };
   var esc = function (s) { var d = document.createElement("div"); d.textContent = s == null ? "" : String(s); return d.innerHTML; };
   var pad = function (n) { return (n < 10 ? "0" : "") + n; };
   var time = function (iso) { var d = new Date(iso); return pad(d.getHours()) + ":" + pad(d.getMinutes()); };
@@ -191,9 +192,9 @@ $chip = 'inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg
       b.classList.toggle("bg-surface", on); b.classList.toggle("shadow-sm", on); b.classList.toggle("text-fg", on); b.classList.toggle("text-muted", !on);
       b.setAttribute("aria-selected", on ? "true" : "false");
     });
-    var q = query.toLowerCase();
+    var q = fold(query);
     var rows = items.filter(function (it) {
-      return matches(it, filter) && (!q || (it.name + " " + it.email + " " + (it.last ? it.last.text : "")).toLowerCase().indexOf(q) !== -1);
+      return matches(it, filter) && (!q || fold(it.name + " " + it.email + " " + (it.last ? it.last.text : "")).indexOf(q) !== -1);
     });
     if (!rows.length) {
       var empty = q ? "Nothing matches “" + esc(query) + "”." : { open: "No open chats. You’re all caught up.", waiting: "Nobody is waiting.", mine: "No chats assigned to you.", ended: "No chats ended in the last 24 hours." }[filter];
@@ -397,13 +398,13 @@ $chip = 'inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg
   /* Quick replies (canned responses) */
   function markCanned(el) { cannedMenu.querySelectorAll("[data-active]").forEach(function (x) { x.removeAttribute("data-active"); x.classList.remove("bg-surface-2"); }); if (el) { el.setAttribute("data-active", ""); el.classList.add("bg-surface-2"); el.scrollIntoView({ block: "nearest" }); } }
   function openCanned(q) {
-    q = (q || "").toLowerCase();
+    q = fold(q || "");
     if (!BOOT.canned.length) {
       cannedMenu.innerHTML = '<p class="px-3 py-3 text-xs text-muted">No quick replies yet. Admins add them in Settings → Canned replies.</p>';
       cannedMenu.hidden = false; return;
     }
     var html = BOOT.canned.map(function (c, i) {
-      if (q && (c.title + " " + c.text).toLowerCase().indexOf(q) === -1) return "";
+      if (q && fold(c.title + " " + c.text).indexOf(q) === -1) return "";
       return '<button type="button" data-canned="' + i + '" class="block w-full px-3 py-2 text-left hover:bg-surface-2 cursor-pointer"><span class="block text-sm font-medium">' + esc(c.title) + '</span><span class="block truncate text-xs text-muted">' + esc(c.text) + "</span></button>";
     }).join("");
     cannedMenu.innerHTML = html || '<p class="px-3 py-3 text-xs text-muted">No quick reply matches.</p>';
