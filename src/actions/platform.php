@@ -11,7 +11,7 @@ function act_branding_save(array $in): ?array
     if (!$user || $user['role'] !== 'SUPER_ADMIN') return ['error' => 'Only a super admin can change the branding'];
     $name = trim(preg_replace('/\s+/u', ' ', str_in($in, 'appName')));
     if (mb_strlen($name) < 2 || mb_strlen($name) > 40) return ['error' => 'The app name must be 2–40 characters'];
-    $data = ['name' => $name];
+    $data = ['name' => $name, 'signup' => ($in['signup'] ?? '') === 'on'];
 
     $f = $_FILES['logo'] ?? null;
     if ($f && ($f['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {

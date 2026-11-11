@@ -158,6 +158,7 @@ try {
             view('pages/login', [], 'auth');
         case $path === '/register':
             $guestOnly();
+            if (!signup_open()) redirect('/login');
             page_title('Create workspace');
             view('pages/register', [], 'auth');
         case $path === '/forgot':

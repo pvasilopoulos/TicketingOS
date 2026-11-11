@@ -6,6 +6,7 @@
 $roles = q_all('SELECT r.*, (SELECT COUNT(*) FROM "User" u WHERE u."customRoleId" = r."id" AND u."role" = \'AGENT\') AS "members" FROM "Role" r WHERE r."tenantId" = ? ORDER BY r."name"', [$tenantId]);
 $agentPerms = agent_permissions($tenantId);
 $adminPerms = admin_permissions($tenantId);
+$adminTotal = count(admin_all_permissions());
 $info = permission_info();
 $total = count($info);
 $counts = array_column(q_all('SELECT "role", COUNT(*) AS n FROM "User" WHERE "tenantId" = ? GROUP BY "role"', [$tenantId]), 'n', 'role');
@@ -42,9 +43,9 @@ $avatars = function (array $users, string $filterKey) use ($tenantId): string {
 $meter = fn (int $n) => '<span class="mt-1.5 block h-1 overflow-hidden rounded-full bg-surface-2"><span class="block h-full rounded-full bg-current opacity-70" style="width:' . round($n / max(1, $total) * 100) . '%"></span></span>';
 
 /** Toggle-switch permission editor (behaviour in app.js → bindPermForm). */
-$editor = function (array $checked, bool $readonly = false) use ($info): string {
+$editor = function (array $checked, bool $readonly = false, array $catalog = PERMISSIONS) use ($info): string {
     $h = '<div class="space-y-4">';
-    foreach (PERMISSIONS as $group => [$gicon, $gdesc, $perms]) {
+    foreach ($catalog as $group => [$gicon, $gdesc, $perms]) {
         $on = count(array_intersect(array_keys($perms), $checked));
         $h .= '<div class="overflow-hidden rounded-xl border border-border" data-perm-group>'
             . '<div class="flex items-center gap-3 border-b border-border bg-surface-2/50 px-4 py-3">'
@@ -121,7 +122,7 @@ $listItem = function (string $key, string $name, string $sub, string $color, str
     <p class="hidden px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wider text-muted 2xl:block">Built-in</p>
     <div class="flex shrink-0 gap-1 2xl:flex-col [&>a]:min-w-52 2xl:[&>a]:min-w-0">
       <?= $listItem('super', 'Super admin', number_format(count($superAll)) . ' · every workspace', '#d97706', 'shield-check', $total) ?>
-      <?= $listItem('admin', 'Administrator', number_format((int) ($counts['ADMIN'] ?? 0)) . ' · ' . (count($adminPerms) === $total ? 'all permissions' : count($adminPerms) . '/' . $total . ' permissions'), '#4f46e5', 'crown', count($adminPerms)) ?>
+      <?= $listItem('admin', 'Administrator', number_format((int) ($counts['ADMIN'] ?? 0)) . ' · ' . (count($adminPerms) === $adminTotal ? 'all permissions' : count($adminPerms) . '/' . $adminTotal . ' permissions'), '#4f46e5', 'crown', count($adminPerms)) ?>
       <?= $listItem('agent', 'Agent', $plainAgents . ' · ' . count($agentPerms) . '/' . $total . ' permissions', '#0284c7', 'users-round', count($agentPerms)) ?>
       <?= $listItem('customer', 'Customer', number_format((int) ($counts['CUSTOMER'] ?? 0)) . ' · own tickets only', '#64748b', 'circle-user-round', -1) ?>
     </div>
@@ -166,7 +167,7 @@ $listItem = function (string $key, string $name, string $sub, string $color, str
     </div>
 
     <!-- Administrator: editable by a super admin, read-only for everyone else -->
-    <?php $superMe = $me['role'] === 'SUPER_ADMIN'; $adminLimited = count($adminPerms) < $total; ?>
+    <?php $superMe = $me['role'] === 'SUPER_ADMIN'; $adminLimited = count($adminPerms) < $adminTotal; ?>
     <?php if ($superMe): ?>
     <form method="post" action="/action/admin-perms-save" data-role-panel="admin" data-perm-form <?= $sel === 'admin' ? '' : 'hidden' ?>>
       <?= form_meta('roles', '/settings?role=admin#roles') ?>
@@ -180,13 +181,8 @@ $listItem = function (string $key, string $name, string $sub, string $color, str
             <p class="text-sm text-muted"><?= $superMe ? 'As super admin you decide what administrators of this workspace can do.' : ($adminLimited ? 'Limited by the super admin.' : 'Full access. Only the super admin can change this.') ?></p></div>
           <?= $avatars($membersOf('admin'), 'ADMIN') ?>
         </div>
-        <ul class="mt-4 grid gap-2 text-sm sm:grid-cols-2">
-          <?php foreach (['Create and edit roles', 'Add, change and remove administrators', 'Security and password rules'] as $t): ?>
-            <li class="flex items-center gap-2"><?= icon('circle-check', 15, 'text-emerald-600') ?><?= e($t) ?> <span class="text-xs text-muted">· always</span></li>
-          <?php endforeach; ?>
-        </ul>
       </div>
-      <?= $editor($adminPerms, !$superMe) ?>
+      <?= $editor($adminPerms, !$superMe, ADMIN_PERMISSIONS + PERMISSIONS) ?>
     <?php if ($superMe): ?>
       <?= $saveBar('<button type="submit" name="reset" value="1" formnovalidate data-confirm="Give administrators every permission again?" title="Full access" class="' . btn_cls('ghost', 'sm') . '">' . icon('rotate-ccw', 14) . '<span class="max-sm:hidden">Full access</span></button>') ?>
     </form>

@@ -42,6 +42,7 @@ function act_login(array $in): ?array
 
 function act_register(array $in): ?array
 {
+    if (!signup_open()) return ['error' => 'New workspaces can’t be created right now'];
     $org = str_in($in, 'organizationName');
     $name = str_in($in, 'name');
     $email = strtolower(str_in($in, 'email'));

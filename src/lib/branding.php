@@ -26,7 +26,17 @@ function branding(): array
     $logo = isset($data['logo']) && is_string($data['logo']) && preg_match('/^logo\.(png|jpg|webp|svg)$/', $data['logo'])
         && is_file(brand_dir() . '/' . $data['logo']) ? $data['logo'] : null;
     $name = trim((string) ($data['name'] ?? ''));
-    return $b = ['name' => $name !== '' ? $name : BRAND_DEFAULT_NAME, 'logo' => $logo, 'updatedAt' => $data['updatedAt'] ?? null];
+    return $b = ['name' => $name !== '' ? $name : BRAND_DEFAULT_NAME, 'logo' => $logo, 'signup' => (bool) ($data['signup'] ?? false), 'updatedAt' => $data['updatedAt'] ?? null];
+}
+
+/**
+ * May visitors create a new workspace at /register? Off unless a super admin
+ * turns it on (Settings → Branding). A brand-new install with no workspace yet
+ * stays open so the first account can be created.
+ */
+function signup_open(): bool
+{
+    return branding()['signup'] || !q_val('SELECT 1 FROM "Tenant" LIMIT 1');
 }
 
 function app_name(): string
@@ -57,7 +67,8 @@ function branding_save(array $data): void
 {
     if (!is_dir(brand_dir())) mkdir(brand_dir(), 0775, true);
     $cur = branding();
-    $out = ['name' => $data['name'] ?? $cur['name'], 'logo' => array_key_exists('logo', $data) ? $data['logo'] : $cur['logo'], 'updatedAt' => now_iso()];
+    $out = ['name' => $data['name'] ?? $cur['name'], 'logo' => array_key_exists('logo', $data) ? $data['logo'] : $cur['logo'],
+        'signup' => array_key_exists('signup', $data) ? (bool) $data['signup'] : $cur['signup'], 'updatedAt' => now_iso()];
     file_put_contents(brand_dir() . '/branding.json', json_encode($out, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), LOCK_EX);
 }
 

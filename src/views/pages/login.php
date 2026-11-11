@@ -13,6 +13,8 @@
   <div class="pt-1"><?= auth_submit('Sign in') ?></div>
 </form>
 
+<?php if (signup_open()): ?>
 <div class="mt-7 border-t border-border/70 pt-6 text-center text-sm text-muted">
   New here? <a href="/register" class="font-semibold text-brand hover:underline">Create a workspace</a>
 </div>
+<?php endif; ?>

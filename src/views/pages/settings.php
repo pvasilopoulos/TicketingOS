@@ -4,6 +4,8 @@ $canUsers = can($me, 'users.*');
 $canGroups = can($me, 'groups.manage');
 $canOrgs = can($me, 'orgs.manage');
 $isAdminMe = is_tenant_admin($me['role']);
+$canRoles = $isAdminMe && can($me, 'admin.roles');
+$canSecurity = $isAdminMe && can($me, 'admin.security');
 /** May the current user open a settings section? */
 $sec = fn (string $id) => can_settings_tab($me, $id);
 page_title('Settings');
@@ -55,8 +57,8 @@ $s = fn (string $form) => flash($form);
           $canUsers ? ['users', 'Users', 'users'] : null,
           $canGroups ? ['groups', 'Groups', 'users-round'] : null,
           $canOrgs ? ['orgs', 'Organizations', 'building-2'] : null,
-          $isAdminMe ? ['roles', 'Roles & permissions', 'shield-check'] : null,
-          $isAdminMe ? ['security', 'Security', 'key-round'] : null,
+          $canRoles ? ['roles', 'Roles & permissions', 'shield-check'] : null,
+          $canSecurity ? ['security', 'Security', 'key-round'] : null,
           can($me, 'audit.view') ? ['audit', 'Audit log', 'scroll-text'] : null,
       ]),
       'Platform' => $me['role'] === 'SUPER_ADMIN' ? [['branding', 'Branding', 'sparkles']] : [],
@@ -691,10 +693,12 @@ $s = fn (string $form) => flash($form);
   </section>
   <?php endif; ?>
 
-  <?php if ($isAdminMe): ?>
+  <?php if ($canRoles): ?>
   <section id="roles" data-settings-section="roles" class="scroll-mt-24 space-y-6">
     <?php require ROOT . '/src/views/partials/roles_admin.php'; ?>
   </section>
+  <?php endif; ?>
+  <?php if ($canSecurity): ?>
   <section id="security" data-settings-section="security" class="scroll-mt-24 space-y-6">
     <?php require ROOT . '/src/views/partials/security_admin.php'; ?>
   </section>

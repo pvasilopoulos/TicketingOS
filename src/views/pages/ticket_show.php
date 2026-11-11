@@ -57,8 +57,11 @@ $comments = q_all('SELECT c.*, u."name" AS "aName", u."avatarColor" AS "aColor",
 $events = q_all('SELECT e.*, u."name" AS "aName", u."avatarColor" AS "aColor" FROM "TicketEvent" e LEFT JOIN "User" u ON u."id" = e."actorId" WHERE e."ticketId" = ? ORDER BY e."createdAt" ASC', [$id]);
 
 $canned = $staff ? q_all('SELECT "title","body" FROM "CannedResponse" WHERE "tenantId" = ? ORDER BY "title" ASC', [$tenantId]) : [];
-$mentionUsers = array_map(fn ($u) => ['id' => $u['id'], 'label' => $u['name']],
-    q_all('SELECT "id","name" FROM "User" WHERE "tenantId" = ? ORDER BY "name" ASC', [$tenantId]));
+// Staff can mention anyone; customers only people on this ticket and colleagues of their organization.
+$mentionPool = $staff ? q_all('SELECT "id","name" FROM "User" WHERE "tenantId" = ? ORDER BY "name" ASC', [$tenantId])
+    : array_merge(q_all('SELECT u."id", u."name" FROM "User" u WHERE u."id" IN (?, ?) OR u."id" IN (SELECT w."userId" FROM "TicketWatcher" w WHERE w."ticketId" = ?)',
+        [$ticket['requesterId'], $ticket['assigneeId'] ?? '', $ticket['id']]), addable_people($user, $tenantId));
+$mentionUsers = array_values(array_map(fn ($u) => ['id' => $u['id'], 'label' => $u['name']], array_column($mentionPool, null, 'id')));
 
 $byComment = [];
 foreach ($attachments as $a) $byComment[$a['commentId'] ?? ''][] = $a;
@@ -83,7 +86,7 @@ $agents = $canManage ? q_all('SELECT "id","name" FROM "User" WHERE "tenantId" = 
 $categories = $canManage ? q_all('SELECT "id","name" FROM "Category" WHERE "tenantId" = ? ORDER BY "name" ASC', [$tenantId]) : [];
 $excluded = array_flip([$ticket['requesterId'], ...array_column($watchers, 'id')]);
 $candidates = $canManage
-    ? array_values(array_filter(q_all('SELECT "id","name","role" FROM "User" WHERE "tenantId" = ? ORDER BY "name" ASC', [$tenantId]), fn ($u) => !isset($excluded[$u['id']])))
+    ? array_values(array_filter(addable_people($user, $tenantId), fn ($u) => !isset($excluded[$u['id']])))
     : [];
 
 $replyState = flash('reply');
@@ -374,9 +377,12 @@ $row = fn (string $label, string $valueHtml) => '<div class="flex items-center j
                       . avatar($c['name'], '#6366f1', 26) . '<span class="min-w-0 flex-1 truncate">' . e($c['name']) . '</span><span class="text-xs text-muted">' . e(role_label($c['role'])) . '</span></button></form>';
               }
               echo dropdown('<button type="button" data-dropdown-trigger class="inline-flex items-center gap-1 text-xs font-medium text-brand hover:underline cursor-pointer disabled:opacity-50">' . icon('user-plus', 14) . ' Add</button>',
-                  '<div class="max-h-72 overflow-y-auto py-1">' . $opts . '</div>', 240);
+                  '<div class="max-h-72 overflow-y-auto py-1">' . (!$staff ? '<p class="px-3 pb-1.5 pt-1 text-[11px] text-muted">Colleagues from your organization</p>' : '') . $opts . '</div>', 240);
           endif; ?>
         </div>
+        <?php if ($canTeam && !$staff && !$candidates): ?>
+          <p class="mb-3 text-xs text-muted"><?= empty($user['organizationId']) ? 'You can add colleagues once your account belongs to an organization.' : 'Everyone from your organization is already on this ticket.' ?></p>
+        <?php endif; ?>
         <?php if (!$watchers): ?>
           <p class="text-sm text-muted">No team members yet.</p>
         <?php else: ?>

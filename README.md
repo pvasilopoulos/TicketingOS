@@ -59,12 +59,14 @@ oversee every tenant and step into any board to manage it.
   - Agents without “see all tickets” only see tickets they requested, are assigned, follow or that belong to their groups, plus the unassigned queue if allowed.
   - Locked fields and buttons are hidden or disabled in the UI and enforced on the server.
   - A user with people permissions can't touch admins or grant admin.
+  - Customers can add followers (and @mention people into a ticket) only from their own organization; customers without an organization can't add anyone. Staff can add anyone.
   - The workspace always keeps one active admin.
 - 🔐 **Security** tab: admin backup warning, deactivated and never-signed-in counts, and a minimum password length slider with a letters+numbers rule. The rules apply to invites, resets and admin-set passwords.
 - 👑 **Super admin**: the platform owner, above administrators. Works in their own workspace, can open the platform console (`/platform`) and enter any workspace. Administrators can’t edit, deactivate or remove a super admin; only a super admin can grant the role (Users → Edit). The first one is created with `php bin/make-super-admin.php you@example.com` (or the SQL in that file).
   - **Branding** (Settings → Branding): the app name and logo for the whole platform (sign-in pages, browser tab, installed app, emails). Stored in `storage/branding/`.
+  - **Workspace sign-up** is off by default (same tab): the sign-in page hides “Create a workspace” and `/register` is closed. A fresh install with no workspace stays open so the first account can be made.
   - **Sign in as**: from Settings → Users or the platform console, see the app exactly as any user (not other super admins). An amber bar shows who you are acting as, with a button back to your account; every use is in the audit log.
-  - **Administrator permissions**: in Roles → Administrator a super admin can limit what administrators of that workspace may do. Roles, security and administrator accounts always stay with administrators.
+  - **Administrator permissions**: in Roles → Administrator a super admin can limit what administrators of that workspace may do. Its editor also has three Administrator-only switches (roles & permissions, security rules, managing other administrators) that are never offered to agents or custom roles.
 - 🕓 **Ticket history**: changes to a ticket (status, priority, assignee, category, group, fields, followers, links, merges, macros, ratings) are in their own **History** tab, so the **Conversation** tab holds only messages.
 - 📜 **Audit log** (Settings → Audit log, admins):
   - Records every change to users, roles, groups, organizations, settings, integrations and scheduled reports, plus staff sign-ins (also failed and blocked ones), bulk edits, merges and CSV exports.

@@ -4,6 +4,7 @@
  * @var array $me @var string $tenantId @var callable $s (flash reader)
  */
 $isAdminMe = is_tenant_admin($me['role']);
+$canAdmins = can_manage_admins($me);
 $isSuperMe = $me['role'] === 'SUPER_ADMIN';
 $canInvite = can($me, 'users.invite');
 $canEditUsers = can($me, 'users.edit');
@@ -62,7 +63,7 @@ $uurl = function (array $c) use ($uq, $urole, $ustatus, $upage, $uper, $uorg): s
 
 $roleOptions = ['SUPER_ADMIN' => 'Super admin', 'ADMIN' => 'Administrator', 'AGENT' => 'Agent', 'CUSTOMER' => 'Customer'];
 if (!$isSuperMe) unset($roleOptions['SUPER_ADMIN']);
-if (!$isAdminMe) unset($roleOptions['ADMIN']);
+if (!$canAdmins) unset($roleOptions['ADMIN']);
 $customOptions = ['' => "Agent — built-in ($agentPermCount/$permTotal permissions)"];
 foreach ($roles as $r) $customOptions[$r['id']] = $r['name'] . ' (' . count(clean_permissions(json_decode($r['permissions'], true) ?: [])) . "/$permTotal permissions)";
 $filterRoles = ['' => 'All roles', 'STAFF' => 'All staff'] + (($roleCounts['SUPER_ADMIN'] ?? 0) ? ['SUPER_ADMIN' => 'Super admins'] : []) + ['ADMIN' => 'Administrators', 'AGENT' => 'Agents (built-in role)'];
@@ -103,7 +104,7 @@ $tile = function (string $label, int $n, string $key, string $ic, string $tone) 
   <div class="flex flex-wrap items-center gap-3 border-b border-border px-4 py-4 sm:px-5">
     <div class="min-w-0 flex-1">
       <h2 class="font-semibold">Users <span class="font-normal text-muted">· <?= number_format($allCount) ?></span></h2>
-      <p class="text-xs text-muted">Invite people, change their role and control who can sign in.<?php if ($isAdminMe): ?> <a href="#roles" data-settings-jump="roles" class="font-medium text-brand hover:underline">Edit roles</a><?php endif; ?></p>
+      <p class="text-xs text-muted">Invite people, change their role and control who can sign in.<?php if ($isAdminMe && can($me, 'admin.roles')): ?> <a href="#roles" data-settings-jump="roles" class="font-medium text-brand hover:underline">Edit roles</a><?php endif; ?></p>
     </div>
     <?php if ($canInvite): ?><button type="button" data-toggle-target="#invite-card" class="<?= btn_cls('primary', 'sm') ?>"><?= icon('user-plus', 14) ?> Invite user</button><?php endif; ?>
   </div>
@@ -196,7 +197,7 @@ $tile = function (string $label, int $n, string $key, string $ic, string $tone) 
     <?php foreach ($users as $u):
         $isMe = $u['id'] === $me['id'];
         // Non-admin managers can't touch admins; only a super admin touches a super admin.
-        $locked = ($u['role'] === 'ADMIN' && !$isAdminMe) || ($u['role'] === 'SUPER_ADMIN' && !$isSuperMe);
+        $locked = ($u['role'] === 'ADMIN' && !$canAdmins) || ($u['role'] === 'SUPER_ADMIN' && !$isSuperMe);
         $active = (int) $u['active'] === 1; ?>
       <div class="<?= cx('px-4 py-3 sm:px-5', !$active ? 'bg-surface-2/40' : '') ?>" data-user-row>
         <div class="flex flex-wrap items-center gap-x-3 gap-y-2 xl:grid xl:grid-cols-[minmax(0,1fr)_9.5rem_6.5rem_4.75rem] xl:gap-4 2xl:grid-cols-[minmax(0,1fr)_10rem_7rem_9rem_5rem]">

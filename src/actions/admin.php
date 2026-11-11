@@ -400,7 +400,7 @@ function managed_user(array $manager, string $tenantId, string $userId): array|s
     $target = q_one('SELECT * FROM "User" WHERE "id" = ? AND "tenantId" = ?', [$userId, $tenantId]);
     if (!$target) return 'User not found';
     if ($target['role'] === 'SUPER_ADMIN' && $manager['role'] !== 'SUPER_ADMIN') return 'Only a super admin can change a super admin account';
-    if ($target['role'] === 'ADMIN' && !is_tenant_admin($manager['role'])) return 'Only administrators can change administrator accounts';
+    if ($target['role'] === 'ADMIN' && !can_manage_admins($manager)) return 'You can’t change administrator accounts';
     return $target;
 }
 
@@ -431,7 +431,7 @@ function pick_role(array $manager, string $tenantId, array $in): array|string
     } elseif (!in_array($role, TENANT_ROLES, true)) {
         return 'Invalid role';
     }
-    if ($role === 'ADMIN' && !is_tenant_admin($manager['role'])) return 'Only administrators can grant the administrator role';
+    if ($role === 'ADMIN' && !can_manage_admins($manager)) return 'You can’t make people administrators';
     $custom = $role === 'AGENT' ? str_in($in, 'customRoleId') : '';
     if ($custom !== '' && !q_val('SELECT 1 FROM "Role" WHERE "id" = ? AND "tenantId" = ?', [$custom, $tenantId])) return 'Invalid role';
     return ['role' => $role, 'customRoleId' => $custom ?: null];
@@ -581,10 +581,16 @@ function act_member_remove(array $in): ?array
 
 /* ---------- Roles & permissions (administrators only) ---------- */
 
-function require_roles_admin(): array
+/** Administrators allowed to manage other administrators (a super admin may switch this off). */
+function can_manage_admins(array $user): bool
+{
+    return is_tenant_admin($user['role']) && can($user, 'admin.admins');
+}
+
+function require_roles_admin(string $perm = 'admin.roles'): array
 {
     $ctx = require_tenant_user();
-    if (!is_tenant_admin($ctx[0]['role'])) redirect('/dashboard');
+    if (!is_tenant_admin($ctx[0]['role']) || !can($ctx[0], $perm)) redirect('/dashboard');
     return $ctx;
 }
 
@@ -646,16 +652,16 @@ function act_admin_perms_save(array $in): ?array
     [$me, $tenantId] = require_roles_admin();
     if ($me['role'] !== 'SUPER_ADMIN') return ['error' => 'Only a super admin can change Administrator permissions'];
     if (($in['reset'] ?? '') === '1') {
-        tenant_setting_set($tenantId, 'adminPermissions', perms_for_storage(all_permissions()));
+        tenant_setting_set($tenantId, 'adminPermissions', perms_for_storage(admin_all_permissions(), true));
         return ['success' => 'Administrators have full access again'];
     }
-    tenant_setting_set($tenantId, 'adminPermissions', perms_for_storage(array_keys(array_filter($in['perm'] ?? [], fn ($v) => $v === 'on'))));
+    tenant_setting_set($tenantId, 'adminPermissions', perms_for_storage(array_keys(array_filter($in['perm'] ?? [], fn ($v) => $v === 'on')), true));
     return ['success' => 'Administrator permissions saved'];
 }
 
 function act_security_save(array $in): ?array
 {
-    [, $tenantId] = require_roles_admin();
+    [, $tenantId] = require_roles_admin('admin.security');
     $min = (int) ($in['passwordMinLength'] ?? 6);
     if ($min < 6 || $min > 64) return ['error' => 'Minimum length must be between 6 and 64'];
     tenant_setting_set($tenantId, 'passwordMinLength', $min);

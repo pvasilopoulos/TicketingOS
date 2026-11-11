@@ -82,6 +82,21 @@ const PERMISSIONS = [
     ]],
 ];
 
+/**
+ * Abilities only the Administrator role can ever hold (a super admin can switch
+ * them off per workspace). Never offered to agents or custom roles, so no role
+ * can be used to escalate privileges.
+ */
+const ADMIN_PERMISSIONS = [
+    'Administration' => ['crown', 'Only for the Administrator role — never available to agents or custom roles.', [
+        'admin.roles' => ['Roles & permissions', 'Create, edit and delete roles and change the Agent role.', ['sensitive' => true]],
+        'admin.security' => ['Security rules', 'Minimum password length and the letters + numbers rule.', ['sensitive' => true]],
+        'admin.admins' => ['Manage administrators', 'Make people administrators and change, deactivate or remove other administrators.', ['sensitive' => true]],
+    ]],
+];
+/** Marks an Administrator set saved after the admin-only switches existed. */
+const PERMS_ADMIN_MARKER = '_ax';
+
 /** Settings tab id => permissions that open it (any of them). */
 const SETTINGS_SECTIONS = [
     'general' => ['settings.general', 'settings.categories'],
@@ -159,11 +174,33 @@ function all_permissions(): array
     return array_keys(permission_info());
 }
 
+/** Keys of the Administrator-only abilities. */
+function admin_only_permissions(): array
+{
+    $keys = [];
+    foreach (ADMIN_PERMISSIONS as [, , $perms]) $keys = array_merge($keys, array_keys($perms));
+    return $keys;
+}
+
+/** Everything an unrestricted administrator (or super admin) holds. */
+function admin_all_permissions(): array
+{
+    return array_merge(all_permissions(), admin_only_permissions());
+}
+
 /**
  * Keep known keys only; upgrade sets saved by older versions (no marker);
- * drop perms whose requirement is missing.
+ * drop perms whose requirement is missing. Admin-only keys survive only for
+ * the Administrator role ($forAdmin).
  */
-function clean_permissions(array $perms): array
+function clean_permissions(array $perms, bool $forAdmin = false): array
+{
+    $adminKeys = $forAdmin ? array_values(array_intersect(admin_only_permissions(), $perms)) : [];
+    $perms = clean_catalog_permissions($perms);
+    return array_merge($perms, $adminKeys);
+}
+
+function clean_catalog_permissions(array $perms): array
 {
     if (!in_array(PERMS_MARKER, $perms, true)) {
         if (in_array('settings.manage', $perms, true)) $perms = array_merge($perms, ['settings.general', 'settings.workflow', 'settings.replies', 'settings.automations', 'settings.email', 'settings.integrations']);
@@ -177,9 +214,9 @@ function clean_permissions(array $perms): array
 }
 
 /** A permission set ready to be saved (cleaned and marked as current). */
-function perms_for_storage(array $perms): array
+function perms_for_storage(array $perms, bool $forAdmin = false): array
 {
-    return [PERMS_MARKER, ...clean_permissions([PERMS_MARKER, ...$perms])];
+    return [PERMS_MARKER, ...($forAdmin ? [PERMS_ADMIN_MARKER] : []), ...clean_permissions([PERMS_MARKER, ...$perms], $forAdmin)];
 }
 
 /** Permission set of the built-in Agent role for a tenant (editable in settings). */
@@ -193,7 +230,10 @@ function agent_permissions(string $tenantId): array
 function admin_permissions(string $tenantId): array
 {
     $saved = $tenantId !== '' ? tenant_setting($tenantId, 'adminPermissions') : null;
-    return is_array($saved) ? clean_permissions($saved) : all_permissions();
+    if (!is_array($saved)) return admin_all_permissions();
+    // Sets saved before the admin-only switches existed keep those abilities.
+    if (!in_array(PERMS_ADMIN_MARKER, $saved, true)) $saved = array_merge($saved, admin_only_permissions());
+    return clean_permissions($saved, true);
 }
 
 /** Effective permissions of a user inside a tenant. */
@@ -201,7 +241,7 @@ function user_permissions(array $user, ?string $tenantId = null): array
 {
     static $cache = [];
     $role = $user['role'];
-    if ($role === 'SUPER_ADMIN') return all_permissions();
+    if ($role === 'SUPER_ADMIN') return admin_all_permissions();
     // Administrators get everything unless a super admin limited them for this workspace.
     if ($role === 'ADMIN') return admin_permissions((string) ($tenantId ?? $user['tenantId']));
     if ($role !== 'AGENT') return [];

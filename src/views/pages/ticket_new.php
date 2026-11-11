@@ -3,7 +3,8 @@
 page_title('New ticket');
 $state = flash('ticket-new');
 $categories = q_all('SELECT "id","name" FROM "Category" WHERE "tenantId" = ? ORDER BY "name" ASC', [$tenantId]);
-$people = q_all('SELECT "id","name","role" FROM "User" WHERE "tenantId" = ? AND "id" <> ? ORDER BY "name" ASC', [$tenantId, $user['id']]);
+// Staff can add anyone; customers only colleagues of their own organization.
+$people = array_values(array_filter(addable_people($user, $tenantId), fn ($p) => $p['id'] !== $user['id']));
 $priorities = tenant_priorities($tenantId);
 $mentions = array_map(fn ($p) => ['id' => $p['id'], 'label' => $p['name']], $people);
 ?>

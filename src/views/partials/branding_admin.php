@@ -39,7 +39,13 @@ $bs = $s('branding');
         <?php endif; ?>
       </div>
 
-      <button type="submit" class="<?= btn_cls('primary') ?>"><?= icon('check', 16) ?> Save branding</button>
+      <label class="flex items-start gap-3 rounded-xl border border-border p-4">
+        <input type="checkbox" name="signup" <?= $b['signup'] ? 'checked' : '' ?> class="mt-0.5 h-4 w-4 rounded border-border accent-brand">
+        <span><span class="block text-sm font-medium">Allow new workspaces to sign up</span>
+          <span class="block text-xs text-muted">Shows “Create a workspace” on the sign-in page and opens /register. When off, only you (from the platform console) and workspace admins add people.</span></span>
+      </label>
+
+      <button type="submit" class="<?= btn_cls('primary') ?>"><?= icon('check', 16) ?> Save settings</button>
     </div>
 
     <!-- Live preview -->

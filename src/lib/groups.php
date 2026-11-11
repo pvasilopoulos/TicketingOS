@@ -107,3 +107,27 @@ function org_domains(?string $raw): array
 {
     return array_values(array_filter(array_map(fn ($d) => strtolower(trim($d, " \t@")), preg_split('/[\s,;]+/', (string) $raw))));
 }
+
+/* ---------- Who someone may add to a ticket's team ---------- */
+
+/**
+ * People the user may add as ticket followers (or @mention into a ticket).
+ * Staff: anyone in the workspace. Customers: only active colleagues of their
+ * own organization — never other customers or the staff list.
+ */
+function addable_people(array $user, string $tenantId): array
+{
+    if (is_staff($user['role'])) {
+        return q_all('SELECT "id","name","role" FROM "User" WHERE "tenantId" = ? ORDER BY "name" ASC', [$tenantId]);
+    }
+    if (empty($user['organizationId'])) return [];
+    return q_all('SELECT "id","name","role" FROM "User" WHERE "tenantId" = ? AND "organizationId" = ? AND "role" = \'CUSTOMER\' AND "active" = 1 AND "id" <> ? ORDER BY "name" ASC',
+        [$tenantId, $user['organizationId'], $user['id']]);
+}
+
+function can_add_person(array $user, array $target): bool
+{
+    if (is_staff($user['role'])) return true;
+    return !empty($user['organizationId']) && $target['role'] === 'CUSTOMER' && (int) ($target['active'] ?? 1) === 1
+        && ($target['organizationId'] ?? null) === $user['organizationId'];
+}

@@ -112,7 +112,9 @@ function process_mentions(array $ticket, string $tenantId, array $actor, string 
 {
     $ids = array_values(array_filter(extract_mention_ids($html), fn ($id) => $id !== $actor['id'] && $id !== $ticket['requesterId']));
     if (!$ids) return;
-    $users = q_all('SELECT "id","name" FROM "User" WHERE "id" IN (' . in_ph($ids) . ') AND "tenantId" = ?', [...$ids, $tenantId]);
+    $users = q_all('SELECT * FROM "User" WHERE "id" IN (' . in_ph($ids) . ') AND "tenantId" = ?', [...$ids, $tenantId]);
+    // Customers can't pull outsiders into a ticket by mentioning them.
+    $users = array_values(array_filter($users, fn ($u) => can_add_person($actor, $u) || $u['id'] === ($ticket['assigneeId'] ?? null) || watcher_of($ticket['id'], $u['id'])));
 
     $added = [];
     foreach ($users as $u) {
@@ -257,7 +259,7 @@ function act_ticket_create(array $in): ?array
     $team = parse_team($in['team'] ?? '');
     if ($team) {
         $ids = pluck($team, 'userId');
-        $valid = array_flip(pluck(q_all('SELECT "id" FROM "User" WHERE "id" IN (' . in_ph($ids) . ') AND "tenantId" = ?', [...$ids, $tenantId]), 'id'));
+        $valid = array_flip(pluck(array_filter(q_all('SELECT * FROM "User" WHERE "id" IN (' . in_ph($ids) . ') AND "tenantId" = ?', [...$ids, $tenantId]), fn ($u) => can_add_person($user, $u)), 'id'));
         $rows = array_values(array_filter($team, fn ($t) => isset($valid[$t['userId']]) && $t['userId'] !== $user['id']));
         foreach ($rows as $r) {
             db_insert('TicketWatcher', ['ticketId' => $ticket['id'], 'userId' => $r['userId'], 'role' => $r['role'], 'createdAt' => now_iso()]);
@@ -545,6 +547,7 @@ function act_watcher_add(array $in): ?array
     if (!$userId || $userId === $ticket['requesterId']) return null;
     $target = q_one('SELECT * FROM "User" WHERE "id" = ? AND "tenantId" = ?', [$userId, $tenantId]);
     if (!$target) return null;
+    if (!can_add_person($user, $target) && !watcher_of($ticket['id'], $userId)) return ['error' => 'You can only add people from your own organization'];
 
     if (watcher_of($ticket['id'], $userId)) {
         db_update('TicketWatcher', ['role' => $role], '"ticketId" = ? AND "userId" = ?', [$ticket['id'], $userId]);
