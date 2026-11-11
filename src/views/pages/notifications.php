@@ -4,7 +4,9 @@ page_title('Notifications');
 $state = flash('prefs');
 $prefs = user_prefs($user['id'], $tenantId);
 $priorities = tenant_priorities($tenantId);
-$devices = q_all('SELECT "id","userAgent","endpoint","createdAt" FROM "PushSubscription" WHERE "userId" = ? ORDER BY "createdAt" DESC', [$user['id']]);
+$devices = q_all('SELECT p."id", p."userAgent", p."endpoint", p."createdAt", u."name" AS "uName", u."email" AS "uEmail", u."role" AS "uRole", u."avatarColor" AS "uColor", u."lastLoginAt" AS "uLogin"
+    FROM "PushSubscription" p JOIN "User" u ON u."id" = p."userId" WHERE p."userId" = ? ORDER BY p."createdAt" DESC', [$user['id']]);
+$myRole = user_role_label($user, $user['customRoleId'] ?? null ? key_by(q_all('SELECT "id","name" FROM "Role" WHERE "id" = ?', [$user['customRoleId']]), 'id') : []);
 $quietOn = $prefs['quietStart'] !== null && $prefs['quietEnd'] !== null;
 ?>
 <div>
@@ -90,10 +92,15 @@ $quietOn = $prefs['quietStart'] !== null && $prefs['quietEnd'] !== null;
                   <span class="truncate"><?= e($title) ?></span>
                   <?php if ($thisOne): ?><span class="rounded-full bg-brand/10 px-2 py-0.5 text-[11px] font-semibold text-brand">This device</span><?php endif; ?>
                 </p>
+                <div class="mt-1.5 flex min-w-0 items-center gap-2 text-xs">
+                  <?= avatar($d['uName'], $d['uColor'], 20) ?>
+                  <span class="min-w-0 truncate"><span class="text-muted">Signed in as</span> <span class="font-medium"><?= e($d['uName']) ?></span> <span class="text-muted">· <?= e($d['uEmail']) ?> · <?= e($myRole) ?></span></span>
+                </div>
                 <dl class="mt-1.5 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs sm:grid-cols-[auto_1fr_auto_1fr]">
                   <dt class="text-muted">System</dt><dd class="truncate"><?= e($info['os'] ?: '—') ?></dd>
                   <dt class="text-muted">Browser</dt><dd class="truncate"><?= e($info['browser'] ?: '—') ?></dd>
                   <dt class="text-muted">Push via</dt><dd class="truncate"><?= e(push_service_name($d['endpoint'])) ?></dd>
+                  <dt class="text-muted">Last sign-in</dt><dd class="truncate"><?= $d['uLogin'] ? e(format_date($d['uLogin'])) . ' · ' . e(time_ago($d['uLogin'])) : '—' ?></dd>
                   <dt class="text-muted">Added</dt><dd class="truncate" title="<?= e(format_date($d['createdAt'])) ?>"><?= e(format_date($d['createdAt'])) ?> · <?= e(time_ago($d['createdAt'])) ?></dd>
                 </dl>
                 <?php if ($d['userAgent']): ?>
