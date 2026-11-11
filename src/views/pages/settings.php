@@ -175,6 +175,26 @@ $s = fn (string $form) => flash($form);
         </div>
       </form>
     </div>
+
+    <!-- New-ticket form: show / hide optional parts -->
+    <?php $tfp = ticket_form_parts($tenantId); $tfs = $s('ticket-form'); ?>
+    <div class="rounded-xl border border-border bg-surface" id="ticket-form">
+      <?= card_header(titled('file-text', 'New-ticket form')) ?>
+      <form method="post" action="/action/ticket-form-save" class="space-y-4 px-5 pb-5" data-pending="Saving…">
+        <?= form_meta('ticket-form', '/settings#general') ?>
+        <p class="text-sm text-muted">Choose which optional parts appear when people open a ticket. Hidden parts are also ignored if someone sends them anyway.</p>
+        <?= banner($tfs, true) ?>
+        <div class="grid gap-2 sm:grid-cols-2">
+          <?php foreach (TICKET_FORM_PARTS as $k => [$label, $hint]): ?>
+            <label class="flex cursor-pointer items-start gap-3 rounded-xl border border-border p-3 transition-colors hover:bg-surface-2/50 has-[:checked]:border-brand/40 has-[:checked]:bg-brand/5">
+              <input type="checkbox" name="part[<?= $k ?>]" <?= $tfp[$k] ? 'checked' : '' ?> class="mt-0.5 h-4 w-4 rounded border-border accent-brand">
+              <span class="min-w-0"><span class="block text-sm font-medium"><?= e($label) ?><?= in_array($k, ['forCustomer', 'channel', 'agentOptions'], true) ? ' <span class="text-[11px] font-normal text-muted">· staff</span>' : '' ?></span><span class="block text-xs text-muted"><?= e($hint) ?></span></span>
+            </label>
+          <?php endforeach; ?>
+        </div>
+        <button type="submit" class="<?= btn_cls() ?>"><?= icon('check', 16) ?> Save form</button>
+      </form>
+    </div>
     <?php endif; ?>
   </section>
   <?php endif; ?>

@@ -234,3 +234,26 @@ function search_people(array $user, string $tenantId, string $q, string $kind = 
         'staff' => is_staff($r['role']), 'color' => safe_color($r['avatarColor'], '#6366f1'), 'orgs' => $orgs[$r['id']] ?? [],
     ], $rows), 'counts' => $counts];
 }
+
+/* ---------- Optional parts of the new-ticket form (Settings → General) ---------- */
+
+const TICKET_FORM_PARTS = [
+    'forCustomer' => ['Open for a customer', 'Staff choose who the ticket is for (existing or new customer).'],
+    'channel' => ['Received via', 'Staff record how the request came in (phone, email, in person…).'],
+    'templates' => ['Templates', 'Show the “Start from a template” buttons.'],
+    'agentOptions' => ['Agent options', 'Assignees, group, status, tags, deadline, first internal note and sub-tickets for staff.'],
+    'cc' => ['CC by email', 'Copy people without an account by email (form and ticket page).'],
+    'team' => ['Team', 'Add colleagues or teammates who should follow the ticket.'],
+    'attachments' => ['Attachments', 'Upload files with the request.'],
+    'kb' => ['Help-center suggestions', 'Suggest articles while the subject is typed.'],
+    'similar' => ['Similar open tickets', 'Warn about possible duplicates while the subject is typed.'],
+];
+
+/** Which optional parts the workspace shows: ['cc' => true, ...] (all on by default). */
+function ticket_form_parts(string $tenantId): array
+{
+    $saved = tenant_setting($tenantId, 'ticketForm');
+    $out = [];
+    foreach (TICKET_FORM_PARTS as $k => $_) $out[$k] = !is_array($saved) || !array_key_exists($k, $saved) || (bool) $saved[$k];
+    return $out;
+}

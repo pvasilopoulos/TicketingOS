@@ -11,6 +11,8 @@ $priorities = tenant_priorities($tenantId);
 $mentions = array_map(fn ($p) => ['id' => $p['id'], 'label' => $p['name']], $people);
 $templates = array_map(fn ($t) => template_payload($t, $staff), ticket_templates($tenantId, $staff));
 $slaHours = sla_hours_map($tenantId);
+$parts = ticket_form_parts($tenantId); // Settings → General → New-ticket form
+if (!$parts['templates']) $templates = [];
 
 if ($staff) {
     $agents = q_all('SELECT "id","name","avatarColor" FROM "User" WHERE "tenantId" = ? AND "active" = 1 AND "role" IN (\'SUPER_ADMIN\',\'ADMIN\',\'AGENT\') ORDER BY "name"', [$tenantId]);
@@ -46,10 +48,11 @@ $sectionTitle = fn (string $ic, string $t, string $sub = '') => '<div class="mb-
       </div>
     <?php endif; ?>
 
-    <?php if ($staff): ?>
+    <?php if ($staff && ($parts['forCustomer'] || $parts['channel'])): ?>
       <!-- Requester & channel -->
       <div class="<?= $section ?>">
-        <?= $sectionTitle('user-round', 'Who is this for?', 'Open it for yourself or log it for a customer.') ?>
+        <?= $parts['forCustomer'] ? $sectionTitle('user-round', 'Who is this for?', 'Open it for yourself or log it for a customer.') : $sectionTitle('phone', 'How did it come in?') ?>
+        <?php if ($parts['forCustomer']): ?>
         <div class="grid grid-cols-3 gap-1 rounded-xl bg-surface-2 p-1 text-sm font-medium" role="radiogroup">
           <?php foreach (['self' => 'Myself', 'customer' => 'A customer'] + ($canNewCustomer ? ['new' => 'New customer'] : []) as $k => $label): ?>
             <label class="flex cursor-pointer items-center justify-center rounded-lg px-2 py-2 text-center text-muted transition has-[:checked]:bg-surface has-[:checked]:text-fg has-[:checked]:shadow-sm">
@@ -78,11 +81,14 @@ $sectionTitle = fn (string $ic, string $t, string $sub = '') => '<div class="mb-
             <p class="text-xs text-muted sm:col-span-2">They’re added as a customer (and to their company’s organization by email domain). If the email already exists, that customer is used.</p>
           </div>
         <?php endif; ?>
+        <?php endif; ?>
 
-        <div class="mt-4">
+        <?php if ($parts['channel']): ?>
+        <div class="<?= $parts['forCustomer'] ? 'mt-4' : '' ?>">
           <label class="<?= LABEL_CLS ?>" for="channel">Received via</label>
           <select id="channel" name="channel" class="<?= SELECT_CLS ?>"><?= select_options(TICKET_CHANNELS, $old('channel', 'web')) ?></select>
         </div>
+        <?php endif; ?>
       </div>
     <?php endif; ?>
 
@@ -90,7 +96,7 @@ $sectionTitle = fn (string $ic, string $t, string $sub = '') => '<div class="mb-
     <div class="<?= $section ?> space-y-5">
       <div>
         <label for="subject" class="<?= LABEL_CLS ?>">Subject</label>
-        <input id="subject" name="subject" placeholder="Brief summary of the issue" required maxlength="140" value="<?= e($old('subject')) ?>" class="<?= INPUT_CLS ?>" data-kb-source data-similar-source autocomplete="off">
+        <input id="subject" name="subject" placeholder="Brief summary of the issue" required maxlength="140" value="<?= e($old('subject')) ?>" class="<?= INPUT_CLS ?>"<?= $parts['kb'] ? ' data-kb-source' : '' ?><?= $parts['similar'] ? ' data-similar-source' : '' ?> autocomplete="off">
         <!-- Possible duplicates (filled by app.js as the subject is typed) -->
         <div data-similar hidden class="mt-2 rounded-xl border border-amber-300/60 bg-amber-50 p-3 dark:border-amber-500/30 dark:bg-amber-500/10">
           <p class="mb-2 flex items-center gap-1.5 text-xs font-semibold text-amber-800 dark:text-amber-300"><?= icon('triangle-alert', 14) ?> Is it the same as one of these open tickets?</p>
@@ -132,22 +138,27 @@ $sectionTitle = fn (string $ic, string $t, string $sub = '') => '<div class="mb-
 
       <?= fields_form_block(array_merge(fields_for($tenantId, null, !$staff), array_filter(tenant_fields($tenantId), fn ($f) => $f['categoryId'] && ($staff || (int) $f['customerVisible']))), (array) (flash_peek('ticket-new')['old']['cf'] ?? [])) ?>
 
+      <?php if ($parts['attachments']): ?>
       <div>
         <label class="<?= LABEL_CLS ?>">Attachments</label>
         <?= file_input('files') ?>
       </div>
+      <?php endif; ?>
     </div>
 
+    <?php $showTeam = $parts['team'] && $people; if ($parts['cc'] || $showTeam): ?>
     <!-- People -->
     <div class="<?= $section ?> space-y-5">
       <?= $sectionTitle('users-round', 'Who else should know?') ?>
+      <?php if ($parts['cc']): ?>
       <div>
         <label for="cc" class="<?= LABEL_CLS ?>">CC by email</label>
         <input id="cc" name="cc" value="<?= e($old('cc')) ?>" placeholder="name@company.com, other@company.com" class="<?= INPUT_CLS ?>" autocomplete="off">
         <p class="mt-1.5 text-xs text-muted">People without an account get public replies and status changes by email. Up to 10.</p>
       </div>
+      <?php endif; ?>
 
-      <?php if ($people): ?>
+      <?php if ($showTeam): ?>
         <div class="rounded-lg border border-border bg-surface p-4" data-team-picker data-people="[]">
           <div class="flex items-center justify-between">
             <span class="text-sm font-medium text-fg">Team</span>
@@ -169,8 +180,9 @@ $sectionTitle = fn (string $ic, string $t, string $sub = '') => '<div class="mb-
         </div>
       <?php endif; ?>
     </div>
+    <?php endif; ?>
 
-    <?php if ($staff): ?>
+    <?php if ($staff && $parts['agentOptions']): ?>
       <!-- Agent options -->
       <details class="group <?= $section ?>" <?= $old('subtasks') !== '' || $old('internalNote') !== '' ? 'open' : '' ?>>
         <summary class="flex cursor-pointer list-none items-center gap-3 [&::-webkit-details-marker]:hidden">

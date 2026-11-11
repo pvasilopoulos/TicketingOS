@@ -464,7 +464,7 @@ $row = fn (string $label, string $valueHtml) => '<div class="flex items-center j
           <button type="submit" class="<?= btn_cls('secondary') ?>"><?= icon('plus', 15) ?></button>
         </form>
       </div>
-      <?php elseif ($ccList): ?>
+      <?php elseif ($ccList && ticket_form_parts($tenantId)['cc']): ?>
       <div class="rounded-xl border border-border bg-surface p-5 text-sm">
         <h3 class="mb-2 text-sm font-semibold">CC by email</h3>
         <p class="text-muted"><?= e(implode(', ', $ccList)) ?></p>

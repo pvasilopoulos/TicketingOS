@@ -248,6 +248,14 @@ function act_ticket_create(array $in): ?array
     [$user, $tenantId] = require_tenant_user();
     if (str_in($in, 'priority') === '') return ['error' => 'Priority is required'];
     $staff = is_staff($user['role']);
+    // Parts of the form the workspace switched off are ignored even if sent.
+    $parts = ticket_form_parts($tenantId);
+    if (!$parts['forCustomer']) unset($in['requesterMode']);
+    if (!$parts['channel']) unset($in['channel']);
+    if (!$parts['cc']) unset($in['cc']);
+    if (!$parts['team']) unset($in['team']);
+    if (!$parts['templates']) unset($in['templateId']);
+    if (!$parts['agentOptions']) foreach (['assigneeIds', 'status', 'tagsText', 'internalNote', 'subtasks', 'groupId', 'dueAt'] as $k) unset($in[$k]);
 
     // Staff can open the ticket for a customer (existing or new) and say how the request came in.
     $requester = $user;
@@ -291,7 +299,7 @@ function act_ticket_create(array $in): ?array
     $number = $ticket['number'];
     $subject = $ticket['subject'];
 
-    save_uploads(uploaded_files('files'), $tenantId, $user['id'], $ticket['id']);
+    if ($parts['attachments']) save_uploads(uploaded_files('files'), $tenantId, $user['id'], $ticket['id']);
     if ($cc) add_ticket_cc($ticket['id'], $cc, $user['id']);
 
     // Opened for a customer: tell them (in the app, by push and email per their settings).

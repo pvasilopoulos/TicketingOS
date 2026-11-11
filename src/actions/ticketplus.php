@@ -67,6 +67,7 @@ function act_subticket_create(array $in): ?array
 /** Who may change a ticket's CC list: staff who can manage it, and its requester. */
 function cc_allowed(array $ticket, array $user): bool
 {
+    if (!ticket_form_parts($ticket['tenantId'])['cc']) return false;
     return ($ticket['requesterId'] === $user['id']) || (is_staff($user['role']) && can_manage_ticket($ticket, $user));
 }
 
@@ -127,4 +128,15 @@ function api_people_search(): never
     }
     $kind = in_array($_GET['kind'] ?? '', ['staff', 'customer'], true) ? $_GET['kind'] : 'all';
     json_out(search_people($user, $tenantId, (string) ($_GET['q'] ?? ''), $kind, array_slice(array_unique($exclude), 0, 200)));
+}
+
+/** Settings → General → New-ticket form: show or hide optional parts. */
+function act_ticket_form_save(array $in): ?array
+{
+    if (!($ctx = ctx_with('settings.general'))) return NOT_ALLOWED;
+    [, $tenantId] = $ctx;
+    $parts = [];
+    foreach (TICKET_FORM_PARTS as $k => $_) $parts[$k] = ($in['part'][$k] ?? '') === 'on';
+    tenant_setting_set($tenantId, 'ticketForm', $parts);
+    return ['success' => 'New-ticket form saved'];
 }

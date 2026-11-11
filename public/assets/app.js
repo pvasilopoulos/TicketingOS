@@ -415,7 +415,15 @@
           status.textContent = total > items.length ? "Showing " + items.length + " of " + total + " — type to narrow" : total + (total === 1 ? " person" : " people");
         }).catch(function () { status.textContent = "Couldn’t search — check your connection"; });
     }
-    function open() { panel.hidden = false; openBtn.setAttribute("aria-expanded", "true"); input.value = ""; load(); setTimeout(function () { input.focus(); }, 0); }
+    function open() {
+      panel.hidden = false;
+      openBtn.setAttribute("aria-expanded", "true");
+      // Open upwards when there isn't room below (e.g. above the phone's bottom menu).
+      var r = openBtn.getBoundingClientRect(), need = 420;
+      var up = window.innerHeight - r.bottom < need && r.top > window.innerHeight - r.bottom;
+      panel.classList.toggle("bottom-full", up); panel.classList.toggle("mb-2", up); panel.classList.toggle("mt-2", !up);
+      input.value = ""; load(); setTimeout(function () { input.focus(); }, 0);
+    }
     function close() { panel.hidden = true; openBtn.setAttribute("aria-expanded", "false"); }
     function move(d) {
       if (!items.length) return;
