@@ -1,0 +1,14 @@
+# Apache: route every non-file request to the front controller.
+Options -Indexes
+DirectoryIndex index.php
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteRule ^ index.php [QSA,L]
+</IfModule>
+
+# Make sure EventSource responses are not buffered/compressed.
+<IfModule mod_env.c>
+  SetEnvIf Request_URI "^/api/stream" no-gzip=1
+</IfModule>

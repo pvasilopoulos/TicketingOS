@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#4f46e5">
+  <title>Offline · TicketingOS</title>
+  <style>
+    :root { --bg:#f6f7f9; --surface:#fff; --fg:#101828; --muted:#667085; --border:#e4e7ec; --brand:#4f46e5; color-scheme: light dark; }
+    @media (prefers-color-scheme: dark) { :root { --bg:#0b0e14; --surface:#121722; --fg:#e6e9ef; --muted:#8a94a6; --border:#242c3a; --brand:#6366f1; } }
+    body { margin:0; min-height:100dvh; display:grid; place-items:center; background:var(--bg); color:var(--fg); font:16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; padding:24px; box-sizing:border-box; }
+    .card { max-width:360px; text-align:center; background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:32px 24px; }
+    img { width:64px; height:64px; border-radius:16px; }
+    h1 { font-size:20px; margin:16px 0 4px; }
+    p { color:var(--muted); font-size:14px; margin:0 0 20px; }
+    button { appearance:none; border:0; border-radius:10px; background:var(--brand); color:#fff; font:600 14px system-ui, sans-serif; padding:12px 20px; cursor:pointer; width:100%; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <img src="/icons/icon-192.png" alt="">
+    <h1>You're offline</h1>
+    <p>This page hasn't been saved on this device yet. Pages you opened recently are still available. Reconnect to see the latest tickets.</p>
+    <button onclick="location.reload()">Try again</button>
+  </div>
+  <script>window.addEventListener("online", function () { location.reload(); });</script>
+</body>
+</html>

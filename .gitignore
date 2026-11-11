@@ -1,0 +1,15 @@
+# env files
+.env*
+!.env.example
+
+# local database & uploaded files
+/storage/*
+!/storage/.gitkeep
+
+# optional build tooling
+/tools/node_modules
+
+.DS_Store
+
+# local editor / assistant config
+/.claude/

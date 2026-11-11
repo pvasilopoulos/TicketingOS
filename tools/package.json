@@ -1,0 +1,16 @@
+{
+  "name": "ticketingos-php-tools",
+  "private": true,
+  "description": "Optional build tooling: compiles public/assets/app.css. Not needed to run the app.",
+  "type": "module",
+  "scripts": {
+    "build:css": "node build-css.mjs",
+    "icons": "node extract-icons.mjs node_modules"
+  },
+  "devDependencies": {
+    "@tailwindcss/node": "^4.3.3",
+    "@tailwindcss/oxide": "^4.3.3",
+    "tailwindcss": "^4.3.3",
+    "lucide-react": "^1.61.0"
+  }
+}
