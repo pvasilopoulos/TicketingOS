@@ -482,3 +482,17 @@ function support_submit(array $tenant, array $in): array
     ]);
     return ['ok' => $ticket];
 }
+
+/** Staff send (or re-send) the satisfaction survey of a closed ticket by hand. */
+function act_csat_send(array $in): ?array
+{
+    [$user, $tenantId] = require_tenant_user();
+    $t = find_ticket(str_in($in, 'ticketId'), $tenantId);
+    if (!$t || !is_staff($user['role']) || !can_manage_ticket($t, $user)) return NOT_ALLOWED;
+    if (!csat_settings($tenantId)['enabled']) return ['error' => 'Turn on satisfaction surveys first (Settings → Ticket fields & CSAT)'];
+    if (q_val('SELECT "role" FROM "User" WHERE "id" = ?', [$t['requesterId']]) !== 'CUSTOMER') return ['error' => 'Surveys go to customers only'];
+    if (!resolve_status(tenant_statuses($tenantId), $t['status'])['isClosed']) return ['error' => 'Close or resolve the ticket first'];
+    csat_on_closed($t, $tenantId);
+    log_event($tenantId, $t['id'], $user['id'], 'CSAT', 'sent the satisfaction survey');
+    return ['success' => 'Survey sent to the customer'];
+}

@@ -104,6 +104,7 @@ oversee every tenant and step into any board to manage it.
 - 😊 **Satisfaction surveys (CSAT)**:
   - When staff close a ticket, the customer gets a one-click 1–5 rating, by email (`/csat/{token}`) and on the ticket page.
   - Low ratings notify the agent.
+  - Staff see the survey status on every ticket (sent and waiting, or why it wasn’t sent) with a “Send survey now” button for closed customer tickets.
   - Reports show a Satisfaction KPI, a per-agent column and recent comments. The search operator `rating:<3` finds rated tickets.
 - 📅 **Scheduled report emails** (Reports → Scheduled emails):
   - Daily, weekly or monthly summaries (KPIs, SLA, CSAT, top agents) sent to staff who can view reports.

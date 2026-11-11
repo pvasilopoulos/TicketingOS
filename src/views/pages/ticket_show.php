@@ -405,6 +405,34 @@ $row = fn (string $label, string $valueHtml) => '<div class="flex items-center j
         <?php if ($csatDone['comment']): ?><p class="mt-2 rounded-lg bg-surface-2/60 p-2.5 text-sm">“<?= e($csatDone['comment']) ?>”</p><?php endif; ?>
         <p class="mt-1.5 text-xs text-muted"><?= e(time_ago($csatDone['answeredAt'])) ?></p>
       </div>
+      <?php elseif ($staff):
+          // Why there is (or isn't) a satisfaction survey on this ticket.
+          $csatOn = csat_settings($tenantId)['enabled'];
+          $openSurvey = csat_pending($ticket['id']);
+          $isClosedNow = (bool) $curStatus['isClosed'];
+          $reqIsCustomer = ($requester['role'] ?? '') === 'CUSTOMER';
+          $why = !$csatOn ? 'Satisfaction surveys are turned off (Settings → Ticket fields & CSAT).'
+              : (!$reqIsCustomer ? 'Surveys go to customers only — this ticket was opened by staff.'
+              : ($openSurvey ? null
+              : (!$isClosedNow ? 'Sent automatically when staff move the ticket to a closed status (e.g. Resolved).'
+              : 'Not sent — the ticket was closed before surveys were on, by the customer, or by an automation.')));
+          $canSend = $csatOn && $reqIsCustomer && $isClosedNow && $canManage; ?>
+      <!-- Satisfaction survey status -->
+      <div class="rounded-xl border border-border bg-surface p-4 sm:p-5">
+        <h3 class="mb-2 flex items-center gap-1.5 text-sm font-semibold"><?= icon('smile', 15, 'text-muted') ?> Customer satisfaction</h3>
+        <?php if ($openSurvey): ?>
+          <p class="flex items-center gap-2 text-sm"><span class="h-2 w-2 shrink-0 rounded-full bg-amber-500"></span> Survey sent <?= e(time_ago($openSurvey['createdAt'])) ?> — waiting for <?= e($requester['name']) ?></p>
+          <p class="mt-1 text-xs text-muted">They see it on this ticket<?= (email_settings($tenantId)['enabled'] ?? false) ? ' and got it by email' : ' (email isn’t set up, so not by email)' ?>.</p>
+        <?php else: ?>
+          <p class="text-xs text-muted"><?= e($why) ?></p>
+        <?php endif; ?>
+        <?php if ($canSend): ?>
+          <form method="post" action="/action/csat-send" data-ajax class="mt-3">
+            <?= form_meta() ?><input type="hidden" name="ticketId" value="<?= e($ticket['id']) ?>">
+            <button type="submit" class="<?= btn_cls('outline', 'sm') ?>"><?= icon('send', 13) ?> <?= $openSurvey ? 'Send again' : 'Send survey now' ?></button>
+          </form>
+        <?php endif; ?>
+      </div>
       <?php endif; ?>
 
       <?php if ($staff && empty($ticket['parentId']) && ($children || $canManage)):
