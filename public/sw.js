@@ -1,5 +1,5 @@
 // TicketingOS service worker: offline app shell, page cache and Web Push.
-const VERSION = "v12";
+const VERSION = "v13";
 const SHELL = `tos-shell-${VERSION}`;
 const PAGES = `tos-pages-${VERSION}`;
 const SHELL_FILES = [
@@ -7,9 +7,9 @@ const SHELL_FILES = [
   "/assets/app.css",
   "/assets/app.js",
   "/assets/editor.js",
-  "/icons/icon-192.png",
-  "/icons/icon-512.png",
-  "/icons/badge-96.png",
+  "/app-icons/icon-192.png",
+  "/app-icons/icon-512.png",
+  "/app-icons/badge-96.png",
   "/favicon.ico",
 ];
 const MAX_PAGES = 60;
@@ -63,7 +63,7 @@ self.addEventListener("fetch", (event) => {
   }
 
   // Static assets: stale-while-revalidate.
-  if (url.pathname.startsWith("/assets/") || url.pathname.startsWith("/icons/") || url.pathname === "/favicon.ico") {
+  if (url.pathname.startsWith("/assets/") || url.pathname.startsWith("/app-icons/") || url.pathname === "/favicon.ico") {
     event.respondWith(
       caches.open(SHELL).then(async (cache) => {
         // Versioned URLs (?v=<mtime>) are exact matches, so a deploy is picked up
@@ -91,8 +91,8 @@ self.addEventListener("push", (event) => {
   const title = data.title || "TicketingOS";
   const options = {
     body: data.body || "",
-    icon: "/icons/icon-192.png",
-    badge: "/icons/badge-96.png",
+    icon: "/app-icons/icon-192.png",
+    badge: "/app-icons/badge-96.png",
     data: { url: data.url || "/dashboard" },
     tag: data.tag || undefined,
     renotify: Boolean(data.tag),

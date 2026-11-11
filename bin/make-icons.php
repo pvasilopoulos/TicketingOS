@@ -4,7 +4,7 @@ declare(strict_types=1);
 /*
  * Generate the PWA / home-screen icons with GD (life-buoy mark on brand colour).
  *   php bin/make-icons.php
- * Writes public/icons/*.png
+ * Writes public/app-icons/*.png
  */
 
 if (!function_exists('imagecreatetruecolor')) {
@@ -12,7 +12,7 @@ if (!function_exists('imagecreatetruecolor')) {
     exit(1);
 }
 
-$out = dirname(__DIR__) . '/public/icons';
+$out = dirname(__DIR__) . '/public/app-icons';
 if (!is_dir($out)) mkdir($out, 0775, true);
 
 /**
@@ -75,8 +75,8 @@ $targets = [
 ];
 foreach ($targets as $file => [$size, $glyph, $radius]) {
     imagepng(draw_icon($size, $glyph, $radius), "$out/$file", 9);
-    echo "public/icons/$file\n";
+    echo "public/app-icons/$file\n";
 }
 // Monochrome badge for the Android status bar.
 imagepng(draw_icon(96, 0.86, 0, true), "$out/badge-96.png", 9);
-echo "public/icons/badge-96.png\n";
+echo "public/app-icons/badge-96.png\n";
