@@ -33,3 +33,5 @@ foreach ([
 foreach (glob(SRC . '/actions/*.php') as $file) {
     require $file;
 }
+
+ensure_runtime_schema();

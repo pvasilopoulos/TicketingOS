@@ -5,7 +5,8 @@ declare(strict_types=1);
 
 const TICKET_ROW_SELECT = 'SELECT t.*, r."name" AS "rName", r."avatarColor" AS "rColor", r."email" AS "rEmail", r."organizationId" AS "rOrg",
     a."name" AS "aName", a."avatarColor" AS "aColor", c."name" AS "cName", c."color" AS "cColor",
-    (SELECT COUNT(*) FROM "Comment" cm WHERE cm."ticketId" = t."id") AS "commentCount"
+    (SELECT COUNT(*) FROM "Comment" cm WHERE cm."ticketId" = t."id") AS "commentCount",
+    (SELECT COUNT(*) FROM "TicketAssignee" tx WHERE tx."ticketId" = t."id") AS "coCount"
   FROM "Ticket" t
   JOIN "User" r ON r."id" = t."requesterId"
   LEFT JOIN "User" a ON a."id" = t."assigneeId"
@@ -16,9 +17,9 @@ function ticket_scope_sql(array $user, string $tenantId, array &$params): string
 {
     $params[] = $tenantId;
     if (is_staff($user['role']) && can($user, 'tickets.view_all')) return 't."tenantId" = ?';
-    array_push($params, $user['id'], $user['id'], $user['id']);
-    // Customers and restricted agents: requested, assigned to them, or followed…
-    $or = ['t."requesterId" = ?', 't."assigneeId" = ?', 'EXISTS (SELECT 1 FROM "TicketWatcher" w WHERE w."ticketId" = t."id" AND w."userId" = ?)'];
+    array_push($params, $user['id'], $user['id'], $user['id'], $user['id']);
+    // Customers and restricted agents: requested, assigned to them (lead or co-assignee), or followed…
+    $or = ['t."requesterId" = ?', ASSIGNED_TO_SQL, 'EXISTS (SELECT 1 FROM "TicketWatcher" w WHERE w."ticketId" = t."id" AND w."userId" = ?)'];
     // …plus, for agents, tickets of their groups…
     if (is_staff($user['role'])) {
         $or[] = 't."groupId" IN (SELECT gm."groupId" FROM "AgentGroupMember" gm WHERE gm."userId" = ?)';
@@ -53,7 +54,7 @@ function ticket_filter_sql(array $user, string $tenantId, array $sp, array &$par
     if (!empty($sp['org'])) { $where[] = 'EXISTS (SELECT 1 FROM "User" ro2 WHERE ro2."id" = t."requesterId" AND ro2."organizationId" = ?)'; $params[] = $sp['org']; }
     if (!empty($sp['source'])) { $where[] = 't."source" = ?'; $params[] = $sp['source']; }
     if (!empty($sp['tag'])) { $where[] = 'EXISTS (SELECT 1 FROM "TicketTag" tt WHERE tt."ticketId" = t."id" AND tt."tagId" = ?)'; $params[] = $sp['tag']; }
-    if (($sp['assignee'] ?? '') === 'me') { $where[] = 't."assigneeId" = ?'; $params[] = $user['id']; }
+    if (($sp['assignee'] ?? '') === 'me') { $where[] = ASSIGNED_TO_SQL; array_push($params, $user['id'], $user['id']); }
     if (($sp['assignee'] ?? '') === 'none') { $where[] = 't."assigneeId" IS NULL'; }
     if (($sp['overdue'] ?? '') === '1') {
         $where[] = 't."dueAt" < ?';
@@ -100,7 +101,52 @@ function ticket_view_row(array $t, array $statuses, array $priorities): array
         'dueAt' => $t['dueAt'],
         'commentCount' => (int) $t['commentCount'],
         'requester' => ['name' => $t['rName'], 'color' => $t['rColor']],
-        'assignee' => $t['aName'] !== null ? ['name' => $t['aName'], 'color' => $t['aColor']] : null,
+        'assignee' => $t['aName'] !== null ? ['name' => $t['aName'], 'color' => $t['aColor'], 'more' => (int) ($t['coCount'] ?? 0)] : null,
         'category' => $t['cName'] !== null ? ['name' => $t['cName'], 'color' => $t['cColor']] : null,
     ];
+}
+
+/* ---------- Several assignees per ticket ----------
+ * Ticket.assigneeId is the lead (reports, SLA, CSAT, auto-assign use it);
+ * TicketAssignee holds everyone else who works on the ticket. */
+
+/** SQL: is user "?" one of the ticket's assignees (lead or co-assignee)? Alias t = Ticket. */
+const ASSIGNED_TO_SQL = '(t."assigneeId" = ? OR EXISTS (SELECT 1 FROM "TicketAssignee" ta WHERE ta."ticketId" = t."id" AND ta."userId" = ?))';
+
+function ticket_co_assignee_ids(string $ticketId): array
+{
+    return pluck(q_all('SELECT "userId" FROM "TicketAssignee" WHERE "ticketId" = ? ORDER BY "createdAt", "userId"', [$ticketId]), 'userId');
+}
+
+/** Lead first, then co-assignees (no duplicates). */
+function ticket_assignee_ids(array $ticket): array
+{
+    $ids = $ticket['assigneeId'] ? [$ticket['assigneeId']] : [];
+    return array_values(array_unique(array_merge($ids, ticket_co_assignee_ids($ticket['id']))));
+}
+
+/** Rows (id, name, avatarColor) of all assignees, lead first. */
+function ticket_assignees(array $ticket): array
+{
+    $ids = ticket_assignee_ids($ticket);
+    if (!$ids) return [];
+    $rows = key_by(q_all('SELECT "id","name","avatarColor" FROM "User" WHERE "id" IN (' . in_ph($ids) . ')', $ids), 'id');
+    return array_values(array_filter(array_map(fn ($id) => $rows[$id] ?? null, $ids)));
+}
+
+function is_ticket_assignee(array $ticket, string $userId): bool
+{
+    if (($ticket['assigneeId'] ?? null) === $userId) return true;
+    return (bool) q_val('SELECT 1 FROM "TicketAssignee" WHERE "ticketId" = ? AND "userId" = ?', [$ticket['id'], $userId]);
+}
+
+/** Replace the co-assignees (everyone but the lead). */
+function set_ticket_co_assignees(string $ticketId, ?string $leadId, array $ids): void
+{
+    q('DELETE FROM "TicketAssignee" WHERE "ticketId" = ?', [$ticketId]);
+    $now = now_iso();
+    foreach (array_unique($ids) as $id) {
+        if ($id === $leadId) continue;
+        db_insert('TicketAssignee', ['ticketId' => $ticketId, 'userId' => $id, 'createdAt' => $now]);
+    }
 }

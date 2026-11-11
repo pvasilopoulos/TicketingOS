@@ -55,6 +55,7 @@ function api_ticket_full(array $t): array
     $out['fields'] = ticket_field_values($t['id']) ?: (object) [];
     $out['tags'] = pluck(q_all('SELECT g."name" FROM "TicketTag" tt JOIN "Tag" g ON g."id" = tt."tagId" WHERE tt."ticketId" = ? ORDER BY g."name"', [$t['id']]), 'name');
     $out['assignee'] = $t['assigneeId'] ? q_one('SELECT "id","name","email" FROM "User" WHERE "id" = ?', [$t['assigneeId']]) : null;
+    $out['assignees'] = array_map(fn ($u) => ['id' => $u['id'], 'name' => $u['name']], ticket_assignees($t));
     $csat = csat_latest_answer($t['id']);
     $out['satisfaction'] = $csat ? ['rating' => (int) $csat['rating'], 'comment' => $csat['comment'], 'answeredAt' => $csat['answeredAt']] : null;
     return $out;

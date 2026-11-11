@@ -157,3 +157,40 @@ function ts(?string $iso): ?float
         return null;
     }
 }
+
+/**
+ * Small schema additions applied automatically on first request after a deploy
+ * (hosts like Plesk often have no shell for bin/migrate.php). A marker file in
+ * storage/ keeps this to one cheap check per request.
+ */
+const RUNTIME_SCHEMA_VERSION = 1;
+
+function ensure_runtime_schema(): void
+{
+    $marker = ROOT . '/storage/.schema-version';
+    if ((int) @file_get_contents($marker) >= RUNTIME_SCHEMA_VERSION) return;
+    try {
+        if (db_driver() === 'mysql') {
+            db()->exec('CREATE TABLE IF NOT EXISTS "TicketAssignee" (
+  "ticketId" VARCHAR(40) NOT NULL,
+  "userId" VARCHAR(40) NOT NULL,
+  "createdAt" VARCHAR(30) NOT NULL,
+  PRIMARY KEY ("ticketId", "userId"),
+  KEY "TicketAssignee_userId_idx" ("userId"),
+  FOREIGN KEY ("ticketId") REFERENCES "Ticket" ("id") ON DELETE CASCADE,
+  FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
+        } else {
+            db()->exec('CREATE TABLE IF NOT EXISTS "TicketAssignee" (
+  "ticketId" TEXT NOT NULL REFERENCES "Ticket"("id") ON DELETE CASCADE,
+  "userId" TEXT NOT NULL REFERENCES "User"("id") ON DELETE CASCADE,
+  "createdAt" TEXT NOT NULL,
+  PRIMARY KEY ("ticketId", "userId")
+)');
+            db()->exec('CREATE INDEX IF NOT EXISTS "TicketAssignee_userId_idx" ON "TicketAssignee"("userId")');
+        }
+        @file_put_contents($marker, (string) RUNTIME_SCHEMA_VERSION);
+    } catch (Throwable $e) {
+        error_log('[schema] ' . $e->getMessage());
+    }
+}

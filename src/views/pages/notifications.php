@@ -4,7 +4,7 @@ page_title('Notifications');
 $state = flash('prefs');
 $prefs = user_prefs($user['id'], $tenantId);
 $priorities = tenant_priorities($tenantId);
-$devices = q_all('SELECT "id","userAgent","createdAt" FROM "PushSubscription" WHERE "userId" = ? ORDER BY "createdAt" DESC', [$user['id']]);
+$devices = q_all('SELECT "id","userAgent","endpoint","createdAt" FROM "PushSubscription" WHERE "userId" = ? ORDER BY "createdAt" DESC', [$user['id']]);
 $quietOn = $prefs['quietStart'] !== null && $prefs['quietEnd'] !== null;
 ?>
 <div>
@@ -72,22 +72,42 @@ $quietOn = $prefs['quietStart'] !== null && $prefs['quietEnd'] !== null;
     </form>
 
     <div class="rounded-xl border border-border bg-surface">
-      <?= card_header('Your devices') ?>
+      <?= card_header('Your devices', $devices ? '<span class="text-xs text-muted">' . count($devices) . ' receiving push notifications</span>' : '') ?>
       <div class="divide-y divide-border">
         <?php if (!$devices): ?>
           <p class="px-5 py-6 text-center text-sm text-muted">No devices registered. Use the 🔔 in the top bar to enable push on this device.</p>
         <?php endif; ?>
-        <?php foreach ($devices as $d): ?>
-          <div class="flex items-center gap-3 px-5 py-3">
-            <?= icon('smartphone', 18, 'text-muted') ?>
-            <div class="min-w-0 flex-1">
-              <p class="truncate text-sm"><?= e($d['userAgent'] ?: 'Unknown device') ?></p>
-              <p class="text-xs text-muted">added <?= e(time_ago($d['createdAt'])) ?></p>
+        <?php foreach ($devices as $d):
+            $info = describe_user_agent($d['userAgent']);
+            $thisOne = $d['userAgent'] !== null && $d['userAgent'] === ($_SERVER['HTTP_USER_AGENT'] ?? '');
+            $ic = ['phone' => 'smartphone', 'tablet' => 'tablet', 'desktop' => 'monitor'][$info['type']];
+            $title = $info['device'] . ($info['browser'] !== '' ? ' · ' . $info['browser'] : ''); ?>
+          <div class="px-4 py-4 sm:px-5">
+            <div class="flex items-start gap-3">
+              <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl <?= $thisOne ? 'bg-brand/10 text-brand' : 'bg-surface-2 text-muted' ?>"><?= icon($ic, 20) ?></span>
+              <div class="min-w-0 flex-1">
+                <p class="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-medium">
+                  <span class="truncate"><?= e($title) ?></span>
+                  <?php if ($thisOne): ?><span class="rounded-full bg-brand/10 px-2 py-0.5 text-[11px] font-semibold text-brand">This device</span><?php endif; ?>
+                </p>
+                <dl class="mt-1.5 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs sm:grid-cols-[auto_1fr_auto_1fr]">
+                  <dt class="text-muted">System</dt><dd class="truncate"><?= e($info['os'] ?: '—') ?></dd>
+                  <dt class="text-muted">Browser</dt><dd class="truncate"><?= e($info['browser'] ?: '—') ?></dd>
+                  <dt class="text-muted">Push via</dt><dd class="truncate"><?= e(push_service_name($d['endpoint'])) ?></dd>
+                  <dt class="text-muted">Added</dt><dd class="truncate" title="<?= e(format_date($d['createdAt'])) ?>"><?= e(format_date($d['createdAt'])) ?> · <?= e(time_ago($d['createdAt'])) ?></dd>
+                </dl>
+                <?php if ($d['userAgent']): ?>
+                  <details class="mt-1.5 text-xs text-muted">
+                    <summary class="cursor-pointer select-none hover:text-fg">Technical details</summary>
+                    <p class="mt-1 break-all font-mono text-[11px]"><?= e($d['userAgent']) ?></p>
+                  </details>
+                <?php endif; ?>
+              </div>
+              <form method="post" action="/action/device-remove" data-ajax data-confirm="Stop push notifications on <?= e($title) ?>?">
+                <?= form_meta() ?><input type="hidden" name="id" value="<?= e($d['id']) ?>">
+                <button type="submit" aria-label="Remove <?= e($title) ?>" title="Stop notifications on this device" class="<?= ICON_BTN_DANGER ?>"><?= icon('trash-2', 15) ?></button>
+              </form>
             </div>
-            <form method="post" action="/action/device-remove" data-ajax>
-              <?= form_meta() ?><input type="hidden" name="id" value="<?= e($d['id']) ?>">
-              <button type="submit" aria-label="Remove device" class="<?= ICON_BTN_DANGER ?>"><?= icon('trash-2', 15) ?></button>
-            </form>
           </div>
         <?php endforeach; ?>
       </div>

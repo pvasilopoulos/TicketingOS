@@ -273,6 +273,9 @@
     if (el.hasAttribute("data-per-page")) { location.href = el.value; return; }
     var form = el.form;
     if (!form) return;
+    // Multi-select pickers save once, when they close.
+    var pick = el.closest && el.closest("[data-multi-pick]");
+    if (pick) { pick.dataset.dirty = "1"; return; }
     if (form.hasAttribute("data-autosave") || el.hasAttribute("data-submit-on-change")) {
       form.requestSubmit();
     } else if (el.hasAttribute("data-autosubmit")) {
@@ -1213,6 +1216,26 @@
     var rm = document.querySelector("[data-brand-remove]"); if (rm) rm.checked = false;
     var lbl = e.target.closest("label"); if (lbl) { var t = lbl.querySelector(".text-sm"); if (t) t.textContent = f.name; }
   });
+
+  // Multi-select picker (ticket assignees): close on outside click, save on close.
+  document.addEventListener("click", function (e) {
+    $$("details[data-multi-pick][open]").forEach(function (d) { if (!d.contains(e.target)) d.open = false; });
+  });
+  document.addEventListener("toggle", function (e) {
+    var d = e.target;
+    if (!d.matches || !d.matches("details[data-multi-pick]") || d.open || d.dataset.dirty !== "1") return;
+    d.dataset.dirty = "";
+    var form = d.closest("form");
+    var spin = form.querySelector("[data-spinner]");
+    if (spin) spin.hidden = false;
+    fetch(form.action, { method: "POST", body: new FormData(form), headers: { "Accept": "application/json", "X-Requested-With": "fetch" }, credentials: "same-origin" })
+      .then(function (r) { return r.json().catch(function () { return {}; }); })
+      .then(function (j) {
+        if (j && j.error) { if (spin) spin.hidden = true; notice(j.error, true); }
+        else location.reload();
+      })
+      .catch(function () { location.reload(); });
+  }, true);
 
   // Simple tabs (ticket Conversation / History).
   function showTab(root, key) {

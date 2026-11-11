@@ -114,7 +114,7 @@ function process_mentions(array $ticket, string $tenantId, array $actor, string 
     if (!$ids) return;
     $users = q_all('SELECT * FROM "User" WHERE "id" IN (' . in_ph($ids) . ') AND "tenantId" = ?', [...$ids, $tenantId]);
     // Customers can't pull outsiders into a ticket by mentioning them.
-    $users = array_values(array_filter($users, fn ($u) => can_add_person($actor, $u) || $u['id'] === ($ticket['assigneeId'] ?? null) || watcher_of($ticket['id'], $u['id'])));
+    $users = array_values(array_filter($users, fn ($u) => can_add_person($actor, $u) || is_ticket_assignee($ticket, $u['id']) || watcher_of($ticket['id'], $u['id'])));
 
     $added = [];
     foreach ($users as $u) {
@@ -290,29 +290,53 @@ function update_ticket(string $ticketId, array $in, array $user, string $tenantI
     $priority = isset($in['priority']) && $in['priority'] !== '' ? (string) $in['priority'] : null;
     $assigneeSet = array_key_exists('assigneeId', $in);
     $assigneeId = $assigneeSet ? ((string) $in['assigneeId'] ?: null) : null;
+    // Everyone on the ticket before the change: lead first, then co-assignees.
+    $curList = ticket_assignee_ids($ticket);
+    $wantList = null;
+    if (array_key_exists('assigneeIds', $in) || !empty($in['assigneeIdsSent'])) {
+        $wantList = array_values(array_unique(array_filter(array_map('strval', (array) ($in['assigneeIds'] ?? [])))));
+        // Keep the current lead first while they stay on the ticket.
+        if ($curList && in_array($curList[0], $wantList, true)) $wantList = array_values(array_unique([$curList[0], ...$wantList]));
+    } elseif ($assigneeSet) {
+        // A single assignee (list, bulk, macro, API) changes the lead; co-assignees stay unless the ticket is unassigned.
+        $wantList = $assigneeId ? array_values(array_unique([$assigneeId, ...array_slice($curList, 1)])) : [];
+    }
+    if ($wantList !== null) {
+        $wantList = array_slice($wantList, 0, 10);
+        $assigneeSet = true;
+        $assigneeId = $wantList[0] ?? null;
+    }
     $categorySet = array_key_exists('categoryId', $in);
     $categoryId = $categorySet ? ((string) $in['categoryId'] ?: null) : null;
     $groupSet = array_key_exists('groupId', $in);
     $groupId = $groupSet ? ((string) $in['groupId'] ?: null) : null;
     // Only staff route tickets between groups.
     if (!is_staff($user['role'])) { $groupSet = false; $groupId = null; }
+    // Only staff decide who works on a ticket.
+    if (!is_staff($user['role'])) { $wantList = null; $assigneeSet = false; $assigneeId = null; }
 
     // Staff field-level permissions (customers keep their requester/collaborator rights).
     if (is_staff($user['role'])) {
         if (!can($user, 'tickets.status')) $status = null;
         if (!can($user, 'tickets.priority')) $priority = null;
         if ($categorySet && !can($user, 'tickets.category')) { $categorySet = false; $categoryId = null; }
-        // Taking a ticket yourself is always allowed; assigning to someone else needs the permission.
-        if ($assigneeSet && $assigneeId !== $user['id'] && !can($user, 'tickets.assign')) { $assigneeSet = false; $assigneeId = null; }
+        // Adding or removing yourself is always allowed; changing anyone else needs the permission.
+        if ($wantList !== null && !can($user, 'tickets.assign')) {
+            $touched = array_values(array_diff(array_merge(array_diff($wantList, $curList), array_diff($curList, $wantList)), [$user['id']]));
+            $leadSwap = ($curList[0] ?? null) !== ($wantList[0] ?? null) && !in_array($wantList[0] ?? null, [$user['id'], null], true) && !in_array($wantList[0] ?? null, $curList, true);
+            if ($touched || $leadSwap) { $assigneeSet = false; $assigneeId = null; $wantList = null; }
+        }
         if ($groupSet && !can($user, 'tickets.group')) { $groupSet = false; $groupId = null; }
         if (!$status && !$priority && !$assigneeSet && !$categorySet && !$groupSet) return false;
     }
 
     $assigneeName = null;
-    if ($assigneeId) {
-        $a = q_one('SELECT "name" FROM "User" WHERE "id" = ? AND "tenantId" = ? AND "role" IN (\'SUPER_ADMIN\',\'ADMIN\',\'AGENT\')', [$assigneeId, $tenantId]);
-        if (!$a) return false;
-        $assigneeName = $a['name'];
+    $assigneeNames = [];
+    if ($wantList) {
+        $found = array_column(q_all('SELECT "id","name" FROM "User" WHERE "tenantId" = ? AND "role" IN (\'SUPER_ADMIN\',\'ADMIN\',\'AGENT\') AND "id" IN (' . in_ph($wantList) . ')', [$tenantId, ...$wantList]), 'name', 'id');
+        if (count($found) !== count($wantList)) return false;
+        $assigneeNames = array_map(fn ($id) => $found[$id], $wantList);
+        $assigneeName = $assigneeNames[0];
     }
     $groupName = null;
     if ($groupId) {
@@ -351,7 +375,7 @@ function update_ticket(string $ticketId, array $in, array $user, string $tenantI
 
     $statusChanged = $status && $status !== $ticket['status'];
     $priorityChanged = $priority && $priority !== $ticket['priority'];
-    $assigneeChanged = $assigneeSet && $assigneeId !== $ticket['assigneeId'];
+    $assigneeChanged = $wantList !== null && $wantList !== $curList;
     $categoryChanged = $categorySet && $categoryId !== $ticket['categoryId'];
     $groupChanged = $groupSet && $groupId !== ($ticket['groupId'] ?? null);
 
@@ -365,15 +389,16 @@ function update_ticket(string $ticketId, array $in, array $user, string $tenantI
         $data['priority'] = $priority;
         if ($priorityChanged) $data['dueAt'] = compute_due_at($ticket['createdAt'], $priority, tenant_sla($tenantId));
     }
-    if ($assigneeSet) $data['assigneeId'] = $assigneeId;
+    if ($assigneeChanged) $data['assigneeId'] = $assigneeId;
     if ($categorySet) $data['categoryId'] = $categoryId;
     if ($groupSet) $data['groupId'] = $groupId;
     db_update('Ticket', $data, '"id" = ?', [$ticketId]);
+    if ($assigneeChanged) set_ticket_co_assignees($ticketId, $assigneeId, array_slice($wantList, 1));
     if ($groupChanged) log_event($tenantId, $ticketId, $user['id'], 'GROUP_CHANGED', $groupName ? "moved the ticket to the $groupName group" : 'removed the group');
 
     if ($statusChanged) log_event($tenantId, $ticketId, $user['id'], 'STATUS_CHANGED', "changed status from $statusFrom to $statusTo");
     if ($priorityChanged) log_event($tenantId, $ticketId, $user['id'], 'PRIORITY_CHANGED', "changed priority from $prioFrom to $prioTo");
-    if ($assigneeChanged) log_event($tenantId, $ticketId, $user['id'], 'ASSIGNED', $assigneeName ? "assigned the ticket to $assigneeName" : 'unassigned the ticket');
+    if ($assigneeChanged) log_event($tenantId, $ticketId, $user['id'], 'ASSIGNED', $assigneeNames ? 'assigned the ticket to ' . human_list($assigneeNames) : 'unassigned the ticket');
     if ($assigneeChanged || $categoryChanged) reindex_ticket($ticketId);
     if ($categoryChanged) log_event($tenantId, $ticketId, $user['id'], 'CATEGORY_CHANGED', $categoryName ? "set the category to $categoryName" : 'removed the category');
 
@@ -390,9 +415,10 @@ function update_ticket(string $ticketId, array $in, array $user, string $tenantI
             'emailLine' => "Ticket #$num is now $statusTo.",
         ]);
     }
-    if ($assigneeChanged && $assigneeId && $assigneeId !== $user['id']) {
+    $newlyAssigned = $assigneeChanged ? array_values(array_diff($wantList, $curList, [$user['id']])) : [];
+    if ($newlyAssigned) {
         dispatch([
-            'tenantId' => $tenantId, 'recipients' => [$assigneeId], 'category' => 'assigned', 'ticket' => $eff,
+            'tenantId' => $tenantId, 'recipients' => $newlyAssigned, 'category' => 'assigned', 'ticket' => $eff,
             'inAppType' => 'TICKET_ASSIGNED',
             'inAppMessage' => "You were assigned ticket #$num: {$ticket['subject']}",
             'pushBody' => 'You were assigned this ticket',
@@ -407,7 +433,10 @@ function update_ticket(string $ticketId, array $in, array $user, string $tenantI
         $changes = [];
         if ($statusChanged) $changes['status'] = ['from' => $ticket['status'], 'to' => $status];
         if ($priorityChanged) $changes['priority'] = ['from' => $ticket['priority'], 'to' => $priority];
-        if ($assigneeChanged) $changes['assignee'] = ['from' => $ticket['assigneeId'], 'to' => $fresh['assigneeId']];
+        if ($assigneeChanged) {
+            $changes['assignee'] = ['from' => $ticket['assigneeId'], 'to' => $fresh['assigneeId']];
+            $changes['assignees'] = ['from' => $curList, 'to' => $wantList];
+        }
         if ($categoryChanged) $changes['category'] = ['from' => $ticket['categoryId'], 'to' => $categoryId];
         if ($groupChanged) $changes['group'] = ['from' => $ticket['groupId'] ?? null, 'to' => $groupId];
         webhook_emit($tenantId, 'ticket.updated', ['ticket' => api_ticket_brief($fresh), 'changes' => $changes, 'actor' => ['id' => $user['id'], 'name' => $user['name']]]);
@@ -422,7 +451,7 @@ function update_ticket(string $ticketId, array $in, array $user, string $tenantI
 function act_ticket_update(array $in): ?array
 {
     [$user, $tenantId] = require_tenant_user();
-    $fields = array_intersect_key($in, array_flip(['status', 'priority', 'assigneeId', 'categoryId', 'groupId']));
+    $fields = array_intersect_key($in, array_flip(['status', 'priority', 'assigneeId', 'assigneeIds', 'assigneeIdsSent', 'categoryId', 'groupId']));
     if (update_ticket(str_in($in, 'ticketId'), $fields, $user, $tenantId) === false && $fields) {
         return ['error' => 'You don’t have permission to make that change'];
     }
@@ -517,7 +546,7 @@ function add_comment(array $ticket, array $user, string $tenantId, string $body,
     $watchers = q_all('SELECT u."id", u."role" FROM "TicketWatcher" w JOIN "User" u ON u."id" = w."userId" WHERE w."ticketId" = ?', [$ticketId]);
     $recipients = [];
     if (!$isInternal && $ticket['requesterId'] !== $user['id']) $recipients[] = $ticket['requesterId'];
-    if ($ticket['assigneeId'] && $ticket['assigneeId'] !== $user['id']) $recipients[] = $ticket['assigneeId'];
+    foreach (ticket_assignee_ids($ticket) as $aid) if ($aid !== $user['id']) $recipients[] = $aid;
     foreach ($watchers as $w) {
         if ($w['id'] === $user['id']) continue;
         if ($isInternal && !is_staff($w['role'])) continue;

@@ -174,7 +174,7 @@ function ticket_list_item(array $t): string
         . priority_badge($t['priority']['label'], $t['priority']['color'])
         . status_badge($t['status']['label'], $t['status']['color']) . '</div>';
     $h .= $t['assignee']
-        ? avatar($t['assignee']['name'], $t['assignee']['color'], 30, 'hidden md:inline-flex')
+        ? avatar($t['assignee']['name'], $t['assignee']['color'], 30, 'hidden md:inline-flex') . (!empty($t['assignee']['more']) ? '<span class="-ml-2 hidden h-[30px] min-w-[30px] items-center justify-center rounded-full bg-surface-2 px-1 text-[11px] font-semibold text-muted ring-2 ring-surface md:inline-flex" title="' . (int) $t['assignee']['more'] . ' more assignee(s)">+' . (int) $t['assignee']['more'] . '</span>' : '')
         : '<span class="hidden h-[30px] w-[30px] rounded-full border border-dashed border-border md:inline-block"></span>';
     return $h . '</a>';
 }

@@ -37,7 +37,7 @@
             <div class="mt-2 flex items-center gap-2">
               <?= avatar($c['requester']['name'], $c['requester']['color'], 22) ?>
               <span class="truncate text-xs text-muted"><?= e($c['requester']['name']) ?></span>
-              <?php if ($c['assignee']) echo avatar($c['assignee']['name'], $c['assignee']['color'], 22, 'ml-auto'); ?>
+              <?php if ($c['assignee']) echo '<span class="ml-auto inline-flex items-center">' . avatar($c['assignee']['name'], $c['assignee']['color'], 22) . (!empty($c['assignee']['more']) ? '<span class="-ml-1.5 grid h-[22px] min-w-[22px] place-items-center rounded-full bg-surface-2 px-1 text-[10px] font-semibold text-muted ring-2 ring-surface">+' . (int) $c['assignee']['more'] . '</span>' : '') . '</span>'; ?>
             </div>
           </a>
         <?php endforeach; ?>

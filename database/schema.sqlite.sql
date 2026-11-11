@@ -496,3 +496,12 @@ CREATE TABLE IF NOT EXISTS "RateHit" (
   "createdAt" TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS "RateHit_bucket_idx" ON "RateHit"("bucket", "createdAt");
+
+-- Co-assignees: everyone working on a ticket besides the lead (Ticket.assigneeId).
+CREATE TABLE IF NOT EXISTS "TicketAssignee" (
+  "ticketId" TEXT NOT NULL REFERENCES "Ticket"("id") ON DELETE CASCADE,
+  "userId" TEXT NOT NULL REFERENCES "User"("id") ON DELETE CASCADE,
+  "createdAt" TEXT NOT NULL,
+  PRIMARY KEY ("ticketId", "userId")
+);
+CREATE INDEX IF NOT EXISTS "TicketAssignee_userId_idx" ON "TicketAssignee"("userId");

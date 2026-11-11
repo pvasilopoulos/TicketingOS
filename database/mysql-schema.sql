@@ -1,4 +1,4 @@
--- TicketingOS: MySQL 8 / MariaDB 10.5+ schema (40 tables).
+-- TicketingOS: MySQL 8 / MariaDB 10.5+ schema (41 tables).
 -- Import into an EMPTY database (phpMyAdmin → Import), or run: php bin/migrate.php
 -- After importing, open /register to create the first workspace and admin.
 
@@ -630,6 +630,16 @@ CREATE TABLE IF NOT EXISTS `RateHit` (
   `createdAt` varchar(30) NOT NULL,
   PRIMARY KEY (`id`),
   KEY `RateHit_bucket_idx` (`bucket`,`createdAt`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `TicketAssignee` (
+  `ticketId` varchar(40) NOT NULL,
+  `userId` varchar(40) NOT NULL,
+  `createdAt` varchar(30) NOT NULL,
+  PRIMARY KEY (`ticketId`,`userId`),
+  KEY `TicketAssignee_userId_idx` (`userId`),
+  FOREIGN KEY (`ticketId`) REFERENCES `Ticket` (`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`userId`) REFERENCES `User` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 SET FOREIGN_KEY_CHECKS = 1;

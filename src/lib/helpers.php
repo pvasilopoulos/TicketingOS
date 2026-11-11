@@ -157,3 +157,65 @@ function key_by(array $rows, string $key): array
     foreach ($rows as $r) $o[$r[$key]] = $r;
     return $o;
 }
+
+/** "A", "A and B", "A, B and C". */
+function human_list(array $items): string
+{
+    $items = array_values($items);
+    if (count($items) <= 1) return (string) ($items[0] ?? '');
+    return implode(', ', array_slice($items, 0, -1)) . ' and ' . end($items);
+}
+
+/**
+ * Turn a browser user-agent into readable parts for people:
+ * ['device' => 'iPhone', 'type' => phone|tablet|desktop, 'os' => 'iOS 18.7', 'browser' => 'Safari 27'].
+ */
+function describe_user_agent(?string $ua): array
+{
+    $ua = (string) $ua;
+    $v = fn (string $re) => preg_match($re, $ua, $m) ? str_replace('_', '.', $m[1]) : '';
+    $major = fn (string $ver) => $ver === '' ? '' : ' ' . explode('.', $ver)[0];
+
+    $type = 'desktop';
+    $device = 'Computer';
+    $os = '';
+    if (str_contains($ua, 'iPhone')) { $type = 'phone'; $device = 'iPhone'; $os = 'iOS ' . $v('#OS (\d+[_.]\d+)#'); }
+    elseif (str_contains($ua, 'iPad')) { $type = 'tablet'; $device = 'iPad'; $os = 'iPadOS ' . $v('#OS (\d+[_.]\d+)#'); }
+    elseif (str_contains($ua, 'Android')) {
+        $type = str_contains($ua, 'Mobile') ? 'phone' : 'tablet';
+        $model = trim($v('#Android [\d.]+; ([^;)]+)\)#'));
+        $device = $model !== '' && $model !== 'K' ? $model : ($type === 'phone' ? 'Android phone' : 'Android tablet');
+        $os = 'Android ' . $v('#Android (\d+(?:\.\d+)?)#');
+    }
+    elseif (str_contains($ua, 'Windows NT')) { $device = 'Windows PC'; $os = 'Windows' . (str_contains($ua, 'Windows NT 10.0') ? ' 10/11' : ''); }
+    elseif (str_contains($ua, 'Macintosh')) { $device = 'Mac'; $os = 'macOS'; }
+    elseif (str_contains($ua, 'CrOS')) { $device = 'Chromebook'; $os = 'ChromeOS'; }
+    elseif (str_contains($ua, 'Linux')) { $device = 'Linux PC'; $os = 'Linux'; }
+
+    $browser = match (true) {
+        str_contains($ua, 'Edg/') => 'Edge' . $major($v('#Edg/([\d.]+)#')),
+        str_contains($ua, 'OPR/') => 'Opera' . $major($v('#OPR/([\d.]+)#')),
+        str_contains($ua, 'SamsungBrowser/') => 'Samsung Internet' . $major($v('#SamsungBrowser/([\d.]+)#')),
+        str_contains($ua, 'Firefox/') || str_contains($ua, 'FxiOS/') => 'Firefox' . $major($v('#(?:Firefox|FxiOS)/([\d.]+)#')),
+        str_contains($ua, 'CriOS/') => 'Chrome' . $major($v('#CriOS/([\d.]+)#')),
+        str_contains($ua, 'Chrome/') => 'Chrome' . $major($v('#Chrome/([\d.]+)#')),
+        str_contains($ua, 'Safari/') => 'Safari' . $major($v('#Version/([\d.]+)#')),
+        default => '',
+    };
+    if ($ua === '') $device = 'Unknown device';
+    return ['device' => $device, 'type' => $type, 'os' => trim($os), 'browser' => $browser];
+}
+
+/** Which company delivers push messages to a subscription (from its endpoint). */
+function push_service_name(?string $endpoint): string
+{
+    $host = (string) parse_url((string) $endpoint, PHP_URL_HOST);
+    return match (true) {
+        str_ends_with($host, 'push.apple.com') => 'Apple Push',
+        str_ends_with($host, 'googleapis.com') => 'Google (FCM)',
+        str_ends_with($host, 'mozilla.com') => 'Mozilla Push',
+        str_ends_with($host, 'notify.windows.com') => 'Microsoft (WNS)',
+        $host !== '' => $host,
+        default => 'Unknown',
+    };
+}

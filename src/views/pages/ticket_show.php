@@ -8,6 +8,8 @@ if (!$ticket) abort(404);
 
 $requester = q_one('SELECT * FROM "User" WHERE "id" = ?', [$ticket['requesterId']]);
 $assignee = $ticket['assigneeId'] ? q_one('SELECT "name" FROM "User" WHERE "id" = ?', [$ticket['assigneeId']]) : null;
+$assigneeRows = ticket_assignees($ticket);
+$assigneeIds = array_column($assigneeRows, 'id');
 $category = $ticket['categoryId'] ? q_one('SELECT "name" FROM "Category" WHERE "id" = ?', [$ticket['categoryId']]) : null;
 $watchers = q_all('SELECT w."role" AS "watchRole", u."id", u."name", u."avatarColor", u."role" FROM "TicketWatcher" w JOIN "User" u ON u."id" = w."userId" WHERE w."ticketId" = ? ORDER BY w."createdAt" ASC', [$id]);
 
@@ -304,9 +306,37 @@ $row = fn (string $label, string $valueHtml) => '<div class="flex items-center j
               <label for="s-priority" class="<?= LABEL_CLS ?>">Priority</label>
               <select id="s-priority" name="priority" <?= $lockPriority ?> class="<?= SELECT_CLS ?>"><?= select_options(array_column($priorities, 'label', 'key'), $ticket['priority']) ?></select>
             </div>
-            <div>
-              <label for="s-assignee" class="<?= LABEL_CLS ?>">Assignee</label>
-              <select id="s-assignee" name="assigneeId" <?= $lockAssign ?> class="<?= SELECT_CLS ?>"><?= select_options(['' => 'Unassigned'] + array_column($agents, 'name', 'id'), $ticket['assigneeId'] ?? '') ?></select>
+            <div class="col-span-2 lg:col-span-1">
+              <p class="<?= LABEL_CLS ?>">Assignees</p>
+              <?php $mayAssignOthers = can($user, 'tickets.assign'); ?>
+              <?php if (!$staff): ?>
+                <p class="flex min-h-10 items-center rounded-lg border border-border bg-surface-2/40 px-3 text-sm <?= $assigneeRows ? '' : 'text-muted' ?>"><?= $assigneeRows ? e(human_list(array_column($assigneeRows, 'name'))) : 'Unassigned' ?></p>
+              <?php else: ?>
+              <details class="group relative" data-multi-pick>
+                <summary class="flex min-h-10 w-full cursor-pointer list-none items-center gap-2 rounded-lg border border-border bg-surface px-3 py-1.5 text-sm transition hover:border-brand/50 group-open:border-brand group-open:ring-2 group-open:ring-brand/40 [&::-webkit-details-marker]:hidden">
+                  <?php if ($assigneeRows): ?>
+                    <span class="flex shrink-0 -space-x-1.5"><?php foreach (array_slice($assigneeRows, 0, 3) as $ar) echo avatar($ar['name'], $ar['avatarColor'], 22, 'ring-2 ring-surface'); ?></span>
+                    <span class="min-w-0 flex-1 truncate"><?= e(human_list(array_column($assigneeRows, 'name'))) ?></span>
+                  <?php else: ?>
+                    <span class="flex-1 text-muted">Unassigned</span>
+                  <?php endif; ?>
+                  <?= icon('chevron-down', 16, 'shrink-0 text-muted transition-transform group-open:rotate-180') ?>
+                </summary>
+                <div class="absolute left-0 right-0 z-30 mt-1 max-h-72 overflow-y-auto rounded-xl border border-border bg-surface p-1 shadow-xl">
+                  <input type="hidden" name="assigneeIdsSent" value="1">
+                  <?php foreach ($agents as $ag): $on = in_array($ag['id'], $assigneeIds, true); $isLead = ($assigneeIds[0] ?? null) === $ag['id'];
+                      $lockThis = !$mayAssignOthers && $ag['id'] !== $user['id']; ?>
+                    <label class="<?= cx('flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm', $lockThis ? 'opacity-60' : 'cursor-pointer hover:bg-surface-2') ?>">
+                      <input type="checkbox" name="assigneeIds[]" value="<?= e($ag['id']) ?>" <?= $on ? 'checked' : '' ?> <?= $lockThis ? 'disabled' : '' ?> class="h-4 w-4 rounded border-border accent-brand">
+                      <?php if ($lockThis && $on): ?><input type="hidden" name="assigneeIds[]" value="<?= e($ag['id']) ?>"><?php endif; ?>
+                      <span class="min-w-0 flex-1 truncate"><?= e($ag['name']) ?><?= $ag['id'] === $user['id'] ? ' <span class="text-muted">(you)</span>' : '' ?></span>
+                      <?php if ($isLead && count($assigneeIds) > 1): ?><span class="rounded-full bg-brand/10 px-1.5 text-[10px] font-semibold uppercase text-brand" title="Lead: counted in reports, SLA and satisfaction">Lead</span><?php endif; ?>
+                    </label>
+                  <?php endforeach; ?>
+                  <?php if (!$mayAssignOthers): ?><p class="px-2.5 pb-1.5 pt-1 text-[11px] text-muted">You can add or remove yourself.</p><?php endif; ?>
+                </div>
+              </details>
+              <?php endif; ?>
             </div>
             <div>
               <label for="s-category" class="<?= LABEL_CLS ?>">Category</label>
@@ -325,7 +355,7 @@ $row = fn (string $label, string $valueHtml) => '<div class="flex items-center j
             <?= $row('Status', status_badge($curStatus['label'], $curStatus['color'])) ?>
             <?= $row('Priority', priority_badge($curPriority['label'], $curPriority['color'])) ?>
             <?= $row('Category', $category ? e($category['name']) : '—') ?>
-            <?= $row('Assigned to', $assignee ? e($assignee['name']) : 'Unassigned') ?>
+            <?= $row('Assigned to', $assigneeRows ? e(human_list(array_column($assigneeRows, 'name'))) : 'Unassigned') ?>
             <?php if ($group): ?><?= $row('Group', e($group['name'])) ?><?php endif; ?>
           </div>
         <?php endif; ?>

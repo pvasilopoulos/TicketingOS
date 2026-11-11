@@ -102,9 +102,9 @@ function search_sql(string $q, array $ctx, array &$where, array &$params): void
                 array_push($params, ...$keys);
                 break;
             case 'assignee':
-                if ($vn === 'me') { $where[] = 't."assigneeId" = ?'; $params[] = $ctx['user']['id']; }
+                if ($vn === 'me') { $where[] = ASSIGNED_TO_SQL; array_push($params, $ctx['user']['id'], $ctx['user']['id']); }
                 elseif ($vn === 'none' || $vn === 'nobody') { $where[] = 't."assigneeId" IS NULL'; }
-                else { $where[] = "EXISTS (SELECT 1 FROM \"User\" ua WHERE ua.\"id\" = t.\"assigneeId\" AND LOWER(ua.\"name\") LIKE ? ESCAPE '!')"; $params[] = like_arg($vn); }
+                else { $where[] = "EXISTS (SELECT 1 FROM \"User\" ua WHERE (ua.\"id\" = t.\"assigneeId\" OR ua.\"id\" IN (SELECT tx.\"userId\" FROM \"TicketAssignee\" tx WHERE tx.\"ticketId\" = t.\"id\")) AND LOWER(ua.\"name\") LIKE ? ESCAPE '!')"; $params[] = like_arg($vn); }
                 break;
             case 'requester':
                 if ($vn === 'me') { $where[] = 't."requesterId" = ?'; $params[] = $ctx['user']['id']; }
@@ -123,7 +123,7 @@ function search_sql(string $q, array $ctx, array &$where, array &$params): void
                 if ($vn === 'open') { if ($closed) { $where[] = 't."status" NOT IN (' . in_ph($closed) . ')'; array_push($params, ...$closed); } }
                 elseif ($vn === 'closed' || $vn === 'resolved') { $where[] = 't."status" IN (' . in_ph($closed) . ')'; array_push($params, ...$closed); }
                 elseif ($vn === 'unassigned') { $where[] = 't."assigneeId" IS NULL'; }
-                elseif ($vn === 'mine') { $where[] = 't."assigneeId" = ?'; $params[] = $ctx['user']['id']; }
+                elseif ($vn === 'mine') { $where[] = ASSIGNED_TO_SQL; array_push($params, $ctx['user']['id'], $ctx['user']['id']); }
                 elseif ($vn === 'overdue') {
                     $where[] = 't."dueAt" < ?';
                     $params[] = now_iso();
