@@ -34,8 +34,8 @@ header('Content-Type: text/html; charset=utf-8');
 <div class="bar">
   <strong>Widget preview</strong>
   <span>This is how the widget looks on your website.</span>
-  <?php if (!$wf['enabled']): ?><span class="warn">The support form &amp; widget is off — turn it on in Settings → Integrations.</span><?php endif; ?>
-  <?php if (!$chatOn): ?><span class="warn">Live chat is off, so the widget opens the support form.</span><?php endif; ?>
+  <?php if (!$wf['enabled'] && !$chatOn): ?><span class="warn">The support form and live chat are both off, so the widget has nothing to show. Turn one on in Settings → Integrations.</span>
+  <?php elseif (!$chatOn): ?><span class="warn">Live chat is off, so the widget opens the support form.</span><?php endif; ?>
   <a href="/settings#integrations">← Back to settings</a>
 </div>
 <div class="site">
