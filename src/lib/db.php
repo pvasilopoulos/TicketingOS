@@ -163,7 +163,7 @@ function ts(?string $iso): ?float
  * (hosts like Plesk often have no shell for bin/migrate.php). A marker file in
  * storage/ keeps this to one cheap check per request.
  */
-const RUNTIME_SCHEMA_VERSION = 8;
+const RUNTIME_SCHEMA_VERSION = 9;
 
 /** Does a table have a column? (works for SQLite and MySQL/MariaDB) */
 function db_column_exists(string $table, string $col): bool
@@ -195,6 +195,12 @@ function ensure_runtime_schema(): void
         db_add_column('ChatSession', 'visitorTypingAt', 'VARCHAR(30) NULL', 'TEXT');
         db_add_column('ChatSession', 'agentTypingAt', 'VARCHAR(30) NULL', 'TEXT');
         db_add_column('ChatSession', 'rating', 'INT NULL', 'INTEGER');
+        // v9: chats inside the app (between colleagues too) and files in chats.
+        db_add_column('ChatSession', 'kind', 'VARCHAR(10) NULL', 'TEXT');
+        db_add_column('ChatSession', 'visitorUserId', 'VARCHAR(40) NULL', 'TEXT');
+        db_add_column('ChatSession', 'visitorSeenAt', 'VARCHAR(30) NULL', 'TEXT');
+        db_add_column('ChatMessage', 'attachmentId', 'VARCHAR(40) NULL', 'TEXT');
+        db_add_column('Attachment', 'chatSessionId', 'VARCHAR(40) NULL', 'TEXT');
         @file_put_contents($marker, $sig);
     } catch (Throwable $e) {
         error_log('[schema] ' . $e->getMessage());

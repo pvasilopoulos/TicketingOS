@@ -56,7 +56,11 @@ $base = '/support/' . $tenant['slug'] . '/chat';
       <?php endif; ?>
     </form>
 
-    <form data-chat-compose hidden class="flex items-end gap-2 border-t border-border p-3">
+    <div data-chat-uploads class="space-y-1 bg-surface-2/40 px-3 empty:hidden"></div>
+    <form data-chat-compose hidden class="flex items-end gap-1 border-t border-border p-3">
+      <button type="button" data-emoji-btn aria-label="Emoji" class="grid h-10 w-9 shrink-0 place-items-center rounded-lg text-muted hover:bg-surface-2 cursor-pointer"><?= icon('smile', 18) ?></button>
+      <button type="button" data-attach-btn aria-label="Attach a file" class="grid h-10 w-9 shrink-0 place-items-center rounded-lg text-muted hover:bg-surface-2 cursor-pointer"><?= icon('paperclip', 18) ?></button>
+      <input type="file" data-file multiple hidden>
       <textarea name="body" rows="1" placeholder="Write a message…" class="max-h-32 min-h-10 flex-1 resize-none rounded-xl border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/40"></textarea>
       <button type="submit" aria-label="Send" class="grid h-10 w-10 shrink-0 place-items-center rounded-full text-white cursor-pointer" style="background:<?= e($accent) ?>"><?= icon('send-horizontal', 17) ?></button>
     </form>
@@ -80,7 +84,7 @@ $base = '/support/' . $tenant['slug'] . '/chat';
   var base = root.getAttribute("data-base"), key = root.getAttribute("data-key"), inApp = root.getAttribute("data-app") === "1";
   var log = root.querySelector("[data-chat-log]"), start = root.querySelector("[data-chat-start]"), compose = root.querySelector("[data-chat-compose]");
   var ended = root.querySelector("[data-chat-ended]"), endBtn = root.querySelector("[data-chat-end]"), sub = root.querySelector("[data-chat-sub]");
-  var token = null, after = "", timer = null, seen = {}, status = "";
+  var token = null, after = "", timer = null, seen = {}, status = "", subDefault = sub.textContent;
   try { token = localStorage.getItem(key); } catch (e) {}
   function api(op, body) {
     return fetch(base + "/" + op + (op === "poll" ? "?t=" + encodeURIComponent(token) + "&after=" + encodeURIComponent(after) : ""), {
@@ -104,7 +108,7 @@ $base = '/support/' . $tenant['slug'] . '/chat';
       var b = document.createElement("div");
       b.className = "max-w-[80%] whitespace-pre-wrap break-words rounded-2xl px-3.5 py-2 text-sm shadow-sm " + (mine ? "rounded-br-md text-white" : "rounded-bl-md border border-border bg-surface");
       if (mine) b.style.background = "<?= e($accent) ?>";
-      b.textContent = m.body;
+      if (m.file) b.innerHTML = window.ChatKit.fileHtml(m.file, base + "/file?t=" + encodeURIComponent(token) + "&id=" + encodeURIComponent(m.file.id), mine); else b.textContent = m.body;
       var meta = document.createElement("div");
       meta.className = "mt-0.5 text-[10px] " + (mine ? "text-white/70 text-right" : "text-muted");
       meta.textContent = (m.name ? m.name + " · " : "") + time(m.at);
@@ -144,7 +148,7 @@ $base = '/support/' . $tenant['slug'] . '/chat';
       if (j.status === "open") timer = setTimeout(poll, document.hidden ? 10000 : 3000);
     }, function () { timer = setTimeout(poll, 8000); });
   }
-  function forget() { token = null; try { localStorage.removeItem(key); } catch (e) {} log.innerHTML = ""; seen = {}; after = ""; rated = false; thanks.hidden = true; rateBox.hidden = true; typingRow.hidden = true; setStatus(""); }
+  function forget() { sub.textContent = subDefault; token = null; try { localStorage.removeItem(key); } catch (e) {} log.innerHTML = ""; seen = {}; after = ""; rated = false; thanks.hidden = true; rateBox.hidden = true; typingRow.hidden = true; setStatus(""); }
   start.addEventListener("submit", function (e) {
     e.preventDefault();
     var err = start.querySelector("[data-chat-error]"), btn = start.querySelector("button[type=submit]");
@@ -167,6 +171,21 @@ $base = '/support/' . $tenant['slug'] . '/chat';
   ta.addEventListener("input", function () {
     ta.style.height = "auto"; ta.style.height = Math.min(128, ta.scrollHeight) + "px";
     if (token && ta.value.trim() && Date.now() - typingSent > 3000) { typingSent = Date.now(); api("typing"); }
+  });
+  window.ChatKit.emojiPicker(root.querySelector("[data-emoji-btn]"), ta);
+  window.ChatKit.attach(root.querySelector("[data-attach-btn]"), root.querySelector("[data-file]"), root, function (file) {
+    if (!token || status !== "open") return;
+    var box = root.querySelector("[data-chat-uploads]"), r = document.createElement("div");
+    r.className = "flex items-center gap-2 rounded-lg bg-surface px-3 py-2 text-xs ring-1 ring-border";
+    r.innerHTML = '<span class="min-w-0 flex-1 truncate"></span><span class="h-1.5 w-20 overflow-hidden rounded-full bg-surface-2"><span class="block h-full w-0 transition-all" style="background:<?= e($accent) ?>"></span></span>';
+    r.firstChild.textContent = file.name;
+    box.appendChild(r);
+    window.ChatKit.upload(file, { url: base + "/upload", fields: { t: token }, credentials: inApp ? "same-origin" : "omit", csrf: inApp && window.APP ? window.APP.csrf : "",
+      onProgress: function (p) { r.lastChild.firstChild.style.width = Math.round(p * 100) + "%"; } }).then(function (j) {
+      r.remove();
+      if (j.error) { add({ id: "e" + Date.now(), sender: "system", body: j.error, at: new Date().toISOString() }); return; }
+      clearTimeout(timer); poll();
+    });
   });
   rateBox.addEventListener("click", function (e) {
     var b = e.target.closest("[data-rate]"); if (!b) return;

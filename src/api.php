@@ -17,6 +17,13 @@ function api_attachment(string $id): never
     if (!$a) abort(404);
 
     $super = $user['role'] === 'SUPER_ADMIN';
+    // Files sent in a chat that isn't a ticket (yet): only the people in the chat (and agents for support chats).
+    if (!empty($a['chatSessionId']) && !$a['ticketId']) {
+        $cs = q_one('SELECT * FROM "ChatSession" WHERE "id" = ?', [$a['chatSessionId']]);
+        if (!$cs || $cs['tenantId'] !== ($user['tenantId'] ?? null) && !$super) abort(404);
+        if (!chat_user_can_see($user, $cs)) abort(403, 'Forbidden');
+        attachment_stream($a, $cs['tenantId']);
+    }
     $owner = $a['tTenant'] ?? $a['tenantId'];
     if (!$owner) abort(404);
     if (!$super && $owner !== $user['tenantId']) abort(403, 'Forbidden');
@@ -32,6 +39,12 @@ function api_attachment(string $id): never
     if ((int) ($a['internal'] ?? 0) && !is_staff($user['role'])) abort(403, 'Forbidden');
     if ($a['commentId'] && !$super && q_val('SELECT "deletedAt" FROM "Comment" WHERE "id" = ?', [$a['commentId']])) abort(404);
 
+    attachment_stream($a, $owner);
+}
+
+/** Send a stored file to the browser. */
+function attachment_stream(array $a, string $owner): never
+{
     $path = attachment_disk_path($owner, $a['id']);
     if (!is_file($path)) abort(404, 'File missing');
 
@@ -40,7 +53,7 @@ function api_attachment(string $id): never
     header('Content-Type: ' . ($a['mime'] ?: 'application/octet-stream'));
     header('Content-Length: ' . filesize($path));
     header('Content-Disposition: ' . ($inline ? 'inline' : 'attachment') . "; filename*=UTF-8''" . rawurlencode($a['filename']));
-    header('Cache-Control: private, max-age=3600');
+    header('Cache-Control: ' . (empty($a['chatSessionId']) ? 'private, max-age=3600' : 'private, no-store'));
     header("Content-Security-Policy: default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox");
     readfile($path);
     throw new HttpExit();

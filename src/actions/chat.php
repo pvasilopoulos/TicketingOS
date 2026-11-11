@@ -19,7 +19,7 @@ function public_chat(array $tenant, string $op): never
     }
     header('Cache-Control: no-store');
     if (!$cfg['enabled']) json_out(['error' => 'Chat is not available right now'], 404);
-    if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $op !== 'poll') json_out(['error' => 'Method not allowed'], 405);
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $op !== 'poll' && $op !== 'file') json_out(['error' => 'Method not allowed'], 405);
     $b = json_body() ?? [];
     $ip = client_ip();
 
@@ -50,8 +50,26 @@ function public_chat(array $tenant, string $op): never
         json_out(['token' => $token, 'messages' => chat_messages($s['id']), 'status' => 'open']);
     }
 
-    $s = chat_session_by_token($tenant['id'], (string) ($b['t'] ?? $_GET['t'] ?? ''));
+    $s = chat_session_by_token($tenant['id'], (string) ($b['t'] ?? $_POST['t'] ?? $_GET['t'] ?? ''));
     if (!$s) json_out(['error' => 'This chat has ended'], 404);
+    if ($op === 'file') {
+        $a = q_one('SELECT * FROM "Attachment" WHERE "id" = ? AND "chatSessionId" = ?', [(string) ($_GET['id'] ?? ''), $s['id']]);
+        if (!$a) abort(404);
+        attachment_stream($a, $s['tenantId']);
+    }
+    if ($op === 'upload') {
+        if ($s['status'] !== 'open') json_out(['error' => 'This chat has ended'], 409);
+        if (!rate_allow('chatfile:' . $s['id'], 15, 3600)) json_out(['error' => 'Too many files — please try again later'], 429);
+        $f = uploaded_files('file')[0] ?? null;
+        if (!$f) json_out(['error' => 'Pick a file'], 422);
+        // Files need an owner: the customer account the chat belongs to (created now if new).
+        $owner = find_or_create_customer($s['tenantId'], $s['visitorEmail'], $s['visitorName']);
+        if (is_string($owner)) json_out(['error' => 'Files can’t be sent from this email address'], 422);
+        $a = chat_save_file($s, $f, $owner['id']);
+        if (is_string($a)) json_out(['error' => $a], 422);
+        chat_add($s, 'visitor', null, $a['filename'], $a['id']);
+        json_out(['ok' => true]);
+    }
     if ($op === 'poll') {
         chat_maintenance($tenant['id']);
         $s = q_one('SELECT * FROM "ChatSession" WHERE "id" = ?', [$s['id']]);
@@ -106,9 +124,9 @@ function api_chat_list(): never
     [$me, $tenantId] = chat_agent_ctx();
     chat_maintenance($tenantId);
     $rows = q_all('SELECT s.*, u."name" AS "agentName", r."name" AS "requestedName" FROM "ChatSession" s LEFT JOIN "User" u ON u."id" = s."agentId" LEFT JOIN "User" r ON r."id" = s."requestedAgentId"
-                   WHERE s."tenantId" = ? AND (s."status" = ? OR s."closedAt" >= ?) ORDER BY s."status" DESC, COALESCE(s."lastVisitorAt", s."createdAt") DESC LIMIT 60', [$tenantId, 'open', now_iso(-86400)]);
+                   WHERE s."tenantId" = ? AND (s."kind" IS NULL OR s."kind" <> \'peer\') AND (s."status" = ? OR s."closedAt" >= ?) ORDER BY s."status" DESC, COALESCE(s."lastVisitorAt", s."createdAt") DESC LIMIT 60', [$tenantId, 'open', now_iso(-86400)]);
     json_out(['items' => array_map(function ($s) use ($me) {
-        $last = q_one('SELECT "sender","body","createdAt" FROM "ChatMessage" WHERE "sessionId" = ? AND "sender" <> ? ORDER BY "createdAt" DESC LIMIT 1', [$s['id'], 'system']);
+        $last = q_one('SELECT "sender","body","createdAt","attachmentId" FROM "ChatMessage" WHERE "sessionId" = ? AND "sender" <> ? ORDER BY "createdAt" DESC LIMIT 1', [$s['id'], 'system']);
         return [
             'id' => $s['id'], 'name' => $s['visitorName'], 'email' => $s['visitorEmail'], 'status' => $s['status'], 'agent' => $s['agentName'], 'requested' => $s['requestedName'], 'forMe' => ($s['requestedAgentId'] ?? null) === $me['id'], 'mine' => $s['agentId'] === $me['id'],
             'rating' => $s['rating'] !== null ? (int) $s['rating'] : null, 'waitingSince' => $s['lastVisitorAt'],
@@ -116,7 +134,7 @@ function api_chat_list(): never
             'ticketId' => $s['ticketId'], 'page' => $s['pageUrl'], 'createdAt' => $s['createdAt'],
             'waiting' => $s['status'] === 'open' && (!$s['lastAgentAt'] || $s['lastVisitorAt'] > $s['lastAgentAt']),
             'unread' => $s['lastVisitorAt'] && (!$s['agentSeenAt'] || $s['lastVisitorAt'] > $s['agentSeenAt']),
-            'last' => $last ? ['from' => $last['sender'], 'text' => mb_substr($last['body'], 0, 90), 'at' => $last['createdAt']] : null,
+            'last' => $last ? ['from' => $last['sender'], 'text' => ($last['attachmentId'] ? '📎 ' : '') . mb_substr($last['body'], 0, 90), 'at' => $last['createdAt']] : null,
         ];
     }, $rows), 'waiting' => chat_waiting_count($tenantId)]);
 }
@@ -126,7 +144,7 @@ function api_chat_messages(): never
 {
     [, $tenantId] = chat_agent_ctx();
     $s = q_one('SELECT * FROM "ChatSession" WHERE "id" = ? AND "tenantId" = ?', [(string) ($_GET['id'] ?? ''), $tenantId]);
-    if (!$s) json_out(['error' => 'Chat not found'], 404);
+    if (!$s || ($s['kind'] ?? null) === 'peer') json_out(['error' => 'Chat not found'], 404);
     db_update('ChatSession', ['agentSeenAt' => now_iso()], '"id" = ?', [$s['id']]);
     $ticket = $s['ticketId'] ? q_one('SELECT "id","number" FROM "Ticket" WHERE "id" = ?', [$s['ticketId']]) : null;
     $known = q_one('SELECT "id","name","createdAt","lastLoginAt" FROM "User" WHERE "tenantId" = ? AND "email" = ?', [$tenantId, $s['visitorEmail']]);
@@ -154,7 +172,7 @@ function api_chat_reply(): never
     [$user, $tenantId] = chat_agent_ctx();
     $b = json_body() ?? [];
     $s = q_one('SELECT * FROM "ChatSession" WHERE "id" = ? AND "tenantId" = ?', [(string) ($b['id'] ?? ''), $tenantId]);
-    if (!$s) json_out(['error' => 'Chat not found'], 404);
+    if (!$s || ($s['kind'] ?? null) === 'peer') json_out(['error' => 'Chat not found'], 404);
     if ($s['status'] !== 'open') json_out(['error' => 'This chat has ended'], 409);
     $body = trim((string) ($b['body'] ?? ''));
     if ($body === '') json_out(['error' => 'Empty message'], 422);
@@ -166,6 +184,26 @@ function api_chat_reply(): never
     json_out(['ok' => true]);
 }
 
+/** POST /api/chat/upload (multipart: id, file) */
+function api_chat_upload(): never
+{
+    verify_csrf();
+    [$user, $tenantId] = chat_agent_ctx();
+    $s = q_one('SELECT * FROM "ChatSession" WHERE "id" = ? AND "tenantId" = ?', [(string) ($_POST['id'] ?? ''), $tenantId]);
+    if (!$s || ($s['kind'] ?? null) === 'peer') json_out(['error' => 'Chat not found'], 404);
+    if ($s['status'] !== 'open') json_out(['error' => 'This chat has ended'], 409);
+    $f = uploaded_files('file')[0] ?? null;
+    if (!$f) json_out(['error' => 'Pick a file'], 422);
+    $a = chat_save_file($s, $f, $user['id']);
+    if (is_string($a)) json_out(['error' => $a], 422);
+    if (!$s['agentId']) {
+        db_update('ChatSession', ['agentId' => $user['id']], '"id" = ?', [$s['id']]);
+        chat_add($s, 'system', null, first_name($user['name']) . ' joined the chat.');
+    }
+    chat_add($s, 'agent', $user['id'], $a['filename'], $a['id']);
+    json_out(['ok' => true]);
+}
+
 /** POST /api/chat/action {id, op: ticket|close} */
 function api_chat_action(): never
 {
@@ -173,7 +211,7 @@ function api_chat_action(): never
     [$user, $tenantId] = chat_agent_ctx();
     $b = json_body() ?? [];
     $s = q_one('SELECT * FROM "ChatSession" WHERE "id" = ? AND "tenantId" = ?', [(string) ($b['id'] ?? ''), $tenantId]);
-    if (!$s) json_out(['error' => 'Chat not found'], 404);
+    if (!$s || ($s['kind'] ?? null) === 'peer') json_out(['error' => 'Chat not found'], 404);
     $op = (string) ($b['op'] ?? '');
     if ($op === 'ticket') {
         $t = chat_to_ticket($s, $user);

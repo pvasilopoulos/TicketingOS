@@ -191,12 +191,12 @@ ob_start(); ?>
 <?php if ($role === 'CUSTOMER' && chat_settings($tenantId)['enabled']): ?>
 <div data-app-chat-panel hidden class="fixed right-4 bottom-[calc(9rem+env(safe-area-inset-bottom))] z-40 h-[min(600px,calc(100dvh-12rem))] w-[min(400px,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-border bg-surface shadow-2xl lg:bottom-24 lg:h-[min(620px,calc(100dvh-8rem))]"></div>
 <button type="button" data-app-chat-btn aria-label="Chat with us" aria-expanded="false" class="fixed right-4 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-40 grid h-14 w-14 cursor-pointer place-items-center rounded-full bg-brand text-white shadow-xl transition-transform hover:scale-105 lg:bottom-6">
-  <span data-icon-open><?= icon('messages-square', 24) ?></span><span data-chat-dot hidden class="absolute right-0.5 top-0.5 h-3.5 w-3.5 rounded-full border-2 border-white bg-red-500"></span><span data-icon-close hidden><?= icon('x', 24) ?></span>
+  <span data-icon-open><?= icon('messages-square', 24) ?></span><span data-chat-dot hidden class="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full border-2 border-white bg-red-500 px-1 text-[10px] font-bold leading-none text-white"></span><span data-icon-close hidden><?= icon('x', 24) ?></span>
 </button>
 <script>
 (function () {
   var btn = document.querySelector("[data-app-chat-btn]"), panel = document.querySelector("[data-app-chat-panel]");
-  var src = <?= json_encode('/support/' . $tenant['slug'] . '/chat?embed=1&app=1') ?>;
+  var src = "/messenger";
   function set(open) {
     if (open && !panel.firstChild) {
       var f = document.createElement("iframe");
@@ -204,14 +204,19 @@ ob_start(); ?>
       panel.appendChild(f);
     }
     panel.hidden = !open;
-    if (open) btn.querySelector("[data-chat-dot]").hidden = true;
+    btn.querySelector("[data-chat-dot]").hidden = open || !unread;
     btn.setAttribute("aria-expanded", open ? "true" : "false");
     btn.querySelector("[data-icon-open]").hidden = open;
     btn.querySelector("[data-icon-close]").hidden = !open;
     try { sessionStorage.setItem("tos-app-chat", open ? "1" : ""); } catch (e) {}
   }
   btn.addEventListener("click", function () { set(panel.hidden); });
-  window.addEventListener("message", function (e) { if (e.origin === location.origin && e.data && e.data.tosChat === "message" && panel.hidden) btn.querySelector("[data-chat-dot]").hidden = false; });
+  var unread = 0, dot = btn.querySelector("[data-chat-dot]");
+  // The messenger reports unread conversations; show them on the button while it is closed.
+  window.addEventListener("message", function (e) {
+    if (e.origin !== location.origin || !e.data) return;
+    if (e.data.tosChat === "unread") { unread = e.data.count || 0; dot.textContent = unread > 9 ? "9+" : unread || ""; dot.hidden = !unread || !panel.hidden; }
+  });
   document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !panel.hidden) set(false); });
   // Load the chat quietly so new replies show a dot even while it is closed.
   setTimeout(function () { if (!panel.firstChild) { var f = document.createElement("iframe"); f.src = src; f.title = "Chat"; f.className = "h-full w-full border-0"; panel.appendChild(f); } }, 1500);

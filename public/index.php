@@ -83,7 +83,7 @@ try {
     }
     if ($path === '/widget.js') public_widget_js();
     if ($path === '/brand/logo') brand_logo_out();
-    if (preg_match('#^/support/([a-z0-9-]+)/chat(?:/(start|send|poll|close|typing|rate))?$#', $path, $m)) {
+    if (preg_match('#^/support/([a-z0-9-]+)/chat(?:/(start|send|poll|close|typing|rate|upload|file))?$#', $path, $m)) {
         $tenant = q_one('SELECT * FROM "Tenant" WHERE "slug" = ?', [$m[1]]);
         if (!$tenant) abort(404);
         public_chat($tenant, $m[2] ?? '');
@@ -148,6 +148,13 @@ try {
     if ($path === '/api/chat/messages' && $method === 'GET') api_chat_messages();
     if ($path === '/api/chat/reply' && $method === 'POST') api_chat_reply();
     if ($path === '/api/chat/action' && $method === 'POST') api_chat_action();
+    if ($path === '/api/chat/upload' && $method === 'POST') api_chat_upload();
+    if ($path === '/api/messenger/list' && $method === 'GET') api_messenger_list();
+    if ($path === '/api/messenger/messages' && $method === 'GET') api_messenger_messages();
+    if ($path === '/api/messenger/start' && $method === 'POST') api_messenger_start();
+    if ($path === '/api/messenger/send' && $method === 'POST') api_messenger_send();
+    if ($path === '/api/messenger/upload' && $method === 'POST') api_messenger_upload();
+    if ($path === '/api/messenger/action' && $method === 'POST') api_messenger_action();
     if ($path === '/reports/export.xlsx' && $method === 'GET') report_export_xlsx();
     if ($path === '/settings/backup.zip' && $method === 'GET') backup_download_now();
     if (preg_match('#^/settings/backups/([A-Za-z0-9._-]+)$#', $path, $m) && $method === 'GET') backup_file_download($m[1]);
@@ -221,6 +228,8 @@ try {
             view('pages/kb_show', ['id' => $m[1]], 'app');
         case $path === '/reports':
             view('pages/reports', [], 'app');
+        case $path === '/messenger':
+            view('pages/messenger', [], 'base');
         case $path === '/widget-preview':
             require SRC . '/views/pages/widget_preview.php';
             throw new HttpExit();

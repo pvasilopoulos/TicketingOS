@@ -42,6 +42,7 @@ $jsIcons = ['bell' => icon('bell', 16), 'x' => icon('x', 15), 'x-sm' => icon('x'
         'icons' => $jsIcons,
     ], JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) ?>;
   </script>
+  <script src="/assets/chatkit.js?v=<?= @filemtime(ROOT . '/public/assets/chatkit.js') ?: 1 ?>"></script>
   <script src="/assets/app.js?v=<?= @filemtime(ROOT . '/public/assets/app.js') ?: 1 ?>" defer></script>
   <script src="/assets/editor.js?v=<?= @filemtime(ROOT . '/public/assets/editor.js') ?: 1 ?>" defer></script>
   <script src="/assets/ticket.js?v=<?= @filemtime(ROOT . '/public/assets/ticket.js') ?: 1 ?>" defer></script>

@@ -78,11 +78,15 @@ $chip = 'inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg
           <span class="flex gap-0.5"><span class="h-1.5 w-1.5 animate-bounce rounded-full bg-muted [animation-delay:-0.3s]"></span><span class="h-1.5 w-1.5 animate-bounce rounded-full bg-muted [animation-delay:-0.15s]"></span><span class="h-1.5 w-1.5 animate-bounce rounded-full bg-muted"></span></span>
           <span data-typing-name></span> is typing…
         </div>
+        <div data-uploads class="space-y-1 bg-surface-2/40 px-4 empty:hidden"></div>
         <form data-chat-reply hidden class="border-t border-border p-3">
           <div class="relative">
             <div data-canned-menu hidden class="absolute bottom-full left-0 z-20 mb-2 max-h-64 w-full max-w-md overflow-y-auto rounded-xl border border-border bg-surface py-1 shadow-xl"></div>
             <div class="flex items-end gap-2 rounded-xl border border-border bg-surface p-1.5 focus-within:ring-2 focus-within:ring-brand/40">
               <button type="button" data-canned-btn class="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-muted hover:bg-surface-2 hover:text-fg cursor-pointer" title="Quick replies (type /)" aria-label="Quick replies"><?= icon('zap', 17) ?></button>
+              <button type="button" data-emoji-btn class="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-muted hover:bg-surface-2 hover:text-fg cursor-pointer" title="Emoji" aria-label="Emoji"><?= icon('smile', 17) ?></button>
+              <button type="button" data-attach-btn class="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-muted hover:bg-surface-2 hover:text-fg cursor-pointer" title="Attach a file (or drop / paste it)" aria-label="Attach a file"><?= icon('paperclip', 17) ?></button>
+              <input type="file" data-file multiple hidden>
               <textarea rows="1" placeholder="Write a reply…" class="max-h-40 min-h-9 flex-1 resize-none border-0 bg-transparent px-1 py-2 text-sm focus:outline-none"></textarea>
               <button type="submit" class="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-brand text-brand-fg hover:opacity-90 cursor-pointer" aria-label="Send"><?= icon('send-horizontal', 17) ?></button>
             </div>
@@ -266,7 +270,7 @@ $chip = 'inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg
       var av = mine ? "" : (group ? '<span class="w-7 shrink-0"></span>' : avatar(curName, "h-7 w-7 text-[10px]"));
       row.innerHTML = av + bubble;
       var b = row.lastChild;
-      b.textContent = m.body;
+      if (m.file) b.innerHTML = window.ChatKit.fileHtml(m.file, "/api/attachments/" + encodeURIComponent(m.file.id), mine); else b.textContent = m.body;
       var meta = document.createElement("div");
       meta.className = "mt-0.5 text-[10px] " + (mine ? "text-right opacity-70" : "text-muted");
       meta.textContent = (mine && m.name ? m.name + " · " : "") + time(m.at);
@@ -393,6 +397,21 @@ $chip = 'inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg
       if (j.error) { toast(j.error, true); ta.value = body; return; }
       loadConv(); loadList();
     }, function () { toast("Network error — your message wasn’t sent", true); ta.value = body; });
+  });
+
+  /* Emoji and files */
+  window.ChatKit.emojiPicker($("[data-emoji-btn]"), ta);
+  window.ChatKit.attach($("[data-attach-btn]"), $("[data-file]"), convPane, function (file) {
+    if (!cur || curStatus !== "open") { toast("Open a live conversation first", true); return; }
+    var box = $("[data-uploads]"), r = document.createElement("div");
+    r.className = "flex items-center gap-2 rounded-lg bg-surface px-3 py-2 text-xs ring-1 ring-border";
+    r.innerHTML = '<span class="min-w-0 flex-1 truncate">' + esc(file.name) + '</span><span class="h-1.5 w-24 overflow-hidden rounded-full bg-surface-2"><span class="block h-full w-0 bg-brand transition-all"></span></span>';
+    box.appendChild(r);
+    window.ChatKit.upload(file, { url: "/api/chat/upload", fields: { id: cur }, csrf: csrf, onProgress: function (p) { r.querySelector(".bg-brand").style.width = Math.round(p * 100) + "%"; } }).then(function (j) {
+      r.remove();
+      if (j.error) { toast(j.error, true); return; }
+      loadConv(); loadList();
+    });
   });
 
   /* Quick replies (canned responses) */
