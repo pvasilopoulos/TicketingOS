@@ -70,6 +70,32 @@ function act_contract_delete(array $in): ?array
     return $n ? ['success' => 'Contract deleted'] : ['error' => 'Contract not found'];
 }
 
+/** Hourly rate of one organization (empty = use the workspace default). */
+function act_org_rate_save(array $in): ?array
+{
+    if (!($ctx = ctx_with('contracts.manage'))) return NOT_ALLOWED;
+    [, $tenantId] = $ctx;
+    $org = q_one('SELECT "id","name" FROM "Organization" WHERE "id" = ? AND "tenantId" = ?', [str_in($in, 'organizationId'), $tenantId]);
+    if (!$org) return ['error' => 'Organization not found'];
+    $raw = str_replace(',', '.', str_in($in, 'hourlyRate'));
+    if ($raw !== '' && (!is_numeric($raw) || (float) $raw < 0 || (float) $raw > 100000)) return ['error' => 'Enter the rate as a number, e.g. 45 or 47.50'];
+    db_update('Organization', ['hourlyRate' => $raw === '' ? null : round((float) $raw, 2)], '"id" = ?', [$org['id']]);
+    $c = billing_settings($tenantId)['currency'];
+    return ['success' => $raw === '' ? "{$org['name']} uses the workspace rate" : "{$org['name']}: " . money((float) $raw, $c) . ' per hour'];
+}
+
+/** Workspace currency and default hourly rate. */
+function act_billing_settings_save(array $in): ?array
+{
+    if (!($ctx = ctx_with('time.manage'))) return NOT_ALLOWED;
+    [, $tenantId] = $ctx;
+    $cur = isset(CURRENCIES[$in['currency'] ?? '']) ? $in['currency'] : 'EUR';
+    $raw = str_replace(',', '.', str_in($in, 'defaultRate'));
+    if ($raw !== '' && (!is_numeric($raw) || (float) $raw < 0)) return ['error' => 'Enter the default rate as a number'];
+    tenant_setting_set($tenantId, 'billing', ['currency' => $cur, 'defaultRate' => $raw === '' ? null : round((float) $raw, 2)]);
+    return ['success' => 'Billing settings saved'];
+}
+
 /** Share a saved view with the team (or make it personal again). */
 function act_view_share(array $in): ?array
 {
@@ -142,16 +168,17 @@ function billing_export_xlsx(): never
     if (!can($user, 'time.manage')) abort(403);
     $month = preg_match('/^\d{4}-\d{2}$/', (string) ($_GET['month'] ?? '')) ? $_GET['month'] : date('Y-m');
     $b = billing_report($tenantId, $month);
-    $rows = [['Organization', 'Tickets', 'Billable (h)', 'Not billable (h)', 'Contract', 'Contract hours', 'Used in contract (h)', 'Left (h)']];
+    $cur = $b['currency'];
+    $rows = [['Organization', 'Tickets', 'Billable (h)', 'Not billable (h)', "Rate ($cur/h)", "Amount ($cur)", 'Contract', 'Contract hours', 'Used in contract (h)', 'Left (h)']];
     foreach ($b['rows'] as $r) {
         $c = $r['contract'];
-        $rows[] = [$r['name'], $r['tickets'], hours_dec($r['billable']), hours_dec($r['other']), $c['name'] ?? '',
+        $rows[] = [$r['name'], $r['tickets'], hours_dec($r['billable']), hours_dec($r['other']), $r['rate'] ?? '', $r['amount'] ?? '', $c['name'] ?? '',
             $c && $c['included'] !== null ? hours_dec($c['included']) : '', $c ? hours_dec($c['used']) : '', $c && $c['left'] !== null ? hours_dec($c['left']) : ''];
     }
-    $rows[] = ['Total', null, hours_dec($b['billable']), hours_dec($b['other'])];
-    $detail = [['Date', 'Organization', 'Ticket', 'Subject', 'Requester', 'Agent', 'Minutes', 'Hours', 'Billable', 'Note']];
+    $rows[] = ['Total', null, hours_dec($b['billable']), hours_dec($b['other']), null, round($b['amount'], 2)];
+    $detail = [['Date', 'Organization', 'Ticket', 'Subject', 'Requester', 'Agent', 'Minutes', 'Hours', 'Billable', "Amount ($cur)", 'Note']];
     foreach ($b['entries'] as $e) {
-        $detail[] = [$e['workedAt'], $e['orgName'], '#' . (int) $e['number'], $e['subject'], $e['requester'], $e['agent'], (int) $e['minutes'], hours_dec((int) $e['minutes']), (int) $e['billable'] ? 'Yes' : 'No', (string) $e['note']];
+        $detail[] = [$e['workedAt'], $e['orgName'], '#' . (int) $e['number'], $e['subject'], $e['requester'], $e['agent'], (int) $e['minutes'], hours_dec((int) $e['minutes']), (int) $e['billable'] ? 'Yes' : 'No', $e['amount'] ?? '', (string) $e['note']];
     }
     audit($tenantId, $user, 'billing-export', "Exported billing for $month", 'report', null);
     xlsx_download('billing-' . $month . '.xlsx', ['Per organization' => $rows, 'Time entries' => $detail]);

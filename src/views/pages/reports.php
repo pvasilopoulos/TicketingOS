@@ -284,13 +284,21 @@ $bar = fn (int $n, int $max, string $color) => '<span class="block h-2 rounded-f
   <div class="mt-6 rounded-xl border border-border bg-surface" id="billing">
     <?= card_header(titled('receipt', 'Time & billing'), '<form method="get" action="/reports#billing" class="flex items-center gap-2" data-no-print><input type="hidden" name="days" value="' . $days . '"><input type="month" name="month" value="' . e($billMonth) . '" onchange="this.form.submit()" class="h-8 rounded-lg border border-border bg-surface px-2 text-sm">'
         . '<a href="/reports/billing.xlsx?month=' . e($billMonth) . '" class="' . btn_cls('outline', 'sm') . '">' . icon('file-spreadsheet', 14) . ' Excel</a></form>') ?>
+    <?php $bs = billing_settings($tenantId); ?>
+    <form method="post" action="/action/billing-settings-save" data-ajax class="flex flex-wrap items-end gap-3 border-b border-border px-5 py-3 text-sm" data-no-print>
+      <?= form_meta() ?>
+      <label class="flex items-center gap-2 text-muted">Currency <select name="currency" class="h-8 rounded-lg border border-border bg-surface px-2 text-fg"><?= select_options(array_combine(array_keys(CURRENCIES), array_map(fn ($k, $s) => "$k ($s)", array_keys(CURRENCIES), CURRENCIES)), $bs['currency']) ?></select></label>
+      <label class="flex items-center gap-2 text-muted">Default rate per hour <input name="defaultRate" inputmode="decimal" value="<?= $bs['defaultRate'] !== null ? e(rtrim(rtrim(number_format($bs['defaultRate'], 2, '.', ''), '0'), '.')) : '' ?>" placeholder="e.g. 40" class="h-8 w-24 rounded-lg border border-border bg-surface px-2 text-fg"></label>
+      <button type="submit" class="<?= btn_cls('outline', 'sm') ?>">Save</button>
+      <span class="text-xs text-muted">Each organization can have its own rate (Settings → Organizations).</span>
+    </form>
     <?php if (!$billing['rows']): ?>
       <p class="px-5 py-8 text-center text-sm text-muted">No time logged in <?= e(date('F Y', strtotime($billing['from']))) ?>. Agents log time from the Time card on a ticket or the “Time spent” box next to Send reply.</p>
     <?php else: ?>
       <div class="overflow-x-auto">
         <table class="w-full min-w-[40rem] text-sm">
           <thead><tr class="border-b border-border text-left text-xs text-muted">
-            <th class="px-5 py-2.5 font-medium">Organization</th><th class="px-3 py-2.5 text-right font-medium">Tickets</th><th class="px-3 py-2.5 text-right font-medium">Billable</th><th class="px-3 py-2.5 text-right font-medium">Not billable</th><th class="px-5 py-2.5 font-medium">Contract</th>
+            <th class="px-5 py-2.5 font-medium">Organization</th><th class="px-3 py-2.5 text-right font-medium">Tickets</th><th class="px-3 py-2.5 text-right font-medium">Billable</th><th class="px-3 py-2.5 text-right font-medium">Not billable</th><th class="px-3 py-2.5 text-right font-medium">Rate</th><th class="px-3 py-2.5 text-right font-medium">Amount</th><th class="px-5 py-2.5 font-medium">Contract</th>
           </tr></thead>
           <tbody class="divide-y divide-border">
             <?php foreach ($billing['rows'] as $br): $bc = $br['contract']; ?>
@@ -299,10 +307,12 @@ $bar = fn (int $n, int $max, string $color) => '<span class="block h-2 rounded-f
                 <td class="px-3 py-2.5 text-right tabular-nums"><?= (int) $br['tickets'] ?></td>
                 <td class="px-3 py-2.5 text-right font-semibold tabular-nums"><?= e(fmt_minutes($br['billable'])) ?></td>
                 <td class="px-3 py-2.5 text-right tabular-nums text-muted"><?= $br['other'] ? e(fmt_minutes($br['other'])) : '—' ?></td>
+                <td class="px-3 py-2.5 text-right tabular-nums text-muted"><?= $br['rate'] !== null ? e(money($br['rate'], $billing['currency'])) . '/h' : '<a href="/settings?org=' . e($br['id']) . '#orgs" class="text-xs text-brand">set</a>' ?></td>
+                <td class="px-3 py-2.5 text-right font-semibold tabular-nums"><?= $br['amount'] !== null ? e(money($br['amount'], $billing['currency'])) : '—' ?></td>
                 <td class="px-5 py-2.5 text-xs"><?php if ($bc): ?><span class="font-medium"><?= e($bc['name']) ?></span> · <?= $bc['included'] !== null ? ($bc['left'] >= 0 ? e(fmt_minutes($bc['left'])) . ' left' : '<span class="font-medium text-red-600 dark:text-red-400">over by ' . e(fmt_minutes(-$bc['left'])) . '</span>') : 'unlimited' ?><?php else: ?><span class="text-muted">—</span><?php endif; ?></td>
               </tr>
             <?php endforeach; ?>
-            <tr class="bg-surface-2/50 font-semibold"><td class="px-5 py-2.5">Total</td><td></td><td class="px-3 py-2.5 text-right tabular-nums"><?= e(fmt_minutes($billing['billable'])) ?></td><td class="px-3 py-2.5 text-right tabular-nums"><?= e(fmt_minutes($billing['other'])) ?></td><td></td></tr>
+            <tr class="bg-surface-2/50 font-semibold"><td class="px-5 py-2.5">Total</td><td></td><td class="px-3 py-2.5 text-right tabular-nums"><?= e(fmt_minutes($billing['billable'])) ?></td><td class="px-3 py-2.5 text-right tabular-nums"><?= e(fmt_minutes($billing['other'])) ?></td><td></td><td class="px-3 py-2.5 text-right tabular-nums"><?= e(money($billing['amount'], $billing['currency'])) ?></td><td></td></tr>
           </tbody>
         </table>
       </div>

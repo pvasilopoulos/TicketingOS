@@ -1,5 +1,5 @@
 <?php
-/** Support contracts of one organization (inside Settings → Organizations). @var array $sel @var array $me */
+/** Support contracts and hourly rate of one organization (inside Settings → Organizations). @var array $sel @var array $me @var string $tenantId */
 $contracts = org_contracts($sel['id']);
 $canEdit = can($me, 'contracts.manage');
 if (!$contracts && !$canEdit) return;
@@ -26,6 +26,18 @@ $contractForm = function (?array $c) use ($sel): string {
     <p class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted"><?= icon('file-text', 13) ?> Support contracts</p>
     <?php if ($canEdit): ?><button type="button" data-toggle-target="#contract-new" class="<?= btn_cls('outline', 'sm') ?>"><?= icon('plus', 13) ?> New contract</button><?php endif; ?>
   </div>
+  <?php $bset = billing_settings($tenantId); $ownRate = $sel['hourlyRate'] ?? null; ?>
+  <?php if ($canEdit): ?>
+    <form method="post" action="/action/org-rate-save" data-ajax class="mb-4 flex flex-wrap items-end gap-3 rounded-xl border border-border p-4">
+      <?= form_meta() ?><input type="hidden" name="organizationId" value="<?= e($sel['id']) ?>">
+      <div><label class="<?= LABEL_CLS ?>">Hourly rate (<?= e(CURRENCIES[$bset['currency']]) ?> per hour)</label>
+        <input name="hourlyRate" inputmode="decimal" value="<?= $ownRate !== null && $ownRate !== '' ? e(rtrim(rtrim(number_format((float) $ownRate, 2, '.', ''), '0'), '.')) : '' ?>" placeholder="<?= $bset['defaultRate'] !== null ? 'Workspace rate: ' . e(money($bset['defaultRate'], $bset['currency'])) : 'e.g. 45' ?>" class="<?= INPUT_CLS ?> w-48"></div>
+      <button type="submit" class="<?= btn_cls('outline', 'sm') ?>">Save rate</button>
+      <p class="w-full text-xs text-muted">Billable time on this organization’s tickets is charged at this rate in Reports → Time &amp; billing and the Excel export. Empty = the workspace default rate.</p>
+    </form>
+  <?php elseif ($ownRate !== null && $ownRate !== ''): ?>
+    <p class="mb-3 text-sm">Hourly rate: <strong><?= e(money((float) $ownRate, $bset['currency'])) ?></strong></p>
+  <?php endif; ?>
   <?php if ($canEdit): ?><div id="contract-new" class="mb-4 rounded-xl border border-dashed border-border p-4" <?= $contracts ? 'hidden' : '' ?>><?= $contractForm(null) ?></div><?php endif; ?>
   <?php if (!$contracts): ?><p class="text-sm text-muted">No contract yet — add one to track an hour bank and give this organization its own response times.</p><?php endif; ?>
   <div class="space-y-3">

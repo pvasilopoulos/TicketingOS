@@ -493,6 +493,7 @@ CREATE TABLE IF NOT EXISTS `Organization` (
   `domain` varchar(191) DEFAULT NULL,
   `notes` mediumtext DEFAULT NULL,
   `createdAt` varchar(30) NOT NULL,
+  `hourlyRate` decimal(10,2) DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `tenantId` (`tenantId`,`name`),
   KEY `Organization_tenant_domain_idx` (`tenantId`,`domain`),

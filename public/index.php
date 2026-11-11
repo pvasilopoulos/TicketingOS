@@ -26,7 +26,7 @@ $ACTIONS = [
     'ticket-create' => 'act_ticket_create', 'ticket-update' => 'act_ticket_update', 'ticket-bulk' => 'act_ticket_bulk',
     'comment-add' => 'act_comment_add', 'comment-edit' => 'act_comment_edit', 'comment-delete' => 'act_comment_delete', 'comment-pin' => 'act_comment_pin',
     'attachment-delete' => 'act_attachment_delete', 'signature-save' => 'act_signature_save',
-    'kb-from-ticket' => 'act_kb_from_ticket', 'person-erase' => 'act_person_erase', 'chat-settings-save' => 'act_chat_settings_save', 'backup-settings-save' => 'act_backup_settings_save', 'time-add' => 'act_time_add', 'time-delete' => 'act_time_delete', 'contract-save' => 'act_contract_save', 'contract-delete' => 'act_contract_delete', 'view-share' => 'act_view_share',
+    'kb-from-ticket' => 'act_kb_from_ticket', 'person-erase' => 'act_person_erase', 'chat-settings-save' => 'act_chat_settings_save', 'backup-settings-save' => 'act_backup_settings_save', 'time-add' => 'act_time_add', 'org-rate-save' => 'act_org_rate_save', 'billing-settings-save' => 'act_billing_settings_save', 'time-delete' => 'act_time_delete', 'contract-save' => 'act_contract_save', 'contract-delete' => 'act_contract_delete', 'view-share' => 'act_view_share',
     'attachment-settings-save' => 'act_attachment_settings_save', 'ai-settings-save' => 'act_ai_settings_save', 'ai-test' => 'act_ai_test',
     'watcher-add' => 'act_watcher_add', 'watcher-role' => 'act_watcher_role', 'watcher-remove' => 'act_watcher_remove',
     'ticket-tag-add' => 'act_ticket_tag_add', 'ticket-tag-remove' => 'act_ticket_tag_remove',

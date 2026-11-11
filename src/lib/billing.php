@@ -51,6 +51,49 @@ function add_time_entry(string $tenantId, string $ticketId, string $userId, int 
     ]);
 }
 
+/* ---------- Hourly rates ---------- */
+
+const CURRENCIES = ['EUR' => '€', 'USD' => '$', 'GBP' => '£', 'CHF' => 'CHF', 'RON' => 'lei', 'BGN' => 'лв'];
+
+/** Workspace currency and the rate used when an organization has none. */
+function billing_settings(string $tenantId): array
+{
+    $s = tenant_setting($tenantId, 'billing', []);
+    $cur = isset(CURRENCIES[$s['currency'] ?? '']) ? $s['currency'] : 'EUR';
+    $rate = isset($s['defaultRate']) && $s['defaultRate'] !== null && $s['defaultRate'] !== '' ? (float) $s['defaultRate'] : null;
+    return ['currency' => $cur, 'defaultRate' => $rate];
+}
+
+/** Hourly rate of an organization (its own, else the workspace default; null = none set). */
+function org_hourly_rate(string $tenantId, ?string $orgId): ?float
+{
+    if ($orgId) {
+        $r = q_val('SELECT "hourlyRate" FROM "Organization" WHERE "id" = ? AND "tenantId" = ?', [$orgId, $tenantId]);
+        if ($r !== null && $r !== '') return (float) $r;
+    }
+    return billing_settings($tenantId)['defaultRate'];
+}
+
+/** "1.234,50 €" (Greek style for the euro, symbol first otherwise). */
+function money(float $amount, string $currency): string
+{
+    $sym = CURRENCIES[$currency] ?? $currency;
+    $n = number_format($amount, 2, ',', '.');
+    return in_array($currency, ['USD', 'GBP'], true) ? $sym . $n : $n . ' ' . $sym;
+}
+
+/** Amount for minutes at a rate. */
+function minutes_amount(int $minutes, ?float $rate): ?float
+{
+    return $rate === null ? null : round($minutes / 60 * $rate, 2);
+}
+
+/** The organization a ticket is billed to (the requester's first one). */
+function ticket_billing_org(array $ticket): ?string
+{
+    return q_val('SELECT "organizationId" FROM "UserOrganization" WHERE "userId" = ? ORDER BY "organizationId" LIMIT 1', [$ticket['requesterId']]) ?: null;
+}
+
 /* ---------- Contracts ---------- */
 
 function org_contracts(string $orgId): array
@@ -189,16 +232,26 @@ function billing_report(string $tenantId, string $month): array
         $rows[$oid]['tickets'][$e['ticketId']] = true;
     }
     unset($e);
+    $cfg = billing_settings($tenantId);
+    $rates = [];
+    foreach ($entries as &$e) {
+        $rates[$e['orgId']] ??= org_hourly_rate($tenantId, $e['orgId'] ?: null);
+        $e['amount'] = (int) $e['billable'] ? minutes_amount((int) $e['minutes'], $rates[$e['orgId']]) : null;
+    }
+    unset($e);
     foreach ($rows as $oid => &$r) {
         $r['tickets'] = count($r['tickets']);
+        $r['rate'] = $rates[$oid] ?? org_hourly_rate($tenantId, $oid ?: null);
+        $r['amount'] = minutes_amount($r['billable'], $r['rate']);
         if ($oid !== '') {
             foreach (org_contracts($oid) as $c) if (contract_is_current($c)) { $r['contract'] = ['name' => $c['name']] + contract_state($c); break; }
         }
     }
     unset($r);
     uasort($rows, fn ($a, $b) => $b['billable'] <=> $a['billable']);
-    return ['from' => $from, 'to' => $to, 'rows' => $rows, 'entries' => $entries,
-        'billable' => array_sum(array_column($rows, 'billable')), 'other' => array_sum(array_column($rows, 'other'))];
+    return ['from' => $from, 'to' => $to, 'rows' => $rows, 'entries' => $entries, 'currency' => $cfg['currency'],
+        'billable' => array_sum(array_column($rows, 'billable')), 'other' => array_sum(array_column($rows, 'other')),
+        'amount' => array_sum(array_map(fn ($r) => (float) ($r['amount'] ?? 0), $rows))];
 }
 
 /* ---------- Excel (.xlsx) without libraries ---------- */

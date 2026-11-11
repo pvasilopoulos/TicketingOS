@@ -163,7 +163,7 @@ function ts(?string $iso): ?float
  * (hosts like Plesk often have no shell for bin/migrate.php). A marker file in
  * storage/ keeps this to one cheap check per request.
  */
-const RUNTIME_SCHEMA_VERSION = 6;
+const RUNTIME_SCHEMA_VERSION = 7;
 
 /** Does a table have a column? (works for SQLite and MySQL/MariaDB) */
 function db_column_exists(string $table, string $col): bool
@@ -190,6 +190,7 @@ function ensure_runtime_schema(): void
         runtime_schema_v4();
         runtime_schema_v5();
         runtime_schema_v6();
+        db_add_column('Organization', 'hourlyRate', 'DECIMAL(10,2) NULL', 'REAL');
         @file_put_contents($marker, $sig);
     } catch (Throwable $e) {
         error_log('[schema] ' . $e->getMessage());

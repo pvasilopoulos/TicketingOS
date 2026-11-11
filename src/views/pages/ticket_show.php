@@ -77,6 +77,9 @@ $mySignature = $staff ? user_signature($user) : '';
 $canUpload = $staff || $attRules['customerUploads'];
 $canLogTime = $staff && can($user, 'time.log');
 $timeInfo = $staff ? ticket_time($ticket['id']) : null;
+$billOrg = $staff ? ticket_billing_org($ticket) : null;
+$billRate = $staff ? org_hourly_rate($tenantId, $billOrg) : null;
+$billCur = $staff ? billing_settings($tenantId)['currency'] : 'EUR';
 $contract = $staff ? requester_contract($tenantId, $ticket['requesterId']) : null;
 $contractState = $contract ? contract_state($contract) : null;
 $orgHasContracts = $staff && !$contract && $requesterOrgs ? (bool) q_val('SELECT 1 FROM "Contract" WHERE "organizationId" IN (' . in_ph(array_column($requesterOrgs, 'id')) . ') LIMIT 1', array_column($requesterOrgs, 'id')) : false;
@@ -746,7 +749,7 @@ $row = fn (string $label, string $valueHtml) => '<div class="flex items-center j
       <div class="rounded-xl border border-border bg-surface" data-time-card data-ticket="<?= e($ticket['id']) ?>">
         <?= card_header(titled('clock', 'Time'), $ti['total'] ? '<span class="text-sm font-semibold tabular-nums">' . e(fmt_minutes($ti['total'])) . '</span>' : '') ?>
         <?php if ($ti['total']): ?>
-          <p class="border-b border-border px-5 py-2 text-xs text-muted"><?= e(fmt_minutes($ti['billable'])) ?> billable<?= $ti['other'] ? ' · ' . e(fmt_minutes($ti['other'])) . ' not billable' : '' ?></p>
+          <p class="border-b border-border px-5 py-2 text-xs text-muted"><?= e(fmt_minutes($ti['billable'])) ?> billable<?= $billRate !== null && $ti['billable'] ? ' = <span class="font-semibold text-fg">' . e(money(minutes_amount($ti['billable'], $billRate), $billCur)) . '</span> at ' . e(money($billRate, $billCur)) . '/h' : '' ?><?= $ti['other'] ? ' · ' . e(fmt_minutes($ti['other'])) . ' not billable' : '' ?></p>
         <?php endif; ?>
         <?php if ($canLogTime): ?>
           <form method="post" action="/action/time-add" data-ajax class="space-y-2.5 p-4">

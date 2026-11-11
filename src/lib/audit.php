@@ -37,7 +37,7 @@ const AUDITED_ACTIONS = [
     'field-save' => ['settings', 'Saved a ticket field'], 'field-delete' => ['settings', 'Deleted a ticket field'],
     'csat-settings' => ['settings', 'Changed satisfaction surveys'],
     'attachment-settings-save' => ['settings', 'Changed attachment settings'], 'ai-settings-save' => ['settings', 'Changed the AI assistant'],
-    'attachment-delete' => ['tickets', 'Deleted a file'], 'contract-save' => ['users', 'Saved a support contract'], 'contract-delete' => ['users', 'Deleted a support contract'],
+    'attachment-delete' => ['tickets', 'Deleted a file'], 'contract-save' => ['users', 'Saved a support contract'], 'org-rate-save' => ['users', 'Changed an hourly rate'], 'billing-settings-save' => ['settings', 'Changed billing settings'], 'contract-delete' => ['users', 'Deleted a support contract'],
     'time-delete' => ['tickets', 'Deleted a time entry'], 'backup-settings-save' => ['settings', 'Changed automatic backups'], 'chat-settings-save' => ['settings', 'Changed live chat'], 'comment-delete' => ['tickets', 'Deleted a message'],
     'kb-save' => ['content', 'Saved an article'], 'kb-delete' => ['content', 'Deleted an article'],
     // Integrations
