@@ -235,6 +235,8 @@ try {
             throw new HttpExit();
         case $path === '/chat':
             view('pages/chat', [], 'app');
+        case $path === '/about':
+            view('pages/about', [], 'app');
         case $path === '/notifications':
             view('pages/notifications', [], 'app');
 

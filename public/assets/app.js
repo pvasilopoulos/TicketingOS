@@ -819,7 +819,7 @@
 
   /* ---------- toasts + realtime (SSE) ---------- */
 
-  function toast(message, url, isError) {
+  function toast(message, url, isError, ms) {
     var host = $("[data-toasts]");
     if (!host) {
       host = document.createElement("div");
@@ -837,9 +837,19 @@
     el.children[1].addEventListener("click", function () { if (url) location.href = url; el.remove(); });
     el.children[2].addEventListener("click", function () { el.remove(); });
     host.appendChild(el);
-    setTimeout(function () { el.remove(); }, 6000);
+    setTimeout(function () { el.remove(); }, ms || 6000);
   }
   window.TOS.toast = toast;
+
+  // After an update, staff see once which version they're on now, with a link to what's new.
+  document.addEventListener("DOMContentLoaded", function () {
+    if (!APP.whatsNew || !APP.version || location.pathname === "/about") { try { if (APP.version) localStorage.setItem("tos-seen-version", APP.version); } catch (e) {} return; }
+    var seen = null;
+    try { seen = localStorage.getItem("tos-seen-version"); } catch (e) { return; }
+    if (seen === APP.version) return;
+    try { localStorage.setItem("tos-seen-version", APP.version); } catch (e) {}
+    setTimeout(function () { toast("Updated to v" + APP.version + " — see what’s new", "/about", false, 15000); }, 1200);
+  });
 
   function startRealtime() {
     if (!$("[data-realtime]") || !window.EventSource) return;

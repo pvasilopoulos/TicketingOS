@@ -40,6 +40,8 @@ $jsIcons = ['bell' => icon('bell', 16), 'x' => icon('x', 15), 'x-sm' => icon('x'
         'csrf' => csrf_token(),
         'vapidKey' => vapid_configured() ? env('VAPID_PUBLIC_KEY') : '',
         'icons' => $jsIcons,
+        'version' => APP_VERSION,
+        'whatsNew' => ($cu = current_user()) && is_staff($cu['role']),
     ], JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) ?>;
   </script>
   <script src="/assets/chatkit.js?v=<?= @filemtime(ROOT . '/public/assets/chatkit.js') ?: 1 ?>"></script>

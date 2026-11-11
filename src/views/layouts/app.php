@@ -50,7 +50,8 @@ $sidebar = function (bool $drawer = false) use ($nav, $isActive, $tenantName, $i
     $h .= '</nav>';
     // Install-app entry (shown by app.js when the browser offers it).
     $h .= '<div class="px-3 pb-2"><button type="button" data-install-app hidden class="flex w-full items-center gap-3 rounded-lg border border-dashed border-brand/40 px-3 py-2.5 text-sm font-medium text-brand hover:bg-brand/5 cursor-pointer">' . icon('smartphone', 18) . 'Install app</button></div>';
-    $h .= '<div class="border-t border-border p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"><p class="px-3 text-xs text-muted">' . ($isStaffUser ? 'Agent workspace' : 'Customer portal') . '</p></div></aside>';
+    $h .= '<div class="border-t border-border p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"><a href="/about" title="About &amp; what’s new" class="flex items-center justify-between gap-2 rounded-lg px-3 py-1.5 text-xs text-muted hover:bg-surface-2 hover:text-fg">'
+        . '<span>' . ($isStaffUser ? 'Agent workspace' : 'Customer portal') . '</span><span class="rounded-full bg-surface-2 px-2 py-0.5 font-mono text-[10px]">v' . e(APP_VERSION) . '</span></a></div></aside>';
     return $h;
 };
 

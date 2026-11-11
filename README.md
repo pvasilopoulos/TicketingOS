@@ -172,6 +172,12 @@ MariaDB 13, 33 tenants / 35,012 tickets / ~70,000 replies, one tenant with 20,00
 | Sorted list (priority / due) | ~0.10 s |
 | Reports, 30 days / 12 months | ~0.10 s / ~0.34 s |
 
+## Versions
+
+The running version is in the `VERSION` file and shows at the bottom of the menu; click it for **About & what’s new** (release notes from `CHANGELOG.md`, plus database schema, PHP and database versions for admins). After an update, staff see a one-time “what’s new” notice. Releases are tagged `vX.Y.Z` on GitHub.
+
+To release: bump `VERSION` (major = manual steps needed, minor = new features, patch = fixes), add a section at the top of `CHANGELOG.md`, commit and tag `vX.Y.Z`. Database changes need no manual step — they run automatically on the first request after the update.
+
 ## Large workspaces
 
 Tested locally with a workspace of **20,000 tickets, 70,000 messages, 2,000 users, 300 organizations and 6,000 chats (60,000 chat messages)**: ticket list ~70 ms, dashboard ~100 ms, reports and settings ~200 ms, live chat polling ~50 ms. What keeps it fast:
