@@ -191,7 +191,7 @@ function ts(?string $iso): ?float
  * (hosts like Plesk often have no shell for bin/migrate.php). A marker file in
  * storage/ keeps this to one cheap check per request.
  */
-const RUNTIME_SCHEMA_VERSION = 10;
+const RUNTIME_SCHEMA_VERSION = 11;
 
 /** Does a table have a column? (works for SQLite and MySQL/MariaDB) */
 function db_column_exists(string $table, string $col): bool
@@ -236,10 +236,18 @@ function ensure_runtime_schema(): void
         db_add_index('Attachment', 'Attachment_chat_idx', ['chatSessionId']);
         db_add_index('Ticket', 'Ticket_tenant_assignee_idx', ['tenantId', 'assigneeId', 'status']);
         db_add_index('Notification', 'Notification_user_tenant_read_idx', ['userId', 'tenantId', 'read']);
+        runtime_schema_v11();
         @file_put_contents($marker, $sig);
     } catch (Throwable $e) {
         error_log('[schema] ' . $e->getMessage());
     }
+}
+
+/** v11: AI assistant for customers, SMS / Viber / WhatsApp, invoices. */
+function runtime_schema_v11(): void
+{
+    db_add_column('ChatSession', 'aiActive', 'INT NOT NULL DEFAULT 0', 'INTEGER NOT NULL DEFAULT 0');
+    db_add_column('ChatSession', 'handoffAt', 'VARCHAR(30) NULL', 'TEXT');
 }
 
 /** Add an index if it's missing (MySQL/MariaDB and SQLite). */

@@ -276,16 +276,17 @@ function ai_available(array $user, string $tenantId): bool
  * One Messages API request. Returns ['ok' => true, 'text' => …] or ['ok' => false, 'error' => …].
  * Raw HTTP on purpose: the app has no Composer dependencies, so it deploys with a plain git pull.
  */
-function ai_complete(string $tenantId, string $system, string $prompt, string $effort = 'low', int $maxTokens = 16000, ?array $schema = null): array
+function ai_complete(string $tenantId, string $system, string $prompt, string $effort = 'low', int $maxTokens = 16000, ?array $schema = null, ?array $messages = null, ?string $model = null): array
 {
     $s = ai_settings($tenantId);
+    if ($model && isset(AI_MODELS[$model])) $s['model'] = $model;
     if ($s['apiKey'] === '') return ['ok' => false, 'error' => 'The AI assistant has no API key yet (Settings → Integrations).'];
     if (!function_exists('curl_init')) return ['ok' => false, 'error' => 'The PHP curl extension is required for the AI assistant.'];
     $body = [
         'model' => $s['model'],
         'max_tokens' => $maxTokens,
         'system' => $system,
-        'messages' => [['role' => 'user', 'content' => $prompt]],
+        'messages' => $messages ?? [['role' => 'user', 'content' => $prompt]],
         'output_config' => ['effort' => $effort] + ($schema ? ['format' => ['type' => 'json_schema', 'schema' => $schema]] : []),
     ];
     $headers = ['Content-Type: application/json', 'x-api-key: ' . $s['apiKey'], 'anthropic-version: 2026-10-21'];
@@ -294,7 +295,8 @@ function ai_complete(string $tenantId, string $system, string $prompt, string $e
         $body['fallbacks'] = 'default';
         $headers[] = 'anthropic-beta: server-side-fallback-2026-07-01';
     }
-    $ch = curl_init('https://api.anthropic.com/v1/messages');
+    // ANTHROPIC_BASE_URL in .env: a company proxy or gateway (default: Anthropic's API).
+    $ch = curl_init(rtrim((string) env('ANTHROPIC_BASE_URL', 'https://api.anthropic.com'), '/') . '/v1/messages');
     curl_setopt_array($ch, [
         CURLOPT_POST => true, CURLOPT_RETURNTRANSFER => true, CURLOPT_HTTPHEADER => $headers,
         CURLOPT_POSTFIELDS => json_encode($body, JSON_UNESCAPED_UNICODE), CURLOPT_TIMEOUT => 120, CURLOPT_CONNECTTIMEOUT => 10,

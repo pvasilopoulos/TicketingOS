@@ -48,6 +48,7 @@ $iconBtn = 'grid h-9 w-9 shrink-0 place-items-center rounded-lg cursor-pointer';
       <button type="button" data-back class="<?= $iconBtn ?> text-muted hover:bg-surface-2" aria-label="Back"><?= icon('arrow-left', 17) ?></button>
       <span data-t-avatar class="grid h-9 w-9 shrink-0 place-items-center rounded-full text-xs font-semibold text-white"></span>
       <div class="min-w-0 flex-1"><p class="truncate text-sm font-semibold" data-t-name></p><p class="truncate text-xs text-muted" data-t-sub></p></div>
+      <button type="button" data-human hidden class="flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium hover:bg-surface-2 cursor-pointer"><?= icon('headset', 13) ?> Talk to a person</button>
       <button type="button" data-end hidden class="rounded-lg px-2.5 py-1.5 text-xs font-medium text-red-600 hover:bg-red-500/10 cursor-pointer">End</button>
     </header>
     <div data-log class="min-h-0 flex-1 overflow-y-auto bg-surface-2/40 px-3 py-3" aria-live="polite"></div>
@@ -94,8 +95,9 @@ $iconBtn = 'grid h-9 w-9 shrink-0 place-items-center rounded-lg cursor-pointer';
   function shortTime(iso) { return dayKey(iso) === dayKey(new Date().toISOString()) ? time(iso) : new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short" }); }
   function initials(n) { var p = String(n || "?").trim().split(/\s+/); return ((p[0] || "?")[0] + (p.length > 1 ? p[p.length - 1][0] : "")).toUpperCase(); }
   function color(p) { if (p && p.color) return p.color; var s = p ? p.name : "", h = 0; for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 360; return "hsl(" + h + " 55% 48%)"; }
-  function avatar(p, cls) { if (!p || !p.id) return '<span class="grid ' + (cls || "h-10 w-10") + ' shrink-0 place-items-center rounded-full bg-brand/10 text-brand">' + HEADSET + '</span>'; return '<span class="grid ' + (cls || "h-10 w-10") + ' shrink-0 place-items-center rounded-full text-xs font-semibold text-white" style="background:' + esc(color(p)) + '">' + esc(initials(p.name)) + "</span>"; }
-  var roleCls = { "Super admin": "bg-amber-500/15 text-amber-700 dark:text-amber-300", "Admin": "bg-indigo-500/10 text-indigo-700 dark:text-indigo-300", "Support": "bg-sky-500/10 text-sky-700 dark:text-sky-300", "Agent": "bg-sky-500/10 text-sky-700 dark:text-sky-300", "Colleague": "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" };
+  var SPARK = <?= json_encode(icon('sparkles', 18)) ?>;
+  function avatar(p, cls) { if (p && p.ai) return '<span class="grid ' + (cls || "h-10 w-10") + ' shrink-0 place-items-center rounded-full bg-gradient-to-br from-violet-500 to-brand text-white">' + SPARK + '</span>'; if (!p || !p.id) return '<span class="grid ' + (cls || "h-10 w-10") + ' shrink-0 place-items-center rounded-full bg-brand/10 text-brand">' + HEADSET + '</span>'; return '<span class="grid ' + (cls || "h-10 w-10") + ' shrink-0 place-items-center rounded-full text-xs font-semibold text-white" style="background:' + esc(color(p)) + '">' + esc(initials(p.name)) + "</span>"; }
+  var roleCls = { "Super admin": "bg-amber-500/15 text-amber-700 dark:text-amber-300", "Admin": "bg-indigo-500/10 text-indigo-700 dark:text-indigo-300", "Support": "bg-sky-500/10 text-sky-700 dark:text-sky-300", "Agent": "bg-sky-500/10 text-sky-700 dark:text-sky-300", "Colleague": "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300", "AI": "bg-violet-500/10 text-violet-700 dark:text-violet-300" };
   function role(r) { return r ? '<span class="rounded-full px-1.5 py-0.5 text-[10px] font-medium ' + (roleCls[r] || "bg-surface-2 text-muted") + '">' + esc(r) + "</span>" : ""; }
 
   function get(u) { return fetch(u, { credentials: "same-origin", headers: { Accept: "application/json" } }).then(function (r) { return r.json(); }); }
@@ -127,7 +129,7 @@ $iconBtn = 'grid h-9 w-9 shrink-0 place-items-center rounded-lg cursor-pointer';
   function loadList() {
     return get("/api/messenger/list").then(function (j) {
       if (j.error) return;
-      state.items = j.items || []; state.groups = j.groups || [];
+      state.items = j.items || []; state.groups = j.groups || []; state.ai = j.ai || null;
       tell({ tosChat: "unread", count: j.unread || 0 });
       if (state.screen === "home") renderList();
     });
@@ -144,6 +146,7 @@ $iconBtn = 'grid h-9 w-9 shrink-0 place-items-center rounded-lg cursor-pointer';
         '<span class="min-w-0 flex-1"><span class="block truncate text-sm font-medium">' + esc(p.name) + '</span><span class="block truncate text-xs text-muted">' + esc(sub || "") + "</span></span>" + role(p.role) + "</button>";
     };
     var html = "";
+    if (state.ai && (!q || fold(state.ai.name + " ai assistant").indexOf(q) !== -1)) html += '<div class="px-2 pt-3"><div class="overflow-hidden rounded-xl border border-violet-500/30 bg-violet-500/5">' + row({ id: "ai", name: state.ai.name, role: "AI", ai: true }, "Instant answers, day and night") + "</div></div>";
     if (!q || fold("anyone available support team").indexOf(q) !== -1) html += '<div class="px-2 pt-3"><div class="overflow-hidden rounded-xl border border-brand/30 bg-brand/5">' + row({ id: "", name: "Anyone available" }, "The first free person on the support team answers") + "</div></div>";
     state.groups.forEach(function (g) {
       var ps = g.people.filter(function (p) { return !q || fold(p.name).indexOf(q) !== -1; });
@@ -155,7 +158,7 @@ $iconBtn = 'grid h-9 w-9 shrink-0 place-items-center rounded-lg cursor-pointer';
   $("[data-people-search]").addEventListener("input", renderPeople);
   people.addEventListener("click", function (e) {
     var b = e.target.closest("[data-to]"); if (!b) return;
-    var id = b.getAttribute("data-to"), p = { id: "", name: "Anyone available", role: "" };
+    var id = b.getAttribute("data-to"), p = id === "ai" && state.ai ? { id: "ai", name: state.ai.name, role: "AI", ai: true } : { id: "", name: "Anyone available", role: "" };
     state.groups.forEach(function (g) { g.people.forEach(function (x) { if (x.id === id) p = x; }); });
     startDraft(p);
   });
@@ -172,9 +175,9 @@ $iconBtn = 'grid h-9 w-9 shrink-0 place-items-center rounded-lg cursor-pointer';
     show("thread");
     resetLog();
     state.target = p; state.other = p;
-    header(p, p.id ? role(p.role) : "We usually answer within a few minutes");
+    header(p, p.ai ? "Answers in seconds" : p.id ? role(p.role) : "We usually answer within a few minutes");
     log.innerHTML = '<div class="m-auto flex h-full max-w-[16rem] flex-col items-center justify-center text-center">' + avatar(p, "h-14 w-14 text-base") +
-      '<p class="mt-2 text-sm font-semibold">' + esc(p.name) + '</p><p class="mt-1 text-xs text-muted">' + (p.role === "Colleague" ? "Only the two of you see this conversation." : "Write your message below — we’ll reply right here.") + "</p></div>";
+      '<p class="mt-2 text-sm font-semibold">' + esc(p.name) + '</p><p class="mt-1 text-xs text-muted">' + (p.ai ? "Ask anything — how-to questions, errors, your tickets. You can talk to a person at any time." : p.role === "Colleague" ? "Only the two of you see this conversation." : "Write your message below — we’ll reply right here.") + "</p></div>";
     compose.hidden = false; $("[data-ended]").hidden = true; $("[data-end]").hidden = true; $("[data-typing]").hidden = true;
     ta.focus();
   }
@@ -236,6 +239,7 @@ $iconBtn = 'grid h-9 w-9 shrink-0 place-items-center rounded-lg cursor-pointer';
       $("[data-typing-name]").textContent = j.other.name.split(" ")[0];
       $("[data-typing]").hidden = !(open && j.typing);
       compose.hidden = !open; $("[data-ended]").hidden = open; $("[data-end]").hidden = !open;
+      $("[data-human]").hidden = !(open && j.ai);
       $("[data-rate]").hidden = !j.canRate || state.rated;
       $("[data-ended-text]").textContent = j.kind === "peer" ? "This conversation has ended." : "This chat has ended — it’s saved as a ticket.";
       if (open) state.timer = setTimeout(poll, document.hidden ? 10000 : 3000);
@@ -262,9 +266,11 @@ $iconBtn = 'grid h-9 w-9 shrink-0 place-items-center rounded-lg cursor-pointer';
     var body = ta.value.trim(); if (!body) return;
     ta.value = ""; ta.style.height = "";
     if (!state.cur) {
+      if (state.target && state.target.ai) { log.innerHTML = ""; add({ id: "draft", sender: "visitor", mine: true, body: body, at: new Date().toISOString() }); $("[data-typing-name]").textContent = state.target.name; $("[data-typing]").hidden = false; }
       ensureStarted(body).then(function () { poll(); loadList(); }, function (err) { ta.value = body; note(err.message); });
       return;
     }
+    if (state.other && state.other.ai) { $("[data-typing-name]").textContent = state.other.name; $("[data-typing]").hidden = false; log.scrollTop = log.scrollHeight; }
     post("/api/messenger/send", { id: state.cur, body: body }).then(function (j) {
       if (j.error) { ta.value = body; note(j.error); return; }
       poll();
@@ -283,6 +289,11 @@ $iconBtn = 'grid h-9 w-9 shrink-0 place-items-center rounded-lg cursor-pointer';
       row.remove();
       if (j.error) note(j.error); else { poll(); loadList(); }
     }, function (err) { row.remove(); note(err.message); });
+  });
+  $("[data-human]").addEventListener("click", function () {
+    if (!state.cur) return;
+    var b = $("[data-human]"); b.disabled = true;
+    post("/api/messenger/action", { id: state.cur, op: "human" }).then(function () { b.disabled = false; poll(); loadList(); });
   });
   $("[data-end]").addEventListener("click", function () {
     if (!state.cur || !confirm("End this conversation?")) return;

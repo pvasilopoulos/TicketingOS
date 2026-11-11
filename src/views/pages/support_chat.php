@@ -14,6 +14,7 @@ $base = '/support/' . $tenant['slug'] . '/chat';
         <p class="truncate text-sm font-semibold"><?= e($cfg['title']) ?></p>
         <p class="truncate text-xs text-white/80" data-chat-sub><?= e($tenant['name']) ?></p>
       </div>
+      <button type="button" data-chat-human hidden class="rounded-lg bg-white/15 px-2.5 py-1 text-xs font-medium hover:bg-white/25 cursor-pointer">Talk to a person</button>
       <button type="button" data-chat-end hidden class="rounded-lg bg-white/15 px-2.5 py-1 text-xs font-medium hover:bg-white/25 cursor-pointer">End chat</button>
     </header>
 
@@ -142,7 +143,9 @@ $base = '/support/' . $tenant['slug'] . '/chat';
       (j.messages || []).forEach(add);
       live = true;
       setStatus(j.status, j.agent);
-      root.querySelector("[data-typing-who]").textContent = j.agent || "Agent";
+      root.querySelector("[data-typing-who]").textContent = j.ai ? (j.aiName || "Assistant") : (j.agent || "Agent");
+      humanBtn.hidden = !(j.status === "open" && j.ai);
+      if (j.ai) sub.textContent = (j.aiName || "AI assistant") + " · instant answers";
       typingRow.hidden = !(j.status === "open" && j.typing);
       rateBox.hidden = j.status === "open" || j.rating !== null || rated;
       if (j.status === "open") timer = setTimeout(poll, document.hidden ? 10000 : 3000);
@@ -163,6 +166,7 @@ $base = '/support/' . $tenant['slug'] . '/chat';
       try { localStorage.setItem(key, token); } catch (x) {}
       (j.messages || []).forEach(add);
       setStatus("open");
+      if (j.ai) { humanBtn.hidden = false; }
       compose.querySelector("textarea").focus();
       timer = setTimeout(poll, 3000);
     }, function () { btn.disabled = false; err.textContent = "Network error — please try again."; err.hidden = false; });
@@ -187,6 +191,8 @@ $base = '/support/' . $tenant['slug'] . '/chat';
       clearTimeout(timer); poll();
     });
   });
+  var humanBtn = root.querySelector("[data-chat-human]");
+  humanBtn.addEventListener("click", function () { humanBtn.disabled = true; api("human").then(function () { humanBtn.disabled = false; clearTimeout(timer); poll(); }); });
   rateBox.addEventListener("click", function (e) {
     var b = e.target.closest("[data-rate]"); if (!b) return;
     rated = true; rateBox.hidden = true; thanks.hidden = false;
@@ -198,6 +204,7 @@ $base = '/support/' . $tenant['slug'] . '/chat';
     var body = ta.value.trim();
     if (!body) return;
     ta.value = ""; ta.style.height = "";
+    if (!humanBtn.hidden) typingRow.hidden = false;
     api("send", { body: body }).then(function (j) {
       if (j.error) { add({ id: "e" + Date.now(), sender: "system", body: j.error, at: new Date().toISOString() }); return; }
       clearTimeout(timer); poll();

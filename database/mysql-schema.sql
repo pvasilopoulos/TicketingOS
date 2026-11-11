@@ -769,6 +769,8 @@ CREATE TABLE IF NOT EXISTS `ChatSession` (
   `kind` varchar(10) DEFAULT NULL,
   `visitorUserId` varchar(40) DEFAULT NULL,
   `visitorSeenAt` varchar(30) DEFAULT NULL,
+  `aiActive` int(11) NOT NULL DEFAULT 0,
+  `handoffAt` varchar(30) DEFAULT NULL,
   `createdAt` varchar(30) NOT NULL,
   `closedAt` varchar(30) DEFAULT NULL,
   PRIMARY KEY (`id`),

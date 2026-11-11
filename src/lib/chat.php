@@ -51,12 +51,15 @@ function chat_messages(string $sessionId, string $after = ''): array
     $rows = q_all('SELECT m."id", m."sender", m."body", m."createdAt", m."authorId", m."attachmentId", u."name" AS "agentName", a."filename", a."size", a."mime"
                    FROM "ChatMessage" m LEFT JOIN "User" u ON u."id" = m."authorId" LEFT JOIN "Attachment" a ON a."id" = m."attachmentId"
                    WHERE m."sessionId" = ?' . ($after !== '' ? ' AND m."createdAt" > ?' : '') . ' ORDER BY m."createdAt" ASC LIMIT 300', $after !== '' ? [$sessionId, $after] : [$sessionId]);
-    return array_map(fn ($r) => ['id' => $r['id'], 'sender' => $r['sender'], 'authorId' => $r['authorId'], 'name' => $r['sender'] === 'agent' ? first_name((string) $r['agentName']) : null, 'body' => $r['body'], 'at' => $r['createdAt'],
+    static $botName = [];
+    $tid = $rows ? (string) q_val('SELECT "tenantId" FROM "ChatSession" WHERE "id" = ?', [$sessionId]) : '';
+    if ($tid !== '' && !isset($botName[$tid])) $botName[$tid] = ai_assist_settings($tid)['name'];
+    return array_map(fn ($r) => ['id' => $r['id'], 'sender' => $r['sender'], 'authorId' => $r['authorId'], 'name' => $r['sender'] === 'agent' ? first_name((string) $r['agentName']) : ($r['sender'] === 'bot' ? ($botName[$tid] ?? 'AI assistant') : null), 'body' => $r['body'], 'at' => $r['createdAt'],
         'file' => $r['attachmentId'] && $r['filename'] !== null ? ['id' => $r['attachmentId'], 'name' => $r['filename'], 'size' => (int) $r['size'], 'mime' => $r['mime'], 'image' => in_array($r['mime'], IMAGE_MIME, true)] : null], $rows);
 }
 
 /** Start a chat (visitor). Returns [session, token] or an error string. */
-function chat_start(array $tenant, string $name, string $email, string $message, string $page, ?string $requestedAgentId = null): array|string
+function chat_start(array $tenant, string $name, string $email, string $message, string $page, ?string $requestedAgentId = null, bool $ai = false): array|string
 {
     $tenantId = $tenant['id'];
     $token = bin2hex(random_bytes(24));
@@ -64,21 +67,34 @@ function chat_start(array $tenant, string $name, string $email, string $message,
     $s = [
         'id' => cuid(), 'tenantId' => $tenantId, 'tokenHash' => hash('sha256', $token), 'visitorName' => mb_substr($name, 0, 120), 'visitorEmail' => strtolower($email),
         'status' => 'open', 'agentId' => null, 'requestedAgentId' => $requestedAgentId, 'ticketId' => null, 'pageUrl' => mb_substr($page, 0, 500) ?: null,
-        'lastVisitorAt' => $now, 'lastAgentAt' => null, 'agentSeenAt' => null, 'createdAt' => $now, 'closedAt' => null,
+        'lastVisitorAt' => $now, 'lastAgentAt' => null, 'agentSeenAt' => null, 'createdAt' => $now, 'closedAt' => null, 'aiActive' => $ai ? 1 : 0,
     ];
     db_insert('ChatSession', $s);
+    if ($ai) {
+        // The AI assistant answers first; the team is told only when the customer asks for a person.
+        chat_add($s, 'system', null, 'You’re chatting with our ' . ai_assist_settings($tenantId)['name'] . '. You can ask for a person at any time.');
+        chat_add($s, 'visitor', null, $message);
+        return [$s, $token];
+    }
     chat_add($s, 'system', null, chat_settings($tenantId)['greeting']);
     $wanted = $requestedAgentId ? q_one('SELECT "name" FROM "User" WHERE "id" = ?', [$requestedAgentId]) : null;
     if ($wanted) chat_add($s, 'system', null, 'You asked to talk to ' . first_name($wanted['name']) . '. They’ll be with you shortly.');
     chat_add($s, 'visitor', null, $message);
-    // Tell the agents who answer chats (in-app; the live stream shows it as a toast).
-    // A chat for one agent goes to that agent only; the others still see it on the Live chat page.
+    chat_notify_agents($s, $message, $requestedAgentId);
+    return [$s, $token];
+}
+
+/** Tell the agents who answer chats (in-app; the live stream shows it as a toast). A chat for one agent goes to that agent only. */
+function chat_notify_agents(array $s, string $message, ?string $requestedAgentId = null): void
+{
+    $tenantId = $s['tenantId'];
+    $now = now_iso();
+    $wanted = $requestedAgentId ? q_one('SELECT "name" FROM "User" WHERE "id" = ?', [$requestedAgentId]) : null;
     foreach (q_all('SELECT * FROM "User" WHERE "active" = 1 AND (("tenantId" = ? AND "role" IN (\'ADMIN\',\'AGENT\')) OR "role" = \'SUPER_ADMIN\')', [$tenantId]) as $u) {
         if (!can($u, 'chat.answer') || ($wanted && $u['id'] !== $requestedAgentId)) continue;
         if ($u['role'] === 'SUPER_ADMIN' && $u['id'] !== $requestedAgentId) continue;
         db_insert('Notification', ['id' => cuid(), 'type' => 'CHAT', 'message' => ($wanted ? $s['visitorName'] . ' wants to chat with you: ' : 'New chat from ' . $s['visitorName'] . ': ') . mb_substr($message, 0, 120), 'read' => 0, 'createdAt' => $now, 'tenantId' => $tenantId, 'userId' => $u['id'], 'ticketId' => null]);
     }
-    return [$s, $token];
 }
 
 /** The chat as HTML for a ticket. */
@@ -87,7 +103,7 @@ function chat_transcript_html(array $session, string $after = ''): string
     $h = '';
     foreach (chat_messages($session['id'], $after) as $m) {
         if ($m['sender'] === 'system') continue;
-        $who = $m['sender'] === 'visitor' ? $session['visitorName'] : ($m['name'] ?: 'Agent');
+        $who = $m['sender'] === 'visitor' ? $session['visitorName'] : ($m['sender'] === 'bot' ? '🤖 ' . ($m['name'] ?: 'AI assistant') : ($m['name'] ?: 'Agent'));
         $text = $m['file'] ? '📎 <a href="/api/attachments/' . e($m['file']['id']) . '">' . e($m['file']['name']) . '</a>' : nl2br(e($m['body']), false);
         $h .= '<p><strong>' . e($who) . '</strong> <span style="color:#94a3b8">' . e(date('H:i', (int) iso_sec($m['at']))) . '</span><br>' . $text . '</p>';
     }
@@ -139,7 +155,8 @@ function chat_close(array $session, ?array $agent, string $by): void
     if ($session['status'] === 'closed') return;
     chat_add($session, 'system', null, $by === 'visitor' ? 'The visitor left the chat.' : ($by === 'idle' ? 'The chat ended after a while without messages.' : 'The chat was closed. Thanks for talking to us!'));
     db_update('ChatSession', ['status' => 'closed', 'closedAt' => now_iso()], '"id" = ?', [$session['id']]);
-    if (($session['kind'] ?? null) === 'peer') return;
+    // Colleague chats and chats the AI assistant handled on its own don't become tickets.
+    if (($session['kind'] ?? null) === 'peer' || (int) ($session['aiActive'] ?? 0)) return;
     $answered = (bool) $session['lastAgentAt'];
     // Keep a record: answered chats become a closed ticket; unanswered ones an open ticket.
     chat_to_ticket(q_one('SELECT * FROM "ChatSession" WHERE "id" = ?', [$session['id']]), $agent, $answered && !$session['ticketId']);
@@ -154,7 +171,7 @@ function chat_maintenance(?string $tenantId = null): int
         $cfg = chat_settings($s['tenantId']);
         $last = max((string) $s['lastVisitorAt'], (string) $s['lastAgentAt'], $s['createdAt']);
         if ($last < now_iso(-30 * 60)) { chat_close($s, null, 'idle'); $n++; continue; }
-        if (($s['kind'] ?? null) !== 'peer' && !$s['ticketId'] && !$s['lastAgentAt'] && $s['createdAt'] < now_iso(-$cfg['ticketAfter'] * 60)) {
+        if (($s['kind'] ?? null) !== 'peer' && !(int) ($s['aiActive'] ?? 0) && !$s['ticketId'] && !$s['lastAgentAt'] && ($s['handoffAt'] ?: $s['createdAt']) < now_iso(-$cfg['ticketAfter'] * 60)) {
             $t = chat_to_ticket($s, null);
             if ($t) chat_add($s, 'system', null, 'Our team is busy right now — we opened ticket #' . (int) $t['number'] . ' and will reply to ' . $s['visitorEmail'] . '. You can keep writing here.');
             $n++;
@@ -179,7 +196,7 @@ function chat_last_messages(array $sessionIds): array
 /** Chats waiting for an agent (for the menu badge). */
 function chat_waiting_count(string $tenantId): int
 {
-    return (int) q_val('SELECT COUNT(*) FROM "ChatSession" WHERE "tenantId" = ? AND "status" = ? AND ("kind" IS NULL OR "kind" <> ?) AND ("lastAgentAt" IS NULL OR "lastVisitorAt" > "lastAgentAt")', [$tenantId, 'open', 'peer']);
+    return (int) q_val('SELECT COUNT(*) FROM "ChatSession" WHERE "tenantId" = ? AND "status" = ? AND ("kind" IS NULL OR "kind" <> ?) AND "aiActive" = 0 AND ("lastAgentAt" IS NULL OR "lastVisitorAt" > "lastAgentAt")', [$tenantId, 'open', 'peer']);
 }
 
 /**

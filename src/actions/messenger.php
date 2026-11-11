@@ -35,6 +35,7 @@ function msgr_session(string $id, array $me, string $tenantId): array
 /** The other person in the conversation, as the customer sees them. */
 function msgr_other(array $s, string $side): array
 {
+    if ((int) ($s['aiActive'] ?? 0)) return ['id' => null, 'name' => ai_assist_settings($s['tenantId'])['name'], 'role' => 'AI', 'color' => null, 'ai' => true];
     $name = fn (?string $id) => $id ? q_one('SELECT "id","name","role","avatarColor" FROM "User" WHERE "id" = ?', [$id]) : null;
     if ($side === 'peer') $u = $name($s['visitorUserId']);
     elseif (($s['kind'] ?? null) === 'peer') $u = $name($s['requestedAgentId']);
@@ -83,7 +84,9 @@ function api_messenger_list(): never
             'last' => $last ? ['mine' => $mine, 'text' => $last['attachmentId'] ? '📎 ' . $last['body'] : mb_substr($last['body'], 0, 90), 'at' => $last['createdAt']] : null,
         ];
     }, $rows);
-    json_out(['items' => $items, 'unread' => $unread, 'groups' => chat_targets($tenantId, $me), 'greeting' => chat_settings($tenantId)['greeting']]);
+    $ai = ai_assist_on($tenantId, 'messages');
+    json_out(['items' => $items, 'unread' => $unread, 'groups' => chat_targets($tenantId, $me), 'greeting' => chat_settings($tenantId)['greeting'],
+        'ai' => $ai ? ['name' => ai_assist_settings($tenantId)['name']] : null]);
 }
 
 /** GET /api/messenger/messages?id=…&after=… */
@@ -99,7 +102,7 @@ function api_messenger_messages(): never
         return $m;
     }, chat_messages($s['id'], (string) ($_GET['after'] ?? '')));
     $peer = ($s['kind'] ?? null) === 'peer';
-    json_out(['messages' => $msgs, 'status' => $s['status'], 'kind' => $peer ? 'peer' : 'support', 'other' => msgr_other($s, $side), 'typing' => msgr_typing($s, $side),
+    json_out(['messages' => $msgs, 'status' => $s['status'], 'kind' => $peer ? 'peer' : 'support', 'other' => msgr_other($s, $side), 'typing' => msgr_typing($s, $side), 'ai' => (bool) (int) ($s['aiActive'] ?? 0),
         'canRate' => !$peer && $side === 'starter' && $s['status'] === 'closed' && $s['rating'] === null, 'rating' => $s['rating'] !== null ? (int) $s['rating'] : null]);
 }
 
@@ -113,6 +116,15 @@ function api_messenger_start(): never
     if (mb_strlen($msg) < 1) json_out(['error' => 'Write a message'], 422);
     if (!rate_allow('mchat:' . $me['id'], 20, 3600)) json_out(['error' => 'You’ve started many chats in the last hour. Please try again later.'], 429);
     $to = (string) ($b['to'] ?? '');
+    if ($to === 'ai') {
+        if (!ai_assist_on($tenantId, 'messages')) json_out(['error' => 'The AI assistant is turned off'], 422);
+        $tenant = q_one('SELECT * FROM "Tenant" WHERE "id" = ?', [$tenantId]);
+        $s = chat_start($tenant, $me['name'], $me['email'], $msg, '', null, true)[0];
+        db_update('ChatSession', ['visitorUserId' => $me['id'], 'visitorSeenAt' => now_iso()], '"id" = ?', [$s['id']]);
+        $s['visitorUserId'] = $me['id'];
+        ai_assist_reply($s);
+        json_out(['id' => $s['id']]);
+    }
     $target = $to !== '' ? chat_target($tenantId, $me, $to) : null;
     if ($to !== '' && !$target) json_out(['error' => 'You can’t chat with this person'], 422);
     $tenant = q_one('SELECT * FROM "Tenant" WHERE "id" = ?', [$tenantId]);
@@ -150,6 +162,7 @@ function api_messenger_send(): never
     if ($body === '') json_out(['error' => 'Empty message'], 422);
     $side = msgr_side($s, $me);
     chat_add($s, $side === 'starter' ? 'visitor' : 'agent', $me['id'], $body);
+    if ((int) ($s['aiActive'] ?? 0) && $side === 'starter') ai_assist_reply($s);
     msgr_mark_seen($s, $side);
     json_out(['ok' => true]);
 }
@@ -182,6 +195,10 @@ function api_messenger_action(): never
     $op = (string) ($b['op'] ?? '');
     if ($op === 'typing') {
         if ($s['status'] === 'open') db_update('ChatSession', [$side === 'starter' ? 'visitorTypingAt' : 'agentTypingAt' => now_iso()], '"id" = ?', [$s['id']]);
+        json_out(['ok' => true]);
+    }
+    if ($op === 'human') {
+        if ($side === 'starter') ai_assist_handoff($s);
         json_out(['ok' => true]);
     }
     if ($op === 'close') {

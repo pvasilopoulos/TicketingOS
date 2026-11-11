@@ -46,8 +46,10 @@ function public_chat(array $tenant, string $op): never
         if (mb_strlen($msg) < 2) json_out(['error' => 'Please write a message'], 422);
         $u = q_one('SELECT "tenantId","active" FROM "User" WHERE "email" = ?', [$email]);
         if (!$appUser && $u && ($u['tenantId'] !== $tenant['id'] || !(int) $u['active'])) json_out(['error' => 'This email can’t be used here. Please use another address.'], 422);
-        [$s, $token] = chat_start($tenant, $name, $email, $msg, (string) ($b['page'] ?? ''), $agentId);
-        json_out(['token' => $token, 'messages' => chat_messages($s['id']), 'status' => 'open']);
+        $ai = !$appUser && ai_assist_on($tenant['id'], 'website');
+        [$s, $token] = chat_start($tenant, $name, $email, $msg, (string) ($b['page'] ?? ''), $agentId, $ai);
+        if ($ai) ai_assist_reply($s);
+        json_out(['token' => $token, 'messages' => chat_messages($s['id']), 'status' => 'open', 'ai' => $ai]);
     }
 
     $s = chat_session_by_token($tenant['id'], (string) ($b['t'] ?? $_POST['t'] ?? $_GET['t'] ?? ''));
@@ -75,6 +77,7 @@ function public_chat(array $tenant, string $op): never
         $s = q_one('SELECT * FROM "ChatSession" WHERE "id" = ?', [$s['id']]);
         $agentTyping = $s['status'] === 'open' && !empty($s['agentTypingAt']) && $s['agentTypingAt'] > now_iso(-6) && (string) $s['agentTypingAt'] > (string) $s['lastAgentAt'];
         json_out(['messages' => chat_messages($s['id'], (string) ($_GET['after'] ?? '')), 'status' => $s['status'], 'typing' => $agentTyping, 'rating' => $s['rating'] !== null ? (int) $s['rating'] : null,
+            'ai' => (bool) (int) ($s['aiActive'] ?? 0), 'aiName' => ai_assist_settings($s['tenantId'])['name'],
             'agent' => $s['agentId'] ? first_name((string) q_val('SELECT "name" FROM "User" WHERE "id" = ?', [$s['agentId']])) : null]);
     }
     if ($op === 'send') {
@@ -83,6 +86,7 @@ function public_chat(array $tenant, string $op): never
         $body = trim((string) ($b['body'] ?? ''));
         if ($body === '') json_out(['error' => 'Empty message'], 422);
         $m = chat_add($s, 'visitor', null, $body);
+        if ((int) ($s['aiActive'] ?? 0)) ai_assist_reply($s);
         json_out(['ok' => true, 'id' => $m['id']]);
     }
     if ($op === 'close') {
@@ -91,6 +95,10 @@ function public_chat(array $tenant, string $op): never
     }
     if ($op === 'typing') {
         if ($s['status'] === 'open') db_update('ChatSession', ['visitorTypingAt' => now_iso()], '"id" = ?', [$s['id']]);
+        json_out(['ok' => true]);
+    }
+    if ($op === 'human') {
+        ai_assist_handoff($s);
         json_out(['ok' => true]);
     }
     if ($op === 'rate') {
@@ -124,7 +132,7 @@ function api_chat_list(): never
     [$me, $tenantId] = chat_agent_ctx();
     chat_maintenance($tenantId);
     $rows = q_all('SELECT s.*, u."name" AS "agentName", r."name" AS "requestedName" FROM "ChatSession" s LEFT JOIN "User" u ON u."id" = s."agentId" LEFT JOIN "User" r ON r."id" = s."requestedAgentId"
-                   WHERE s."tenantId" = ? AND (s."kind" IS NULL OR s."kind" <> \'peer\') AND (s."status" = ? OR s."closedAt" >= ?) ORDER BY s."status" DESC, COALESCE(s."lastVisitorAt", s."createdAt") DESC LIMIT 60', [$tenantId, 'open', now_iso(-86400)]);
+                   WHERE s."tenantId" = ? AND (s."kind" IS NULL OR s."kind" <> \'peer\') AND (s."aiActive" = 0 OR s."handoffAt" IS NOT NULL) AND (s."status" = ? OR s."closedAt" >= ?) ORDER BY s."status" DESC, COALESCE(s."lastVisitorAt", s."createdAt") DESC LIMIT 60', [$tenantId, 'open', now_iso(-86400)]);
     $lasts = chat_last_messages(array_column($rows, 'id'));
     json_out(['items' => array_map(function ($s) use ($me, $lasts) {
         $last = $lasts[$s['id']] ?? null;

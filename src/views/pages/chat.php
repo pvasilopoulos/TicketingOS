@@ -263,17 +263,17 @@ $chip = 'inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg
       row.firstChild.textContent = m.body;
       lastSender = "";
     } else {
-      var mine = m.sender === "agent", group = (m.sender + (m.name || "")) === lastSender;
+      var bot = m.sender === "bot", mine = m.sender === "agent" || bot, group = (m.sender + (m.name || "")) === lastSender;
       lastSender = m.sender + (m.name || "");
       row.className = "flex items-end gap-2 " + (mine ? "justify-end" : "justify-start") + (group ? " mt-1" : " mt-3");
-      var bubble = '<div class="max-w-[75%] whitespace-pre-wrap break-words rounded-2xl px-3.5 py-2 text-sm shadow-sm ' + (mine ? "rounded-br-md bg-brand text-brand-fg" : "rounded-bl-md border border-border bg-surface") + '"></div>';
+      var bubble = '<div class="max-w-[75%] whitespace-pre-wrap break-words rounded-2xl px-3.5 py-2 text-sm shadow-sm ' + (bot ? "rounded-br-md bg-violet-600 text-white" : mine ? "rounded-br-md bg-brand text-brand-fg" : "rounded-bl-md border border-border bg-surface") + '"></div>';
       var av = mine ? "" : (group ? '<span class="w-7 shrink-0"></span>' : avatar(curName, "h-7 w-7 text-[10px]"));
       row.innerHTML = av + bubble;
       var b = row.lastChild;
       if (m.file) b.innerHTML = window.ChatKit.fileHtml(m.file, "/api/attachments/" + encodeURIComponent(m.file.id), mine); else b.textContent = m.body;
       var meta = document.createElement("div");
       meta.className = "mt-0.5 text-[10px] " + (mine ? "text-right opacity-70" : "text-muted");
-      meta.textContent = (mine && m.name ? m.name + " · " : "") + time(m.at);
+      meta.textContent = (bot ? "🤖 " : "") + (mine && m.name ? m.name + " · " : "") + time(m.at);
       b.appendChild(meta);
     }
     var nearBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 120;
