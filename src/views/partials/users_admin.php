@@ -4,6 +4,7 @@
  * @var array $me @var string $tenantId @var callable $s (flash reader)
  */
 $isAdminMe = is_tenant_admin($me['role']);
+$isSuperMe = $me['role'] === 'SUPER_ADMIN';
 $roles = q_all('SELECT r.*, (SELECT COUNT(*) FROM "User" u WHERE u."customRoleId" = r."id" AND u."role" = \'AGENT\') AS "members" FROM "Role" r WHERE r."tenantId" = ? ORDER BY r."name"', [$tenantId]);
 $rolesById = key_by($roles, 'id');
 $roleCounts = array_column(q_all('SELECT "role", COUNT(*) AS n FROM "User" WHERE "tenantId" = ? GROUP BY "role"', [$tenantId]), 'n', 'role');
@@ -15,7 +16,7 @@ $permTotal = count(all_permissions());
 // ---- filters + paging (query string: uq, urole, ustatus, upage, uper) ----
 $uq = trim((string) ($_GET['uq'] ?? ''));
 $urole = (string) ($_GET['urole'] ?? '');
-if (!in_array($urole, ['', 'STAFF', ...TENANT_ROLES], true) && !isset($rolesById[$urole])) $urole = '';
+if (!in_array($urole, ['', 'STAFF', 'SUPER_ADMIN', ...TENANT_ROLES], true) && !isset($rolesById[$urole])) $urole = '';
 $ustatus = in_array($_GET['ustatus'] ?? '', ['active', 'inactive', 'never'], true) ? $_GET['ustatus'] : '';
 $orgs = tenant_orgs($tenantId);
 $orgNames = array_column($orgs, 'name', 'id');
@@ -28,9 +29,10 @@ if ($uq !== '') {
     $where .= " AND (LOWER(u.\"name\") LIKE ? ESCAPE '!' OR LOWER(u.\"email\") LIKE ? ESCAPE '!')";
     array_push($params, like_arg(mb_strtolower($uq)), like_arg(mb_strtolower($uq)));
 }
-if ($urole === 'STAFF') $where .= ' AND u."role" IN (\'ADMIN\',\'AGENT\')';
+if ($urole === 'STAFF') $where .= ' AND u."role" IN (\'SUPER_ADMIN\',\'ADMIN\',\'AGENT\')';
+elseif ($urole === 'ADMIN') $where .= ' AND u."role" IN (\'SUPER_ADMIN\',\'ADMIN\')';
 elseif ($urole === 'AGENT') $where .= ' AND u."role" = \'AGENT\' AND u."customRoleId" IS NULL';
-elseif (in_array($urole, TENANT_ROLES, true)) { $where .= ' AND u."role" = ?'; $params[] = $urole; }
+elseif (in_array($urole, ['SUPER_ADMIN', ...TENANT_ROLES], true)) { $where .= ' AND u."role" = ?'; $params[] = $urole; }
 elseif ($urole !== '') { $where .= ' AND u."role" = \'AGENT\' AND u."customRoleId" = ?'; $params[] = $urole; }
 if ($ustatus === 'active') $where .= ' AND u."active" = 1';
 elseif ($ustatus === 'inactive') $where .= ' AND u."active" = 0';
@@ -40,7 +42,7 @@ if ($uorg) { $where .= ' AND u."organizationId" = ?'; $params[] = $uorg; }
 $total = (int) q_val("SELECT COUNT(*) FROM \"User\" u WHERE $where", $params);
 $upages = max(1, (int) ceil($total / $uper));
 $upage = min(max(1, (int) ($_GET['upage'] ?? 1)), $upages);
-$ids = pluck(q_all("SELECT u.\"id\" FROM \"User\" u WHERE $where ORDER BY CASE u.\"role\" WHEN 'ADMIN' THEN 0 WHEN 'AGENT' THEN 1 ELSE 2 END, u.\"active\" DESC, u.\"name\" ASC LIMIT $uper OFFSET " . (($upage - 1) * $uper), $params), 'id');
+$ids = pluck(q_all("SELECT u.\"id\" FROM \"User\" u WHERE $where ORDER BY CASE u.\"role\" WHEN 'SUPER_ADMIN' THEN 0 WHEN 'ADMIN' THEN 1 WHEN 'AGENT' THEN 2 ELSE 3 END, u.\"active\" DESC, u.\"name\" ASC LIMIT $uper OFFSET " . (($upage - 1) * $uper), $params), 'id');
 $users = $ids ? q_all('SELECT u.*, (SELECT COUNT(*) FROM "Ticket" t WHERE t."assigneeId" = u."id" AND t."closedAt" IS NULL) AS "openAssigned" FROM "User" u WHERE u."id" IN (' . in_ph($ids) . ')', $ids) : [];
 $users = array_values(array_replace(array_flip($ids), key_by($users, 'id')));
 
@@ -54,11 +56,12 @@ $uurl = function (array $c) use ($uq, $urole, $ustatus, $upage, $uper, $uorg): s
     return '/settings' . ($p ? '?' . http_build_query($p) : '') . '#users';
 };
 
-$roleOptions = ['ADMIN' => 'Administrator', 'AGENT' => 'Agent', 'CUSTOMER' => 'Customer'];
+$roleOptions = ['SUPER_ADMIN' => 'Super admin', 'ADMIN' => 'Administrator', 'AGENT' => 'Agent', 'CUSTOMER' => 'Customer'];
+if (!$isSuperMe) unset($roleOptions['SUPER_ADMIN']);
 if (!$isAdminMe) unset($roleOptions['ADMIN']);
 $customOptions = ['' => "Agent — built-in ($agentPermCount/$permTotal permissions)"];
 foreach ($roles as $r) $customOptions[$r['id']] = $r['name'] . ' (' . count(clean_permissions(json_decode($r['permissions'], true) ?: [])) . "/$permTotal permissions)";
-$filterRoles = ['' => 'All roles', 'STAFF' => 'All staff', 'ADMIN' => 'Administrators', 'AGENT' => 'Agents (built-in role)'];
+$filterRoles = ['' => 'All roles', 'STAFF' => 'All staff'] + (($roleCounts['SUPER_ADMIN'] ?? 0) ? ['SUPER_ADMIN' => 'Super admins'] : []) + ['ADMIN' => 'Administrators', 'AGENT' => 'Agents (built-in role)'];
 foreach ($roles as $r) $filterRoles[$r['id']] = $r['name'];
 $filterRoles['CUSTOMER'] = 'Customers';
 $uState = $s('users');
@@ -70,7 +73,7 @@ $roleBadge = function (array $u) use ($rolesById): string {
         $c = safe_color($r['color']);
         return '<span class="inline-flex max-w-full items-center gap-1.5 truncate rounded-full px-2 py-0.5 text-xs font-medium" style="background:' . $c . '1f;color:' . $c . '"><span class="h-1.5 w-1.5 shrink-0 rounded-full" style="background:' . $c . '"></span>' . e($r['name']) . '</span>';
     }
-    $map = ['ADMIN' => ['bg-indigo-500/10 text-indigo-700 dark:text-indigo-300', 'crown'], 'AGENT' => ['bg-sky-500/10 text-sky-700 dark:text-sky-300', 'users-round'], 'CUSTOMER' => ['bg-surface-2 text-muted', 'circle-user-round']];
+    $map = ['SUPER_ADMIN' => ['bg-amber-500/15 text-amber-700 dark:text-amber-300', 'shield-check'], 'ADMIN' => ['bg-indigo-500/10 text-indigo-700 dark:text-indigo-300', 'crown'], 'AGENT' => ['bg-sky-500/10 text-sky-700 dark:text-sky-300', 'users-round'], 'CUSTOMER' => ['bg-surface-2 text-muted', 'circle-user-round']];
     [$cls, $ic] = $map[$u['role']] ?? ['', 'users'];
     return '<span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ' . $cls . '">' . icon($ic, 11) . e(role_label($u['role'])) . '</span>';
 };
@@ -86,7 +89,7 @@ $tile = function (string $label, int $n, string $key, string $ic, string $tone) 
 ?>
 <!-- Overview -->
 <div class="grid grid-cols-2 gap-3 md:grid-cols-4">
-  <?= $tile('Administrators', (int) ($roleCounts['ADMIN'] ?? 0), 'ADMIN', 'crown', 'bg-indigo-500/10 text-indigo-600') ?>
+  <?= $tile('Administrators', (int) ($roleCounts['ADMIN'] ?? 0) + (int) ($roleCounts['SUPER_ADMIN'] ?? 0), 'ADMIN', 'crown', 'bg-indigo-500/10 text-indigo-600') ?>
   <?= $tile('Agents', (int) ($roleCounts['AGENT'] ?? 0), 'STAFF', 'users-round', 'bg-sky-500/10 text-sky-600') ?>
   <?= $tile('Customers', (int) ($roleCounts['CUSTOMER'] ?? 0), 'CUSTOMER', 'circle-user-round', 'bg-slate-500/10 text-slate-600 dark:text-slate-300') ?>
   <?= $tile('Deactivated', $inactiveCount, 'inactive', 'user-x', 'bg-red-500/10 text-red-600') ?>
@@ -188,7 +191,8 @@ $tile = function (string $label, int $n, string $key, string $ic, string $tone) 
   <div class="divide-y divide-border">
     <?php foreach ($users as $u):
         $isMe = $u['id'] === $me['id'];
-        $locked = $u['role'] === 'ADMIN' && !$isAdminMe; // non-admin managers can't touch admins
+        // Non-admin managers can't touch admins; only a super admin touches a super admin.
+        $locked = ($u['role'] === 'ADMIN' && !$isAdminMe) || ($u['role'] === 'SUPER_ADMIN' && !$isSuperMe);
         $active = (int) $u['active'] === 1; ?>
       <div class="<?= cx('px-4 py-3 sm:px-5', !$active ? 'bg-surface-2/40' : '') ?>" data-user-row>
         <div class="flex flex-wrap items-center gap-x-3 gap-y-2 xl:grid xl:grid-cols-[minmax(0,1fr)_9.5rem_6.5rem_4.75rem] xl:gap-4 2xl:grid-cols-[minmax(0,1fr)_10rem_7rem_9rem_5rem]">
@@ -233,7 +237,7 @@ $tile = function (string $label, int $n, string $key, string $ic, string $tone) 
               echo dropdown('<button type="button" data-dropdown-trigger aria-label="More actions for ' . e($u['name']) . '" class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted hover:bg-surface-2 hover:text-fg cursor-pointer">' . icon('ellipsis', 16) . '</button>', $menu, 250, 'right', true);
               ?>
             <?php else: ?>
-              <span class="inline-flex items-center gap-1 text-xs text-muted" title="Only administrators can change administrator accounts"><?= icon('lock', 12) ?> Admin only</span>
+              <span class="inline-flex items-center gap-1 text-xs text-muted" title="<?= $u['role'] === 'SUPER_ADMIN' ? 'Only a super admin can change this account' : 'Only administrators can change administrator accounts' ?>"><?= icon('lock', 12) ?> <?= $u['role'] === 'SUPER_ADMIN' ? 'Protected' : 'Admin only' ?></span>
             <?php endif; ?>
           </div>
         </div>

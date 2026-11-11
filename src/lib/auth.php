@@ -40,6 +40,12 @@ function is_staff(string $role): bool
     return in_array($role, ['ADMIN', 'AGENT', 'SUPER_ADMIN'], true);
 }
 
+/** Super admin: everything in every workspace plus the platform console. */
+function is_super_admin(array $user): bool
+{
+    return $user['role'] === 'SUPER_ADMIN';
+}
+
 function is_tenant_admin(string $role): bool
 {
     return $role === 'ADMIN' || $role === 'SUPER_ADMIN';
@@ -64,7 +70,8 @@ function clear_active_tenant_id(): void
 /** The tenant a user operates in: their own, or (super admin) the impersonated one. */
 function effective_tenant_id(array $user): ?string
 {
-    if ($user['role'] === 'SUPER_ADMIN') return active_tenant_id();
+    // A super admin works in the workspace they entered, else their own (if any).
+    if ($user['role'] === 'SUPER_ADMIN') return active_tenant_id() ?? ($user['tenantId'] ?: null);
     return $user['tenantId'] ?: null;
 }
 
@@ -76,13 +83,14 @@ function require_tenant_user(): array
 {
     $user = require_user();
     if ($user['role'] === 'SUPER_ADMIN') {
-        $tid = active_tenant_id();
+        $tid = active_tenant_id() ?? ($user['tenantId'] ?: null);
         if (!$tid) redirect('/platform');
         if (!q_val('SELECT 1 FROM "Tenant" WHERE "id" = ?', [$tid])) {
             clear_active_tenant_id();
-            redirect('/platform');
+            redirect(home_for($user));
         }
-        return [$user, $tid, true];
+        // "Impersonating" only when visiting someone else's workspace.
+        return [$user, $tid, $tid !== ($user['tenantId'] ?? null)];
     }
     if (!$user['tenantId']) redirect('/platform');
     return [$user, $user['tenantId'], false];
@@ -124,5 +132,5 @@ function require_super_admin(): array
 
 function home_for(array $user): string
 {
-    return $user['role'] === 'SUPER_ADMIN' ? '/platform' : '/dashboard';
+    return $user['role'] === 'SUPER_ADMIN' && !$user['tenantId'] ? '/platform' : '/dashboard';
 }

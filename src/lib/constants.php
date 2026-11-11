@@ -7,7 +7,7 @@ const ROLES = ['SUPER_ADMIN', 'ADMIN', 'AGENT', 'CUSTOMER'];
 const TENANT_ROLES = ['ADMIN', 'AGENT', 'CUSTOMER'];
 
 const ROLE_LABELS = [
-    'SUPER_ADMIN' => 'Platform Admin',
+    'SUPER_ADMIN' => 'Super admin',
     'ADMIN' => 'Administrator',
     'AGENT' => 'Agent',
     'CUSTOMER' => 'Customer',

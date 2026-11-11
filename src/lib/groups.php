@@ -28,7 +28,7 @@ function user_group_ids(string $userId): array
 function group_members(string $groupId): array
 {
     return q_all('SELECT u."id", u."name", u."avatarColor" FROM "AgentGroupMember" m JOIN "User" u ON u."id" = m."userId"
-                  WHERE m."groupId" = ? AND u."active" = 1 AND u."role" IN (\'ADMIN\',\'AGENT\') ORDER BY u."name", u."id"', [$groupId]);
+                  WHERE m."groupId" = ? AND u."active" = 1 AND u."role" IN (\'SUPER_ADMIN\',\'ADMIN\',\'AGENT\') ORDER BY u."name", u."id"', [$groupId]);
 }
 
 /**

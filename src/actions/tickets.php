@@ -55,7 +55,7 @@ function apply_automations(string $tenantId, array $ticket, array $statuses, arr
 
         switch ($r['actionType']) {
             case 'ASSIGN':
-                $agent = q_one('SELECT "id","name" FROM "User" WHERE "id" = ? AND "tenantId" = ? AND "role" IN (\'ADMIN\',\'AGENT\')', [$r['actionValue'], $tenantId]);
+                $agent = q_one('SELECT "id","name" FROM "User" WHERE "id" = ? AND "tenantId" = ? AND "role" IN (\'SUPER_ADMIN\',\'ADMIN\',\'AGENT\')', [$r['actionValue'], $tenantId]);
                 if (!$agent || $cur['assigneeId'] === $agent['id']) break;
                 db_update('Ticket', ['assigneeId' => $agent['id'], 'updatedAt' => now_iso()], '"id" = ?', [$ticket['id']]);
                 $cur['assigneeId'] = $agent['id'];
@@ -112,7 +112,7 @@ function process_mentions(array $ticket, string $tenantId, array $actor, string 
 {
     $ids = array_values(array_filter(extract_mention_ids($html), fn ($id) => $id !== $actor['id'] && $id !== $ticket['requesterId']));
     if (!$ids) return;
-    $users = q_all('SELECT "id","name" FROM "User" WHERE "id" IN (' . in_ph($ids) . ') AND "tenantId" = ? AND "role" <> \'SUPER_ADMIN\'', [...$ids, $tenantId]);
+    $users = q_all('SELECT "id","name" FROM "User" WHERE "id" IN (' . in_ph($ids) . ') AND "tenantId" = ?', [...$ids, $tenantId]);
 
     $added = [];
     foreach ($users as $u) {
@@ -213,7 +213,7 @@ function create_ticket(string $tenantId, array $requester, array $data, ?array $
     if ($values) save_field_values($ticket['id'], $tenantId, $values);
 
     // Notify all staff in the tenant about the new ticket.
-    $staff = pluck(q_all('SELECT "id" FROM "User" WHERE "tenantId" = ? AND "role" IN (\'ADMIN\',\'AGENT\') AND "active" = 1 AND "id" <> ?', [$tenantId, $actor['id']]), 'id');
+    $staff = pluck(q_all('SELECT "id" FROM "User" WHERE "tenantId" = ? AND "role" IN (\'SUPER_ADMIN\',\'ADMIN\',\'AGENT\') AND "active" = 1 AND "id" <> ?', [$tenantId, $actor['id']]), 'id');
     if ($staff) {
         dispatch([
             'tenantId' => $tenantId, 'recipients' => $staff, 'category' => 'new_ticket', 'ticket' => ticket_ref($ticket),
@@ -306,7 +306,7 @@ function update_ticket(string $ticketId, array $in, array $user, string $tenantI
 
     $assigneeName = null;
     if ($assigneeId) {
-        $a = q_one('SELECT "name" FROM "User" WHERE "id" = ? AND "tenantId" = ? AND "role" IN (\'ADMIN\',\'AGENT\')', [$assigneeId, $tenantId]);
+        $a = q_one('SELECT "name" FROM "User" WHERE "id" = ? AND "tenantId" = ? AND "role" IN (\'SUPER_ADMIN\',\'ADMIN\',\'AGENT\')', [$assigneeId, $tenantId]);
         if (!$a) return false;
         $assigneeName = $a['name'];
     }

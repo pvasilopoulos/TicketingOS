@@ -11,7 +11,7 @@ const NAMES = [
   "layout-grid", "inbox", "message-square", "message-square-plus", "clock", "bookmark",
   "bookmark-plus", "loader-circle", "arrow-left", "arrow-right", "lock", "user-plus",
   "plus", "hash", "send", "paperclip", "file-text", "download", "image", "image-plus",
-  "circle-check", "smartphone", "trash-2", "flag", "pencil", "zap", "mail", "building-2",
+  "circle-check", "history", "folder", "user-minus", "circle-dot", "list-checks", "smartphone", "trash-2", "flag", "pencil", "zap", "mail", "building-2",
   "triangle-alert", "moon", "sun", "bold", "italic", "underline", "strikethrough",
   "baseline", "highlighter", "code", "code-xml", "list-ordered", "list-todo", "quote",
   "minus", "link", "table", "rows-3", "columns-3", "align-left", "align-center",

@@ -399,6 +399,7 @@ function managed_user(array $manager, string $tenantId, string $userId): array|s
 {
     $target = q_one('SELECT * FROM "User" WHERE "id" = ? AND "tenantId" = ?', [$userId, $tenantId]);
     if (!$target) return 'User not found';
+    if ($target['role'] === 'SUPER_ADMIN' && $manager['role'] !== 'SUPER_ADMIN') return 'Only a super admin can change a super admin account';
     if ($target['role'] === 'ADMIN' && !is_tenant_admin($manager['role'])) return 'Only administrators can change administrator accounts';
     return $target;
 }
@@ -412,14 +413,24 @@ function pick_org(string $tenantId, array $in): ?string
 
 function active_admin_count(string $tenantId, ?string $exceptId = null): int
 {
-    return (int) q_val('SELECT COUNT(*) FROM "User" WHERE "tenantId" = ? AND "role" = \'ADMIN\' AND "active" = 1' . ($exceptId ? ' AND "id" <> ?' : ''), $exceptId ? [$tenantId, $exceptId] : [$tenantId]);
+    return (int) q_val('SELECT COUNT(*) FROM "User" WHERE "tenantId" = ? AND "role" IN (\'SUPER_ADMIN\',\'ADMIN\') AND "active" = 1' . ($exceptId ? ' AND "id" <> ?' : ''), $exceptId ? [$tenantId, $exceptId] : [$tenantId]);
+}
+
+/** Active super admins on the whole platform (optionally not counting one). */
+function super_admin_count(?string $exceptId = null): int
+{
+    return (int) q_val('SELECT COUNT(*) FROM "User" WHERE "role" = \'SUPER_ADMIN\' AND "active" = 1' . ($exceptId ? ' AND "id" <> ?' : ''), $exceptId ? [$exceptId] : []);
 }
 
 /** Validate role + custom role from a form for the current manager. */
 function pick_role(array $manager, string $tenantId, array $in): array|string
 {
     $role = str_in($in, 'role');
-    if (!in_array($role, TENANT_ROLES, true)) return 'Invalid role';
+    if ($role === 'SUPER_ADMIN') {
+        if ($manager['role'] !== 'SUPER_ADMIN') return 'Only a super admin can grant the super admin role';
+    } elseif (!in_array($role, TENANT_ROLES, true)) {
+        return 'Invalid role';
+    }
     if ($role === 'ADMIN' && !is_tenant_admin($manager['role'])) return 'Only administrators can grant the administrator role';
     $custom = $role === 'AGENT' ? str_in($in, 'customRoleId') : '';
     if ($custom !== '' && !q_val('SELECT 1 FROM "Role" WHERE "id" = ? AND "tenantId" = ?', [$custom, $tenantId])) return 'Invalid role';
@@ -484,8 +495,11 @@ function act_member_update(array $in): ?array
     if (array_key_exists('role', $in)) {
         $roles = pick_role($user, $tenantId, $in);
         if (is_string($roles)) return ['error' => $roles];
-        if ($target['role'] === 'ADMIN' && $roles['role'] !== 'ADMIN' && active_admin_count($tenantId, $target['id']) < 1) {
+        if (is_tenant_admin($target['role']) && !is_tenant_admin($roles['role']) && active_admin_count($tenantId, $target['id']) < 1) {
             return ['error' => 'A workspace needs at least one active administrator'];
+        }
+        if ($target['role'] === 'SUPER_ADMIN' && $roles['role'] !== 'SUPER_ADMIN' && super_admin_count($target['id']) < 1) {
+            return ['error' => 'The platform needs at least one active super admin'];
         }
         $data += $roles;
     }
@@ -515,7 +529,10 @@ function act_member_status(array $in): ?array
     if (is_string($target)) return ['error' => $target];
     $active = ($in['active'] ?? '') === '1';
     if (!$active && $target['id'] === $user['id']) return ['error' => 'You can’t deactivate your own account'];
-    if (!$active && $target['role'] === 'ADMIN' && active_admin_count($tenantId, $target['id']) < 1) {
+    if (!$active && $target['role'] === 'SUPER_ADMIN' && super_admin_count($target['id']) < 1) {
+        return ['error' => 'The platform needs at least one active super admin'];
+    }
+    if (!$active && is_tenant_admin($target['role']) && active_admin_count($tenantId, $target['id']) < 1) {
         return ['error' => 'A workspace needs at least one active administrator'];
     }
     db_update('User', ['active' => $active ? 1 : 0, 'updatedAt' => now_iso()], '"id" = ?', [$target['id']]);
@@ -552,7 +569,10 @@ function act_member_remove(array $in): ?array
     if (!$userId || $userId === $user['id']) return ['error' => 'You can’t remove yourself'];
     $target = managed_user($user, $tenantId, $userId);
     if (is_string($target)) return ['error' => $target];
-    if ($target['role'] === 'ADMIN' && active_admin_count($tenantId, $target['id']) < 1) {
+    if ($target['role'] === 'SUPER_ADMIN' && super_admin_count($target['id']) < 1) {
+        return ['error' => 'The platform needs at least one active super admin'];
+    }
+    if (is_tenant_admin($target['role']) && active_admin_count($tenantId, $target['id']) < 1) {
         return ['error' => 'A workspace needs at least one active administrator'];
     }
     q('DELETE FROM "User" WHERE "id" = ?', [$userId]);

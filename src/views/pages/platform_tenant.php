@@ -7,7 +7,7 @@ page_title($tenant['name']);
 
 $userCount = (int) q_val('SELECT COUNT(*) FROM "User" WHERE "tenantId" = ?', [$id]);
 // Staff first; large workspaces only show the first 50 here.
-$users = q_all("SELECT * FROM \"User\" WHERE \"tenantId\" = ? ORDER BY CASE \"role\" WHEN 'ADMIN' THEN 0 WHEN 'AGENT' THEN 1 ELSE 2 END, \"name\" ASC LIMIT 50", [$id]);
+$users = q_all("SELECT * FROM \"User\" WHERE \"tenantId\" = ? ORDER BY CASE \"role\" WHEN 'SUPER_ADMIN' THEN 0 WHEN 'ADMIN' THEN 0 WHEN 'AGENT' THEN 1 ELSE 2 END, \"name\" ASC LIMIT 50", [$id]);
 $statuses = tenant_statuses($id);
 $priorities = tenant_priorities($id);
 $tickets = q_all('SELECT t.*, r."name" AS "rName", r."avatarColor" AS "rColor" FROM "Ticket" t JOIN "User" r ON r."id" = t."requesterId" WHERE t."tenantId" = ? ORDER BY t."createdAt" DESC LIMIT 15', [$id]);

@@ -3,7 +3,7 @@
 page_title('New ticket');
 $state = flash('ticket-new');
 $categories = q_all('SELECT "id","name" FROM "Category" WHERE "tenantId" = ? ORDER BY "name" ASC', [$tenantId]);
-$people = q_all('SELECT "id","name","role" FROM "User" WHERE "tenantId" = ? AND "role" <> \'SUPER_ADMIN\' AND "id" <> ? ORDER BY "name" ASC', [$tenantId, $user['id']]);
+$people = q_all('SELECT "id","name","role" FROM "User" WHERE "tenantId" = ? AND "id" <> ? ORDER BY "name" ASC', [$tenantId, $user['id']]);
 $priorities = tenant_priorities($tenantId);
 $mentions = array_map(fn ($p) => ['id' => $p['id'], 'label' => $p['name']], $people);
 ?>

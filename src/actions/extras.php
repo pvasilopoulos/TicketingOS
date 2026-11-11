@@ -39,7 +39,7 @@ function act_group_save(array $in): ?array
     // Members: staff of this workspace only.
     if (array_key_exists('members', $in) || ($in['membersSent'] ?? '') === '1') {
         $want = array_values(array_unique(array_filter((array) ($in['members'] ?? []), 'is_string')));
-        $valid = $want ? pluck(q_all('SELECT "id" FROM "User" WHERE "tenantId" = ? AND "role" IN (\'ADMIN\',\'AGENT\') AND "id" IN (' . in_ph($want) . ')', [$tenantId, ...$want]), 'id') : [];
+        $valid = $want ? pluck(q_all('SELECT "id" FROM "User" WHERE "tenantId" = ? AND "role" IN (\'SUPER_ADMIN\',\'ADMIN\',\'AGENT\') AND "id" IN (' . in_ph($want) . ')', [$tenantId, ...$want]), 'id') : [];
         db_tx(function () use ($id, $valid) {
             q('DELETE FROM "AgentGroupMember" WHERE "groupId" = ?', [$id]);
             foreach ($valid as $uid) db_insert('AgentGroupMember', ['groupId' => $id, 'userId' => $uid, 'createdAt' => now_iso()]);
@@ -248,7 +248,7 @@ function act_report_schedule_save(array $in): ?array
     $freq = in_array($in['frequency'] ?? '', ['daily', 'weekly', 'monthly'], true) ? $in['frequency'] : 'weekly';
     $days = in_array((int) ($in['days'] ?? 0), [1, 7, 30, 90], true) ? (int) $in['days'] : ($freq === 'daily' ? 1 : ($freq === 'monthly' ? 30 : 7));
     $want = array_values(array_unique(array_filter((array) ($in['recipients'] ?? []), 'is_string')));
-    $staff = $want ? q_all('SELECT * FROM "User" WHERE "tenantId" = ? AND "active" = 1 AND "role" IN (\'ADMIN\',\'AGENT\') AND "id" IN (' . in_ph($want) . ')', [$tenantId, ...$want]) : [];
+    $staff = $want ? q_all('SELECT * FROM "User" WHERE "tenantId" = ? AND "active" = 1 AND "role" IN (\'SUPER_ADMIN\',\'ADMIN\',\'AGENT\') AND "id" IN (' . in_ph($want) . ')', [$tenantId, ...$want]) : [];
     $recips = pluck(array_filter($staff, fn ($u) => can($u, 'reports.view')), 'id');
     if (!$recips) return ['error' => 'Pick at least one recipient who can view reports'];
     $data = [

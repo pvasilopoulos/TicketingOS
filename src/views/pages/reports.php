@@ -89,7 +89,7 @@ foreach ($created as $t) {
 arsort($byGroup);
 arsort($byOrg);
 $schedules = q_all('SELECT * FROM "ScheduledReport" WHERE "tenantId" = ? ORDER BY "createdAt"', [$tenantId]);
-$reportStaff = array_values(array_filter(q_all('SELECT * FROM "User" WHERE "tenantId" = ? AND "active" = 1 AND "role" IN (\'ADMIN\',\'AGENT\') ORDER BY "name" LIMIT 300', [$tenantId]), fn ($u) => can($u, 'reports.view')));
+$reportStaff = array_values(array_filter(q_all('SELECT * FROM "User" WHERE "tenantId" = ? AND "active" = 1 AND "role" IN (\'SUPER_ADMIN\',\'ADMIN\',\'AGENT\') ORDER BY "name" LIMIT 300', [$tenantId]), fn ($u) => can($u, 'reports.view')));
 $schedState = flash('schedules');
 $emailReady = (email_settings($tenantId)['enabled'] ?? false);
 $weekdays = [1 => 'Monday', 2 => 'Tuesday', 3 => 'Wednesday', 4 => 'Thursday', 5 => 'Friday', 6 => 'Saturday', 7 => 'Sunday'];
@@ -122,7 +122,7 @@ foreach ($created as $t) { $k = $t['categoryId'] ?? ''; $byCat[$k] = ($byCat[$k]
 arsort($byCat);
 
 // Agent performance.
-$agents = key_by(q_all('SELECT "id","name","avatarColor" FROM "User" WHERE "tenantId" = ? AND "role" IN (\'ADMIN\',\'AGENT\') ORDER BY "name"', [$tenantId]), 'id');
+$agents = key_by(q_all('SELECT "id","name","avatarColor" FROM "User" WHERE "tenantId" = ? AND "role" IN (\'SUPER_ADMIN\',\'ADMIN\',\'AGENT\') ORDER BY "name"', [$tenantId]), 'id');
 $openByAgent = array_column(q_all('SELECT "assigneeId", COUNT(*) AS n FROM "Ticket" WHERE "tenantId" = ? AND "assigneeId" IS NOT NULL AND "status" NOT IN (' . in_ph($closedKeys) . ') GROUP BY "assigneeId"', [$tenantId, ...$closedKeys]), 'n', 'assigneeId');
 $perAgent = [];
 foreach ($agents as $id => $a) $perAgent[$id] = ['resolved' => 0, 'met' => 0, 'withSla' => 0, 'frt' => []];

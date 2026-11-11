@@ -49,7 +49,7 @@ if ($view === 'board') {
 $categories = q_all('SELECT "id","name" FROM "Category" WHERE "tenantId" = ? ORDER BY "name" ASC', [$tenantId]);
 $tags = q_all('SELECT "id","name" FROM "Tag" WHERE "tenantId" = ? ORDER BY "name" ASC', [$tenantId]);
 $savedViews = q_all('SELECT "id","name","query" FROM "SavedView" WHERE "userId" = ? ORDER BY "createdAt" ASC', [$user['id']]);
-$agents = $staff ? q_all('SELECT "id","name" FROM "User" WHERE "tenantId" = ? AND "role" IN (\'ADMIN\',\'AGENT\') ORDER BY "name" ASC', [$tenantId]) : [];
+$agents = $staff ? q_all('SELECT "id","name" FROM "User" WHERE "tenantId" = ? AND "role" IN (\'SUPER_ADMIN\',\'ADMIN\',\'AGENT\') ORDER BY "name" ASC', [$tenantId]) : [];
 
 // Links preserve the current filters.
 $filters = $sp;

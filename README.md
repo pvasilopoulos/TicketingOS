@@ -57,6 +57,8 @@ oversee every tenant and step into any board to manage it.
   - A user with “manage users” can't touch admins or grant admin.
   - The workspace always keeps one active admin.
 - 🔐 **Security** tab: admin backup warning, deactivated and never-signed-in counts, and a minimum password length slider with a letters+numbers rule. The rules apply to invites, resets and admin-set passwords.
+- 👑 **Super admin**: the platform owner, above administrators. Works in their own workspace, can open the platform console (`/platform`) and enter any workspace. Administrators can’t edit, deactivate or remove a super admin; only a super admin can grant the role (Users → Edit). The first one is created with `php bin/make-super-admin.php you@example.com` (or the SQL in that file).
+- 🕓 **Ticket history**: changes to a ticket (status, priority, assignee, category, group, fields, followers, links, merges, macros, ratings) are in their own **History** tab, so the **Conversation** tab holds only messages.
 - 📜 **Audit log** (Settings → Audit log, admins):
   - Records every change to users, roles, groups, organizations, settings, integrations and scheduled reports, plus staff sign-ins (also failed and blocked ones), bulk edits, merges and CSV exports.
   - Filters by activity, person and period, with a details view and CSV export. Secrets and one-time links are never stored.

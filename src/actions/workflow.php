@@ -30,7 +30,7 @@ function act_macro_create(array $in): ?array
     if ($setStatus && !in_array($setStatus, array_column($statuses, 'key'), true)) return ['error' => 'Invalid status'];
     if ($setPriority && !priority_exists($priorities, $setPriority)) return ['error' => 'Invalid priority'];
     if ($setAssignee && !in_array($setAssignee, ['me', 'none'], true)
-        && !q_val('SELECT 1 FROM "User" WHERE "id" = ? AND "tenantId" = ? AND "role" IN (\'ADMIN\',\'AGENT\')', [$setAssignee, $tenantId])) {
+        && !q_val('SELECT 1 FROM "User" WHERE "id" = ? AND "tenantId" = ? AND "role" IN (\'SUPER_ADMIN\',\'ADMIN\',\'AGENT\')', [$setAssignee, $tenantId])) {
         return ['error' => 'Invalid assignee'];
     }
     if ($addTagId && !q_val('SELECT 1 FROM "Tag" WHERE "id" = ? AND "tenantId" = ?', [$addTagId, $tenantId])) return ['error' => 'Invalid tag'];
@@ -86,7 +86,7 @@ function act_macro_apply(array $in): ?array
     if ($macro['setPriority']) $changes['priority'] = $macro['setPriority'];
     if ($macro['setAssignee']) {
         $changes['assigneeId'] = match ($macro['setAssignee']) {
-            'me' => $user['role'] === 'SUPER_ADMIN' ? $ticket['assigneeId'] ?? '' : $user['id'],
+            'me' => $user['role'] === 'SUPER_ADMIN' && $user['tenantId'] !== $ticket['tenantId'] ? $ticket['assigneeId'] ?? '' : $user['id'],
             'none' => '',
             default => $macro['setAssignee'],
         };

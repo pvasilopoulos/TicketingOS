@@ -1,5 +1,5 @@
 // TicketingOS service worker: offline app shell, page cache and Web Push.
-const VERSION = "v9";
+const VERSION = "v10";
 const SHELL = `tos-shell-${VERSION}`;
 const PAGES = `tos-pages-${VERSION}`;
 const SHELL_FILES = [

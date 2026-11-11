@@ -17,7 +17,7 @@ $prioUse = array_column(q_all('SELECT "priority", COUNT(*) AS n FROM "Ticket" WH
 $tags = q_all('SELECT g."id", g."name", (SELECT COUNT(*) FROM "TicketTag" tt WHERE tt."tagId" = g."id") AS "count" FROM "Tag" g WHERE g."tenantId" = ? ORDER BY g."name" ASC', [$tenantId]);
 $canned = q_all('SELECT "id","title","body" FROM "CannedResponse" WHERE "tenantId" = ? ORDER BY "title" ASC', [$tenantId]);
 $rules = q_all('SELECT * FROM "AutomationRule" WHERE "tenantId" = ? ORDER BY "order" ASC, "createdAt" ASC', [$tenantId]);
-$agents = q_all('SELECT "id","name" FROM "User" WHERE "tenantId" = ? AND "role" IN (\'ADMIN\',\'AGENT\') ORDER BY "name" ASC', [$tenantId]);
+$agents = q_all('SELECT "id","name" FROM "User" WHERE "tenantId" = ? AND "role" IN (\'SUPER_ADMIN\',\'ADMIN\',\'AGENT\') ORDER BY "name" ASC', [$tenantId]);
 $policy = tenant_policy($tenantId);
 
 $colorInput = 'h-10 w-14 cursor-pointer rounded-lg border border-border bg-surface p-1';

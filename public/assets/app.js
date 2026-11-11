@@ -1154,6 +1154,31 @@
     if (tab && tab.dataset.active !== "true") tab.click();
   });
 
+  // Simple tabs (ticket Conversation / History).
+  function showTab(root, key) {
+    var btn = root.querySelector('[data-tab="' + key + '"]');
+    if (!btn) return false;
+    $$("[data-tab]", root).forEach(function (b) { b.setAttribute("aria-selected", b === btn ? "true" : "false"); });
+    $$("[data-tab-panel]", root).forEach(function (p) { p.hidden = p.getAttribute("data-tab-panel") !== key; });
+    return true;
+  }
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest("[data-tabs] [data-tab]");
+    if (!b) return;
+    var key = b.getAttribute("data-tab");
+    showTab(b.closest("[data-tabs]"), key);
+    try { history.replaceState(null, "", key === "conversation" ? location.pathname + location.search : "#" + key); } catch (_) {}
+  });
+  function tabFromHash() {
+    $$("[data-tabs]").forEach(function (root) {
+      // #history opens History; any other anchor (#reply, a comment) needs the conversation.
+      var key = location.hash === "#history" ? "history" : "conversation";
+      if (location.hash === "#history" || location.hash.length > 1) showTab(root, key);
+    });
+  }
+  window.addEventListener("hashchange", tabFromHash);
+  document.addEventListener("DOMContentLoaded", tabFromHash);
+
   // Range inputs with a live <output>.
   document.addEventListener("input", function (e) {
     if (!e.target.matches || !e.target.matches("input[data-range]")) return;

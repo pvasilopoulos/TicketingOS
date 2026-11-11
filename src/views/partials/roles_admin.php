@@ -9,9 +9,12 @@ $info = permission_info();
 $total = count($info);
 $counts = array_column(q_all('SELECT "role", COUNT(*) AS n FROM "User" WHERE "tenantId" = ? GROUP BY "role"', [$tenantId]), 'n', 'role');
 $plainAgents = (int) q_val('SELECT COUNT(*) FROM "User" WHERE "tenantId" = ? AND "role" = \'AGENT\' AND "customRoleId" IS NULL', [$tenantId]);
-$staff = q_all('SELECT "id","name","avatarColor","role","customRoleId" FROM "User" WHERE "tenantId" = ? AND "role" IN (\'ADMIN\',\'AGENT\') AND "active" = 1 ORDER BY "name" LIMIT 500', [$tenantId]);
+$staff = q_all('SELECT "id","name","avatarColor","role","customRoleId" FROM "User" WHERE "tenantId" = ? AND "role" IN (\'SUPER_ADMIN\',\'ADMIN\',\'AGENT\') AND "active" = 1 ORDER BY "name" LIMIT 500', [$tenantId]);
+$superAll = q_all('SELECT "id","name","email","avatarColor" FROM "User" WHERE "role" = \'SUPER_ADMIN\' AND "active" = 1 ORDER BY "name" LIMIT 50');
+if ($me['role'] !== 'SUPER_ADMIN') $superAll = array_map(fn ($u) => ['email' => ''] + $u, $superAll);
 $membersOf = function (string $key) use ($staff): array {
     return array_values(array_filter($staff, fn ($u) => match ($key) {
+        'super' => $u['role'] === 'SUPER_ADMIN',
         'admin' => $u['role'] === 'ADMIN',
         'agent' => $u['role'] === 'AGENT' && !$u['customRoleId'],
         default => $u['role'] === 'AGENT' && $u['customRoleId'] === $key,
@@ -19,7 +22,7 @@ $membersOf = function (string $key) use ($staff): array {
 };
 
 // Which role is open (?role=admin|agent|customer|new|<id>), and an optional source to copy for "new".
-$keys = ['admin', 'agent', 'customer', 'new', ...array_column($roles, 'id')];
+$keys = ['super', 'admin', 'agent', 'customer', 'new', ...array_column($roles, 'id')];
 $sel = in_array($_GET['role'] ?? '', $keys, true) ? $_GET['role'] : 'agent';
 $rolesById = key_by($roles, 'id');
 $from = (string) ($_GET['from'] ?? '');
@@ -116,6 +119,7 @@ $listItem = function (string $key, string $name, string $sub, string $color, str
   <nav class="flex gap-1 overflow-x-auto rounded-xl border border-border bg-surface-2/40 p-1.5 2xl:flex-col 2xl:self-start 2xl:overflow-visible" aria-label="Roles">
     <p class="hidden px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wider text-muted 2xl:block">Built-in</p>
     <div class="flex shrink-0 gap-1 2xl:flex-col [&>a]:min-w-52 2xl:[&>a]:min-w-0">
+      <?= $listItem('super', 'Super admin', number_format(count($superAll)) . ' · every workspace', '#d97706', 'shield-check', $total) ?>
       <?= $listItem('admin', 'Administrator', number_format((int) ($counts['ADMIN'] ?? 0)) . ' · all permissions', '#4f46e5', 'crown', $total) ?>
       <?= $listItem('agent', 'Agent', $plainAgents . ' · ' . count($agentPerms) . '/' . $total . ' permissions', '#0284c7', 'users-round', count($agentPerms)) ?>
       <?= $listItem('customer', 'Customer', number_format((int) ($counts['CUSTOMER'] ?? 0)) . ' · own tickets only', '#64748b', 'circle-user-round', -1) ?>
@@ -132,6 +136,34 @@ $listItem = function (string $key, string $name, string $sub, string $color, str
   </nav>
 
   <div class="min-w-0">
+    <!-- Super admin -->
+    <div data-role-panel="super" <?= $sel === 'super' ? '' : 'hidden' ?> class="space-y-4">
+      <div class="rounded-xl border border-border bg-surface p-5">
+        <div class="flex flex-wrap items-center gap-4">
+          <span class="grid h-12 w-12 place-items-center rounded-xl bg-amber-600 text-white"><?= icon('shield-check', 22) ?></span>
+          <div class="min-w-0 flex-1"><h3 class="font-semibold">Super admin</h3><p class="text-sm text-muted">The owner of the platform. Above administrators, in every workspace. Can't be edited.</p></div>
+        </div>
+        <ul class="mt-4 grid gap-2 text-sm sm:grid-cols-2">
+          <?php foreach (['Everything an administrator can do', 'Platform console: all workspaces', 'Enter and manage any workspace', 'Grant or remove the super admin role'] as $t): ?>
+            <li class="flex items-center gap-2"><?= icon('circle-check', 15, 'text-emerald-600') ?><?= e($t) ?></li>
+          <?php endforeach; ?>
+        </ul>
+        <div class="mt-4 border-t border-border pt-4">
+          <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Super admins</p>
+          <?php if ($superAll): ?>
+            <ul class="space-y-2">
+              <?php foreach ($superAll as $su): ?>
+                <li class="flex items-center gap-2.5"><?= avatar($su['name'], $su['avatarColor'], 28) ?><span class="min-w-0"><span class="block truncate text-sm font-medium"><?= e($su['name']) ?></span><span class="block truncate text-xs text-muted"><?= e($su['email']) ?></span></span></li>
+              <?php endforeach; ?>
+            </ul>
+          <?php else: ?>
+            <p class="text-xs text-muted">Nobody yet.</p>
+          <?php endif; ?>
+          <p class="mt-3 text-xs text-muted">Administrators can't change, deactivate or remove a super admin. Only a super admin can give this role, from Users → Edit.</p>
+        </div>
+      </div>
+    </div>
+
     <!-- Administrator -->
     <div data-role-panel="admin" <?= $sel === 'admin' ? '' : 'hidden' ?> class="space-y-4">
       <div class="rounded-xl border border-border bg-surface p-5">

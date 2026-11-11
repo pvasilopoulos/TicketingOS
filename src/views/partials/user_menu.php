@@ -1,6 +1,7 @@
 <?php
 /** @var array $user */
-$showPrefs = $showPrefs ?? ($user['role'] !== 'SUPER_ADMIN' || active_tenant_id());
+$showPrefs = $showPrefs ?? ($user['role'] !== 'SUPER_ADMIN' || effective_tenant_id($user));
+$isSuper = $user['role'] === 'SUPER_ADMIN';
 $mobileSheet = $mobileSheet ?? false;
 $item = 'flex w-full items-center gap-2 rounded-lg px-2.5 py-2.5 text-sm text-fg hover:bg-surface-2 transition-colors cursor-pointer sm:py-2';
 echo dropdown(
@@ -11,6 +12,8 @@ echo dropdown(
     . '<div class="min-w-0"><p class="truncate text-sm font-medium">' . e($user['name']) . '</p><p class="truncate text-xs text-muted">' . e($user['email']) . '</p></div></div>'
     . '<div class="px-3 py-2 text-xs text-muted border-b border-border">Role: <span class="font-medium text-fg">' . e(role_label($user['role'])) . '</span></div>'
     . '<div class="p-1.5">'
+    . ($isSuper ? '<a href="/platform" class="' . $item . '">' . icon('shield-check', 16, 'text-sky-600') . 'Platform console</a>' : '')
+    . ($isSuper && $user['tenantId'] && !($showPrefs) ? '<a href="/dashboard" class="' . $item . '">' . icon('layout-dashboard', 16) . 'My workspace</a>' : '')
     . ($showPrefs ? '<a href="/notifications" class="' . $item . '">' . icon('bell', 16) . 'Notification settings</a>' : '')
     . '<button type="button" data-theme-toggle class="' . $item . ' sm:hidden">' . '<span class="dark:hidden">' . icon('moon', 16) . '</span><span class="hidden dark:inline">' . icon('sun', 16) . '</span><span class="dark:hidden">Dark mode</span><span class="hidden dark:inline">Light mode</span></button>'
     . '<button type="button" data-install-app hidden class="' . $item . ' text-brand">' . icon('smartphone', 16) . 'Install app</button>'

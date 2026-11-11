@@ -7,7 +7,7 @@ $groups = q_all('SELECT g.*, (SELECT COUNT(*) FROM "AgentGroupMember" m WHERE m.
 $closed = closed_status_keys(tenant_statuses($tenantId));
 $openByGroup = array_column(q_all('SELECT "groupId", COUNT(*) AS n FROM "Ticket" WHERE "tenantId" = ? AND "groupId" IS NOT NULL' . ($closed ? ' AND "status" NOT IN (' . in_ph($closed) . ')' : '') . ' GROUP BY "groupId"', [$tenantId, ...$closed]), 'n', 'groupId');
 $unassignedByGroup = array_column(q_all('SELECT "groupId", COUNT(*) AS n FROM "Ticket" WHERE "tenantId" = ? AND "groupId" IS NOT NULL AND "assigneeId" IS NULL' . ($closed ? ' AND "status" NOT IN (' . in_ph($closed) . ')' : '') . ' GROUP BY "groupId"', [$tenantId, ...$closed]), 'n', 'groupId');
-$staff = q_all('SELECT "id","name","avatarColor","role" FROM "User" WHERE "tenantId" = ? AND "role" IN (\'ADMIN\',\'AGENT\') AND "active" = 1 ORDER BY "name" LIMIT 500', [$tenantId]);
+$staff = q_all('SELECT "id","name","avatarColor","role" FROM "User" WHERE "tenantId" = ? AND "role" IN (\'SUPER_ADMIN\',\'ADMIN\',\'AGENT\') AND "active" = 1 ORDER BY "name" LIMIT 500', [$tenantId]);
 $membersOf = [];
 foreach (q_all('SELECT m."groupId", m."userId" FROM "AgentGroupMember" m JOIN "AgentGroup" g ON g."id" = m."groupId" WHERE g."tenantId" = ?', [$tenantId]) as $m) $membersOf[$m['groupId']][] = $m['userId'];
 $staffById = key_by($staff, 'id');

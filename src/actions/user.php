@@ -115,7 +115,7 @@ function act_platform_enter(array $in): ?array
 
 function act_platform_exit(array $in): ?array
 {
-    require_super_admin();
+    $user = require_super_admin();
     clear_active_tenant_id();
-    redirect('/platform');
+    redirect(home_for($user));
 }

@@ -54,22 +54,32 @@ $events = q_all('SELECT e.*, u."name" AS "aName", u."avatarColor" AS "aColor" FR
 
 $canned = $staff ? q_all('SELECT "title","body" FROM "CannedResponse" WHERE "tenantId" = ? ORDER BY "title" ASC', [$tenantId]) : [];
 $mentionUsers = array_map(fn ($u) => ['id' => $u['id'], 'label' => $u['name']],
-    q_all('SELECT "id","name" FROM "User" WHERE "tenantId" = ? AND "role" <> \'SUPER_ADMIN\' ORDER BY "name" ASC', [$tenantId]));
+    q_all('SELECT "id","name" FROM "User" WHERE "tenantId" = ? ORDER BY "name" ASC', [$tenantId]));
 
 $byComment = [];
 foreach ($attachments as $a) $byComment[$a['commentId'] ?? ''][] = $a;
 
-// Merge replies and activity events into one chronological timeline.
+// Conversation tab: replies only. History tab: every change to the ticket, newest first.
 $timeline = [];
 foreach ($comments as $c) if ($canInternal || !$c['isInternal']) $timeline[] = ['kind' => 'comment', 'at' => $c['createdAt'], 'item' => $c];
-foreach ($events as $ev) if ($ev['type'] !== 'CREATED') $timeline[] = ['kind' => 'event', 'at' => $ev['createdAt'], 'item' => $ev];
-usort($timeline, fn ($a, $b) => strcmp($a['at'], $b['at']));
+$history = array_reverse($events);
+$historyIcons = [
+    'CREATED' => ['circle-plus', 'text-emerald-600 bg-emerald-500/10'], 'STATUS_CHANGED' => ['circle-dot', 'text-sky-600 bg-sky-500/10'],
+    'REOPENED' => ['rotate-ccw', 'text-amber-600 bg-amber-500/10'], 'PRIORITY_CHANGED' => ['flag', 'text-orange-600 bg-orange-500/10'],
+    'ASSIGNED' => ['user-round-check', 'text-indigo-600 bg-indigo-500/10'], 'CATEGORY_CHANGED' => ['folder', 'text-violet-600 bg-violet-500/10'],
+    'GROUP_CHANGED' => ['users-round', 'text-cyan-600 bg-cyan-500/10'], 'FIELDS_CHANGED' => ['list-checks', 'text-slate-600 bg-slate-500/10'],
+    'MEMBER_ADDED' => ['user-plus', 'text-teal-600 bg-teal-500/10'], 'MEMBER_REMOVED' => ['user-minus', 'text-rose-600 bg-rose-500/10'],
+    'MEMBER_ROLE_CHANGED' => ['users-round', 'text-teal-600 bg-teal-500/10'], 'LINKED' => ['link', 'text-blue-600 bg-blue-500/10'],
+    'MERGED' => ['git-merge', 'text-fuchsia-600 bg-fuchsia-500/10'], 'MACRO' => ['zap', 'text-yellow-600 bg-yellow-500/10'],
+    'CSAT' => ['smile', 'text-pink-600 bg-pink-500/10'],
+];
+$replyCount = count($timeline) + 1;
 
-$agents = $canManage ? q_all('SELECT "id","name" FROM "User" WHERE "tenantId" = ? AND "role" IN (\'ADMIN\',\'AGENT\') ORDER BY "name" ASC', [$tenantId]) : [];
+$agents = $canManage ? q_all('SELECT "id","name" FROM "User" WHERE "tenantId" = ? AND "role" IN (\'SUPER_ADMIN\',\'ADMIN\',\'AGENT\') ORDER BY "name" ASC', [$tenantId]) : [];
 $categories = $canManage ? q_all('SELECT "id","name" FROM "Category" WHERE "tenantId" = ? ORDER BY "name" ASC', [$tenantId]) : [];
 $excluded = array_flip([$ticket['requesterId'], ...array_column($watchers, 'id')]);
 $candidates = $canManage
-    ? array_values(array_filter(q_all('SELECT "id","name","role" FROM "User" WHERE "tenantId" = ? AND "role" <> \'SUPER_ADMIN\' ORDER BY "name" ASC', [$tenantId]), fn ($u) => !isset($excluded[$u['id']])))
+    ? array_values(array_filter(q_all('SELECT "id","name","role" FROM "User" WHERE "tenantId" = ? ORDER BY "name" ASC', [$tenantId]), fn ($u) => !isset($excluded[$u['id']])))
     : [];
 
 $replyState = flash('reply');
@@ -176,21 +186,44 @@ $row = fn (string $label, string $valueHtml) => '<div class="flex items-center j
   </div>
 
   <div class="mt-5 grid gap-5 lg:mt-6 lg:grid-cols-[1fr_300px] lg:gap-6">
-    <!-- Conversation -->
-    <div class="min-w-0 space-y-4">
+    <!-- Conversation / History tabs -->
+    <div class="min-w-0 space-y-4" data-tabs>
+      <div class="flex gap-1 rounded-xl border border-border bg-surface-2/50 p-1" role="tablist">
+        <?php foreach (['conversation' => ['message-square', 'Conversation', $replyCount], 'history' => ['history', 'History', count($history)]] as $tk => [$tic, $tl, $tn]): ?>
+          <button type="button" role="tab" data-tab="<?= $tk ?>" aria-selected="<?= $tk === 'conversation' ? 'true' : 'false' ?>"
+                  class="flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted transition-colors hover:text-fg cursor-pointer aria-selected:bg-surface aria-selected:text-fg aria-selected:shadow-sm sm:flex-none sm:px-4">
+            <?= icon($tic, 15) ?><?= $tl ?><span class="rounded-full bg-surface-2 px-1.5 text-[11px] tabular-nums text-muted"><?= $tn ?></span>
+          </button>
+        <?php endforeach; ?>
+      </div>
+
+      <!-- History -->
+      <div data-tab-panel="history" hidden class="rounded-xl border border-border bg-surface p-4 sm:p-5">
+        <?php if (!$history): ?>
+          <p class="py-6 text-center text-sm text-muted">No changes yet.</p>
+        <?php else: ?>
+          <ol class="relative space-y-4 before:absolute before:bottom-2 before:left-[15px] before:top-2 before:w-px before:bg-border">
+            <?php foreach ($history as $ev): [$hic, $htone] = $historyIcons[$ev['type']] ?? ['clock', 'text-muted bg-surface-2']; ?>
+              <li class="relative flex gap-3">
+                <span class="<?= cx('relative z-10 grid h-8 w-8 shrink-0 place-items-center rounded-full ring-4 ring-surface', $htone) ?>"><?= icon($hic, 15) ?></span>
+                <div class="min-w-0 flex-1 pt-1">
+                  <p class="text-sm"><span class="font-medium"><?= e($ev['aName'] ?? 'Automation') ?></span> <?= e($ev['type'] === 'CREATED' && $ev['summary'] === '' ? 'created the ticket' : $ev['summary']) ?></p>
+                  <p class="mt-0.5 text-xs text-muted"><?= e(format_date($ev['createdAt'])) ?> · <?= e(time_ago($ev['createdAt'])) ?></p>
+                </div>
+              </li>
+            <?php endforeach; ?>
+          </ol>
+        <?php endif; ?>
+      </div>
+
+      <!-- Conversation -->
+      <div data-tab-panel="conversation" class="space-y-4">
       <?= $message($requester['name'], $requester['avatarColor'], $requester['role'], $ticket['createdAt'], $ticket['description'], $byComment[''] ?? [], false, true) ?>
 
       <?php foreach ($timeline as $it):
-          if ($it['kind'] === 'comment'):
-              $c = $it['item'];
-              echo $message($c['aName'], $c['aColor'], $c['aRole'], $c['createdAt'], $c['body'], $byComment[$c['id']] ?? [], (bool) $c['isInternal'], $c['authorId'] === $ticket['requesterId']);
-          else:
-              $ev = $it['item']; ?>
-            <div class="flex items-center gap-2.5 px-1 py-0.5 text-xs text-muted">
-              <?= avatar($ev['aName'] ?? 'Automation', $ev['aColor'] ?? '#94a3b8', 22) ?>
-              <p class="min-w-0"><span class="font-medium text-fg"><?= e($ev['aName'] ?? 'Automation') ?></span> <?= e($ev['summary']) ?><span class="text-muted"> · <?= e(time_ago($ev['createdAt'])) ?></span></p>
-            </div>
-      <?php endif; endforeach; ?>
+          $c = $it['item'];
+          echo $message($c['aName'], $c['aColor'], $c['aRole'], $c['createdAt'], $c['body'], $byComment[$c['id']] ?? [], (bool) $c['isInternal'], $c['authorId'] === $ticket['requesterId']);
+      endforeach; ?>
 
       <?php if ($csatPending || ($csatDone && !$staff && $ticket['requesterId'] === $user['id'])): $cur = (int) ($csatDone['rating'] ?? 0); ?>
         <div class="rounded-xl border border-brand/30 bg-brand/5 p-4">
@@ -242,6 +275,7 @@ $row = fn (string $label, string $valueHtml) => '<div class="flex items-center j
         </form>
         <?php endif; ?>
       </div>
+      </div><!-- /conversation -->
     </div>
 
     <!-- Sidebar (phones: cards flow into the main grid; Properties goes first) -->

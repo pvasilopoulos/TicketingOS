@@ -29,12 +29,4 @@
     No workspace yet?
     <a href="/register" class="font-medium text-brand hover:underline">Create one</a>
   </p>
-
-  <div class="mt-8 rounded-lg border border-border bg-surface-2 p-3 text-xs text-muted">
-    <p class="font-medium text-fg">Demo accounts (password: password123)</p>
-    <p class="mt-1">Platform: info@softify.gr</p>
-    <p>Acme admin: admin@acme.dev · agent: sofia@acme.dev</p>
-    <p>Acme customer: jamie@acme-customer.com</p>
-    <p>Globex admin: admin@globex.dev</p>
-  </div>
 </div>
