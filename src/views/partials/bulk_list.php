@@ -17,6 +17,9 @@
       <?= select_options(['__nochange__' => 'Assignee…', '' => 'Unassigned'] + array_column($agents, 'name', 'id'), '__nochange__') ?>
     </select>
     <button type="submit" class="<?= btn_cls('primary', 'sm') ?>">Apply</button>
+    <?php if (($bu = current_user()) && can_delete_tickets($bu)): ?>
+      <button type="submit" formaction="/action/ticket-bulk-delete" formnovalidate data-confirm="Delete the selected tickets permanently? Their replies, files, time entries and history are deleted too. This can’t be undone." class="inline-flex h-9 items-center gap-1 rounded-lg px-2 text-sm text-red-600 hover:bg-red-500/10 dark:text-red-400 cursor-pointer"><?= icon('trash-2', 14) ?> Delete</button>
+    <?php endif; ?>
     <button type="button" data-bulk-clear class="inline-flex h-9 items-center gap-1 rounded-lg px-2 text-sm text-muted hover:bg-surface-2 hover:text-fg cursor-pointer"><?= icon('x', 14) ?> Clear</button>
   </form>
 

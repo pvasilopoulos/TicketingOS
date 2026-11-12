@@ -195,7 +195,8 @@ function create_ticket(string $tenantId, array $requester, array $data, ?array $
     for ($attempt = 0; ; $attempt++) {
         try {
             $ticket = db_tx(function () use ($tenantId, $subject, $description, $priority, $categoryId, $groupId, $requester, $statuses, $sla, $now, $source, $dueOverride, $parentId) {
-                $number = (int) q_val('SELECT COALESCE(MAX("number"), 0) FROM "Ticket" WHERE "tenantId" = ?', [$tenantId]) + 1;
+                // Numbers of deleted tickets are never given out again.
+                $number = max((int) q_val('SELECT COALESCE(MAX("number"), 0) FROM "Ticket" WHERE "tenantId" = ?', [$tenantId]), (int) tenant_setting($tenantId, 'ticketNumberFloor', 0)) + 1;
                 $t = [
                     'id' => cuid(), 'number' => $number, 'subject' => $subject, 'description' => $description,
                     'status' => initial_status_key($statuses), 'priority' => $priority,

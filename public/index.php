@@ -46,7 +46,7 @@ $ACTIONS = [
     'policy-save' => 'act_policy_save', 'email-save' => 'act_email_save', 'email-test' => 'act_email_test',
     'nav-save' => 'act_nav_save',
     'macro-create' => 'act_macro_create', 'macro-delete' => 'act_macro_delete', 'macro-apply' => 'act_macro_apply',
-    'ticket-merge' => 'act_ticket_merge', 'ticket-link' => 'act_ticket_link', 'ticket-unlink' => 'act_ticket_unlink',
+    'ticket-merge' => 'act_ticket_merge', 'ticket-delete' => 'act_ticket_delete', 'ticket-bulk-delete' => 'act_ticket_bulk_delete', 'ticket-link' => 'act_ticket_link', 'ticket-unlink' => 'act_ticket_unlink',
     'kb-save' => 'act_kb_save', 'kb-delete' => 'act_kb_delete', 'kb-helpful' => 'act_kb_helpful',
     'member-create' => 'act_member_create', 'member-update' => 'act_member_update', 'member-status' => 'act_member_status', 'member-password' => 'act_member_password',
     'group-save' => 'act_group_save', 'group-delete' => 'act_group_delete', 'group-routing' => 'act_group_routing',

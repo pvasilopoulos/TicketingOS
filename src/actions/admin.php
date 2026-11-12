@@ -663,8 +663,8 @@ function act_admin_perms_save(array $in): ?array
     [$me, $tenantId] = require_roles_admin();
     if ($me['role'] !== 'SUPER_ADMIN') return ['error' => 'Only a super admin can change Administrator permissions'];
     if (($in['reset'] ?? '') === '1') {
-        tenant_setting_set($tenantId, 'adminPermissions', perms_for_storage(admin_all_permissions(), true));
-        return ['success' => 'Administrators have full access again'];
+        tenant_setting_set($tenantId, 'adminPermissions', perms_for_storage(admin_default_permissions(), true));
+        return ['success' => 'Administrators are back to the default permissions'];
     }
     tenant_setting_set($tenantId, 'adminPermissions', perms_for_storage(array_keys(array_filter($in['perm'] ?? [], fn ($v) => $v === 'on')), true));
     return ['success' => 'Administrator permissions saved'];

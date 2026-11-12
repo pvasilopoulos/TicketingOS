@@ -167,7 +167,7 @@ $listItem = function (string $key, string $name, string $sub, string $color, str
     </div>
 
     <!-- Administrator: editable by a super admin, read-only for everyone else -->
-    <?php $superMe = $me['role'] === 'SUPER_ADMIN'; $adminLimited = count($adminPerms) < $adminTotal; ?>
+    <?php $superMe = $me['role'] === 'SUPER_ADMIN'; $adminLimited = (bool) array_diff(admin_default_permissions(), $adminPerms); ?>
     <?php if ($superMe): ?>
     <form method="post" action="/action/admin-perms-save" data-role-panel="admin" data-perm-form <?= $sel === 'admin' ? '' : 'hidden' ?>>
       <?= form_meta('roles', '/settings?role=admin#roles') ?>
@@ -178,13 +178,13 @@ $listItem = function (string $key, string $name, string $sub, string $color, str
         <div class="flex flex-wrap items-center gap-4">
           <span class="grid h-12 w-12 place-items-center rounded-xl bg-indigo-600 text-white"><?= icon('crown', 22) ?></span>
           <div class="min-w-0 flex-1"><h3 class="font-semibold">Administrator <span class="ml-1 rounded-full bg-surface-2 px-2 py-0.5 text-xs font-medium text-muted">Built-in</span></h3>
-            <p class="text-sm text-muted"><?= $superMe ? 'As super admin you decide what administrators of this workspace can do.' : ($adminLimited ? 'Limited by the super admin.' : 'Full access. Only the super admin can change this.') ?></p></div>
+            <p class="text-sm text-muted"><?= $superMe ? 'As super admin you decide what administrators of this workspace can do.' : ($adminLimited ? 'Limited by the super admin.' : 'Full access (deleting tickets only if the super admin allows it). Only the super admin can change this.') ?></p></div>
           <?= $avatars($membersOf('admin'), 'ADMIN') ?>
         </div>
       </div>
       <?= $editor($adminPerms, !$superMe, ADMIN_PERMISSIONS + PERMISSIONS) ?>
     <?php if ($superMe): ?>
-      <?= $saveBar('<button type="submit" name="reset" value="1" formnovalidate data-confirm="Give administrators every permission again?" title="Full access" class="' . btn_cls('ghost', 'sm') . '">' . icon('rotate-ccw', 14) . '<span class="max-sm:hidden">Full access</span></button>') ?>
+      <?= $saveBar('<button type="submit" name="reset" value="1" formnovalidate data-confirm="Reset administrators to the default permissions? They get everything except deleting tickets." title="Reset to defaults" class="' . btn_cls('ghost', 'sm') . '">' . icon('rotate-ccw', 14) . '<span class="max-sm:hidden">Reset to defaults</span></button>') ?>
     </form>
     <?php else: ?>
     </div>

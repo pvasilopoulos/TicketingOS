@@ -53,6 +53,7 @@ const AUDITED_ACTIONS = [
     'report-schedule-save' => ['reports', 'Saved a scheduled report'], 'report-schedule-delete' => ['reports', 'Deleted a scheduled report'],
     // Tickets (bulk / destructive only; single changes are in each ticket's timeline)
     'ticket-bulk' => ['tickets', 'Bulk-edited tickets'], 'ticket-merge' => ['tickets', 'Merged tickets'],
+    'ticket-delete' => ['tickets', 'Deleted a ticket'], 'ticket-bulk-delete' => ['tickets', 'Deleted tickets'],
 ];
 
 const AUDIT_CATEGORIES = [

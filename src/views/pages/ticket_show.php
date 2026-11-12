@@ -289,6 +289,12 @@ $row = fn (string $label, string $valueHtml) => '<div class="flex items-center j
         <button type="submit" class="<?= $quick ?>"><?= icon('git-merge', 15) ?> Merge into…</button>
       </form>
     <?php endif; ?>
+    <?php if ($staff && can_delete_tickets($user)): ?>
+      <form method="post" action="/action/ticket-delete" data-ajax data-confirm="Delete ticket #<?= (int) $ticket['number'] ?> permanently? Its replies, files, time entries and history are deleted too. This can’t be undone." class="shrink-0">
+        <?= form_meta() ?><input type="hidden" name="ticketId" value="<?= e($ticket['id']) ?>">
+        <button type="submit" class="<?= $quick ?> text-red-600 dark:text-red-400"><?= icon('trash-2', 15) ?> Delete ticket</button>
+      </form>
+    <?php endif; ?>
     <button type="button" data-share data-share-title="<?= e('#' . $ticket['number'] . ' ' . $ticket['subject']) ?>" class="<?= $quick ?>"><?= icon('link', 15) ?> <span data-share-label>Share link</span></button>
     <a href="/tickets/<?= e($ticket['id']) ?>/print" target="_blank" rel="noopener" class="<?= $quick ?>"><?= icon('printer', 15) ?> Print / PDF</a>
     <?php if ($aiOn && can($user, 'kb.edit')): ?>

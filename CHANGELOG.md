@@ -4,6 +4,14 @@ All notable changes to TicketingOS (PHP edition). Versions follow [Semantic Vers
 **major** for changes that need manual steps when updating, **minor** for new features, **patch** for fixes.
 The app shows this list under **About & what’s new** (menu footer → version number).
 
+## [1.11.0] - 2026-11-12
+
+### Added
+- **Delete tickets** permanently — from the ticket page (“Delete ticket”) or several at once from the ticket list — with their replies, files, time entries and history. New permission “Delete tickets” (Bulk & data): only super admins have it by default; a super admin can give it to administrators (Roles → Administrator) and administrators to roles. Every deletion is in the audit log with the ticket’s number and subject, and numbers of deleted tickets are never reused.
+
+### Changed
+- Roles → Administrator: “Full access” is now “Reset to defaults” (everything except deleting tickets).
+
 ## [1.10.0] - 2026-11-12
 
 ### Added

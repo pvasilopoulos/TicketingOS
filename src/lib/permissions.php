@@ -45,6 +45,7 @@ const PERMISSIONS = [
     ]],
     'Bulk & data' => ['layers', 'Actions that touch many tickets or take data out.', [
         'tickets.bulk' => ['Bulk edit', 'Change many tickets at once from the list (each change still needs its own permission).', []],
+        'tickets.delete' => ['Delete tickets', 'Permanently delete tickets with their replies, files, time entries and history. It can’t be undone; every deletion is in the audit log. Administrators get it only when a super admin turns it on.', ['sensitive' => true]],
         'tickets.merge' => ['Merge tickets', 'Closes the duplicate and moves its conversation into another ticket.', []],
         'tickets.link' => ['Link tickets', 'Mark tickets as related, without merging them.', []],
         'tickets.export' => ['Export to CSV', 'Download ticket data, including customer emails.', ['sensitive' => true]],
@@ -109,6 +110,9 @@ const ADMIN_PERMISSIONS = [
         'admin.admins' => ['Manage administrators', 'Make people administrators and change, deactivate or remove other administrators.', ['sensitive' => true]],
     ]],
 ];
+/** Abilities administrators don't get until a super admin turns them on (Roles → Administrator). */
+const ADMIN_DEFAULT_OFF = ['tickets.delete'];
+
 /** Marks an Administrator set saved after the admin-only switches existed. */
 const PERMS_ADMIN_MARKER = '_ax';
 
@@ -242,11 +246,17 @@ function agent_permissions(string $tenantId): array
     return clean_permissions(is_array($saved) ? $saved : AGENT_DEFAULT_PERMISSIONS);
 }
 
+/** What administrators hold until a super admin changes it: everything but ADMIN_DEFAULT_OFF. */
+function admin_default_permissions(): array
+{
+    return array_values(array_diff(admin_all_permissions(), ADMIN_DEFAULT_OFF));
+}
+
 /** What administrators of a workspace may do (all, unless a super admin limited it). */
 function admin_permissions(string $tenantId): array
 {
     $saved = $tenantId !== '' ? tenant_setting($tenantId, 'adminPermissions') : null;
-    if (!is_array($saved)) return admin_all_permissions();
+    if (!is_array($saved)) return admin_default_permissions();
     // Sets saved before the admin-only switches existed keep those abilities.
     if (!in_array(PERMS_ADMIN_MARKER, $saved, true)) $saved = array_merge($saved, admin_only_permissions());
     return clean_permissions($saved, true);
