@@ -87,7 +87,8 @@ function act_org_save(array $in): ?array
     if (q_val('SELECT 1 FROM "Organization" WHERE "tenantId" = ? AND "name" = ?' . ($id ? ' AND "id" <> ?' : ''), $id ? [$tenantId, $name, $id] : [$tenantId, $name])) {
         return ['error' => 'An organization with that name already exists'];
     }
-    $data = ['name' => $name, 'domain' => $domains ? implode(', ', $domains) : null, 'notes' => mb_substr(trim((string) ($in['notes'] ?? '')), 0, 2000) ?: null];
+    $data = ['name' => $name, 'domain' => $domains ? implode(', ', $domains) : null, 'notes' => mb_substr(trim((string) ($in['notes'] ?? '')), 0, 2000) ?: null,
+        'teamPrefill' => ($in['teamPrefill'] ?? '') === 'on' ? 1 : 0];
     if ($id) {
         if (!q_val('SELECT 1 FROM "Organization" WHERE "id" = ? AND "tenantId" = ?', [$id, $tenantId])) return ['error' => 'Organization not found'];
         db_update('Organization', $data, '"id" = ?', [$id]);

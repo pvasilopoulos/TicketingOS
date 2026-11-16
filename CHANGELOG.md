@@ -4,6 +4,11 @@ All notable changes to TicketingOS (PHP edition). Versions follow [Semantic Vers
 **major** for changes that need manual steps when updating, **minor** for new features, **patch** for fixes.
 The app shows this list under **About & what’s new** (menu footer → version number).
 
+## [1.14.0] - 2026-11-16
+
+### Changed
+- “Add its people to the Team of new tickets” is now set **per organization** (Settings → Organizations) instead of for the whole workspace. Workspaces that had it on get it on for all their organizations; everyone else starts with it off.
+
 ## [1.13.0] - 2026-11-16
 
 ### Added

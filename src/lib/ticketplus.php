@@ -249,11 +249,32 @@ const TICKET_FORM_PARTS = [
     'similar' => ['Similar open tickets', 'Warn about possible duplicates while the subject is typed.'],
 ];
 
-/** Settings → General → New-ticket form: a customer's organization colleagues start in the ticket's Team. */
-function ticket_prefill_org_team(string $tenantId): bool
+/**
+ * People who start in the Team of a customer's new ticket: the other active
+ * customers of their organizations that have "Add its people to the Team" on
+ * (Settings → Organizations). At most 50.
+ */
+function ticket_team_start(array $user): array
 {
-    $saved = tenant_setting($tenantId, 'ticketForm');
-    return is_array($saved) && !empty($saved['prefillOrgTeam']);
+    if (is_staff($user['role'])) return [];
+    return q_all('SELECT DISTINCT u."id", u."name", u."avatarColor" FROM "User" u
+        JOIN "UserOrganization" uo ON uo."userId" = u."id"
+        JOIN "Organization" o ON o."id" = uo."organizationId" AND o."teamPrefill" = 1
+        WHERE uo."organizationId" IN (SELECT "organizationId" FROM "UserOrganization" WHERE "userId" = ?)
+          AND u."id" <> ? AND u."role" = \'CUSTOMER\' AND u."active" = 1
+        ORDER BY u."name" LIMIT 50', [$user['id'], $user['id']]);
+}
+
+/** v13: the workspace-wide switch of v1.13.0 became one per organization. */
+function migrate_team_prefill(): void
+{
+    foreach (q_all('SELECT "tenantId", "value" FROM "TenantSetting" WHERE "key" = ?', ['ticketForm']) as $r) {
+        $v = json_decode((string) $r['value'], true);
+        if (!is_array($v) || !array_key_exists('prefillOrgTeam', $v)) continue;
+        if ($v['prefillOrgTeam']) q('UPDATE "Organization" SET "teamPrefill" = 1 WHERE "tenantId" = ?', [$r['tenantId']]);
+        unset($v['prefillOrgTeam']);
+        tenant_setting_set($r['tenantId'], 'ticketForm', $v);
+    }
 }
 
 /** Which optional parts the workspace shows: ['cc' => true, ...] (all on by default). */

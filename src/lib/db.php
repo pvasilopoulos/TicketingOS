@@ -191,7 +191,7 @@ function ts(?string $iso): ?float
  * (hosts like Plesk often have no shell for bin/migrate.php). A marker file in
  * storage/ keeps this to one cheap check per request.
  */
-const RUNTIME_SCHEMA_VERSION = 12;
+const RUNTIME_SCHEMA_VERSION = 13;
 
 /** Does a table have a column? (works for SQLite and MySQL/MariaDB) */
 function db_column_exists(string $table, string $col): bool
@@ -238,6 +238,9 @@ function ensure_runtime_schema(): void
         db_add_index('Notification', 'Notification_user_tenant_read_idx', ['userId', 'tenantId', 'read']);
         runtime_schema_v11();
         seed_new_status(); // v12: "New" status for new tickets
+        // v13: "Add its people to the Team" per organization.
+        db_add_column('Organization', 'teamPrefill', 'INT NOT NULL DEFAULT 0', 'INTEGER NOT NULL DEFAULT 0');
+        migrate_team_prefill();
         @file_put_contents($marker, $sig);
     } catch (Throwable $e) {
         error_log('[schema] ' . $e->getMessage());

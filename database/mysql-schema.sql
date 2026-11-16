@@ -500,6 +500,7 @@ CREATE TABLE IF NOT EXISTS `Organization` (
   `createdAt` varchar(30) NOT NULL,
   `hourlyRate` decimal(10,2) DEFAULT NULL,
   `billing` mediumtext DEFAULT NULL,
+  `teamPrefill` int(11) NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),
   UNIQUE KEY `tenantId` (`tenantId`,`name`),
   KEY `Organization_tenant_domain_idx` (`tenantId`,`domain`),

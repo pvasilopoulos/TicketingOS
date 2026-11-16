@@ -193,10 +193,7 @@ $s = fn (string $form) => flash($form);
             </label>
           <?php endforeach; ?>
         </div>
-        <label class="flex cursor-pointer items-start gap-3 rounded-xl border border-border p-3 transition-colors hover:bg-surface-2/50 has-[:checked]:border-brand/40 has-[:checked]:bg-brand/5">
-          <input type="checkbox" name="prefillOrgTeam" <?= ticket_prefill_org_team($tenantId) ? 'checked' : '' ?> class="mt-0.5 h-4 w-4 rounded border-border accent-brand">
-          <span class="min-w-0"><span class="block text-sm font-medium">Add the organization’s people to the Team</span><span class="block text-xs text-muted">When a customer opens a ticket, the other people of their organization are already in its Team (as viewers, so they see it and get its updates). The customer can remove anyone before sending. Needs the Team part above.</span></span>
-        </label>
+        <p class="text-xs text-muted">To start customers’ tickets with their colleagues in the Team, turn on “Add its people to the Team” on an organization (Settings → Organizations).</p>
         <button type="submit" class="<?= btn_cls() ?>"><?= icon('check', 16) ?> Save form</button>
       </form>
     </div>
