@@ -558,11 +558,38 @@ function update_ticket(string $ticketId, array $in, array $user, string $tenantI
 function act_ticket_update(array $in): ?array
 {
     [$user, $tenantId] = require_tenant_user();
+    // The due date is sent with every autosave of the Properties form; act only when it was edited.
+    if (array_key_exists('dueAt', $in) && str_in($in, 'dueAt') !== str_in($in, 'dueAtWas')) {
+        if ($err = ticket_set_due(str_in($in, 'ticketId'), str_in($in, 'dueAt'), $user, $tenantId)) return ['error' => $err];
+    }
     $fields = array_intersect_key($in, array_flip(['status', 'priority', 'assigneeId', 'assigneeIds', 'assigneeIdsSent', 'categoryId', 'groupId']));
     if (update_ticket(str_in($in, 'ticketId'), $fields, $user, $tenantId) === false && $fields) {
         return ['error' => 'You don’t have permission to make that change'];
     }
     return ['ok' => true];
+}
+
+/**
+ * Set a ticket's due date (staff who can change the priority). An empty value
+ * goes back to the deadline of the support contract or the SLA. Returns an error or null.
+ */
+function ticket_set_due(string $ticketId, string $value, array $user, string $tenantId): ?string
+{
+    $t = find_ticket($ticketId, $tenantId);
+    if (!$t || !is_staff($user['role']) || !can_manage_ticket($t, $user) || !can($user, 'tickets.priority')) return 'You don’t have permission to change the due date';
+    if ($value === '') {
+        $due = contract_due_at($tenantId, $t['requesterId'], $t['createdAt']) ?? compute_due_at($t['createdAt'], $t['priority'], tenant_sla($tenantId));
+    } else {
+        $ts = ts($value);
+        if (!$ts) return 'That date isn’t valid';
+        $due = iso_from_ts($ts);
+    }
+    if ($due === $t['dueAt'] || ($due && $t['dueAt'] && abs(ts($due) - ts($t['dueAt'])) < 60)) return null;
+    db_update('Ticket', ['dueAt' => $due, 'updatedAt' => now_iso()], '"id" = ?', [$t['id']]);
+    log_event($tenantId, $t['id'], $user['id'], 'DUE_CHANGED', $value === ''
+        ? ($due ? 'reset the due date to ' . date('j M Y H:i', (int) ts($due)) . ' (SLA)' : 'removed the due date')
+        : 'set the due date to ' . date('j M Y H:i', (int) ts($due)));
+    return null;
 }
 
 /** Apply the same change to many tickets at once (staff only). */
@@ -657,8 +684,15 @@ function add_comment(array $ticket, array $user, string $tenantId, string $body,
     if (!is_staff($user['role'])) {
         $statuses = tenant_statuses($tenantId);
         if (resolve_status($statuses, $ticket['status'])['isClosed']) {
-            db_update('Ticket', ['status' => initial_status_key($statuses), 'closedAt' => null, 'updatedAt' => now_iso()], '"id" = ?', [$ticketId]);
+            db_update('Ticket', ['status' => open_status_key($statuses), 'closedAt' => null, 'updatedAt' => now_iso()], '"id" = ?', [$ticketId]);
             log_event($tenantId, $ticketId, $user['id'], 'REOPENED', 'reopened the ticket by replying');
+        }
+    } elseif (!$isInternal && $ticket['status'] === 'NEW' && $user['id'] !== $ticket['requesterId']) {
+        // An agent answered a new ticket: it is being worked on now.
+        $statuses = tenant_statuses($tenantId);
+        if (($open = open_status_key($statuses)) !== 'NEW') {
+            db_update('Ticket', ['status' => $open, 'updatedAt' => now_iso()], '"id" = ? AND "status" = ?', [$ticketId, 'NEW']);
+            log_event($tenantId, $ticketId, $user['id'], 'STATUS_CHANGED', 'changed status from NEW to ' . $open . ' by replying');
         }
     }
     db_update('Ticket', ['updatedAt' => now_iso()], '"id" = ?', [$ticketId]);

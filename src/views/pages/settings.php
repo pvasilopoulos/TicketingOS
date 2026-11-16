@@ -193,6 +193,10 @@ $s = fn (string $form) => flash($form);
             </label>
           <?php endforeach; ?>
         </div>
+        <label class="flex cursor-pointer items-start gap-3 rounded-xl border border-border p-3 transition-colors hover:bg-surface-2/50 has-[:checked]:border-brand/40 has-[:checked]:bg-brand/5">
+          <input type="checkbox" name="prefillOrgTeam" <?= ticket_prefill_org_team($tenantId) ? 'checked' : '' ?> class="mt-0.5 h-4 w-4 rounded border-border accent-brand">
+          <span class="min-w-0"><span class="block text-sm font-medium">Add the organization’s people to the Team</span><span class="block text-xs text-muted">When a customer opens a ticket, the other people of their organization are already in its Team (as viewers, so they see it and get its updates). The customer can remove anyone before sending. Needs the Team part above.</span></span>
+        </label>
         <button type="submit" class="<?= btn_cls() ?>"><?= icon('check', 16) ?> Save form</button>
       </form>
     </div>
@@ -206,8 +210,8 @@ $s = fn (string $form) => flash($form);
   <div class="rounded-xl border border-border bg-surface">
     <?= card_header('Ticket statuses') ?>
     <p class="px-6 pt-4 text-sm text-muted">
-      Customize the stages a ticket moves through. Statuses marked <strong>Closed</strong> count as resolved — they set the resolved date and
-      a customer reply reopens the ticket. Order controls the board columns.
+      Customize the stages a ticket moves through. New tickets get the <strong>first</strong> status. Statuses marked <strong>Closed</strong> count as resolved — they set the resolved date and
+      a customer reply reopens the ticket (to Open). A “New” ticket becomes Open when an agent replies. Order controls the board columns.
     </p>
     <div class="divide-y divide-border px-2 py-3">
       <?php foreach ($statuses as $i => $st):
@@ -219,6 +223,7 @@ $s = fn (string $form) => flash($form);
             <?= form_meta() ?><input type="hidden" name="id" value="<?= e($st['id']) ?>">
             <input type="color" name="color" value="<?= e(safe_color($st['color'])) ?>" class="<?= $rowColor ?>">
             <input name="label" value="<?= e($st['label']) ?>" class="<?= $rowText ?>" minlength="2" required>
+            <?php if ($i === 0): ?><span class="rounded-full bg-brand/10 px-2 py-0.5 text-[11px] font-medium text-brand" title="New tickets start with this status — move another status to the top to change it">Default for new tickets</span><?php endif; ?>
             <label class="flex items-center gap-2 text-sm text-muted cursor-pointer select-none">
               <input type="checkbox" name="isClosed" <?= $st['isClosed'] ? 'checked' : '' ?> class="h-4 w-4 rounded border-border accent-brand"> Closed
             </label>

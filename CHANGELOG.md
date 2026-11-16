@@ -4,6 +4,13 @@ All notable changes to TicketingOS (PHP edition). Versions follow [Semantic Vers
 **major** for changes that need manual steps when updating, **minor** for new features, **patch** for fixes.
 The app shows this list under **About & what’s new** (menu footer → version number).
 
+## [1.13.0] - 2026-11-16
+
+### Added
+- **“New” status** for new tickets: every workspace gets it at the top of its statuses (once; delete or move it if you don’t want it). A new ticket becomes Open when an agent replies, and a customer reply to a resolved ticket reopens it to Open. Settings → Workflow marks the status new tickets start with.
+- **Due date on the ticket page** (Properties): staff who can change the priority set the date and time; clearing it goes back to the contract / SLA deadline. Changes are in the ticket history. Customers see it under Details.
+- Settings → General → New-ticket form: **“Add the organization’s people to the Team”** — when a customer opens a ticket, the other people of their organization start in its Team as viewers (up to 50; the customer can remove them).
+
 ## [1.12.0] - 2026-11-16
 
 ### Added

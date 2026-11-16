@@ -23,9 +23,34 @@ function resolve_status(array $statuses, string $key): array
     return ['id' => $key, 'key' => $key, 'label' => $key, 'color' => '#94a3b8', 'isClosed' => false, 'order' => 999];
 }
 
+/** Status of new tickets: the first one in Settings → Workflow (“New” by default). */
 function initial_status_key(array $statuses): string
 {
     return $statuses[0]['key'] ?? 'OPEN';
+}
+
+/** "Open" when the workspace has it: where a reopened ticket, or a "New" one an agent answered, goes. */
+function open_status_key(array $statuses): string
+{
+    foreach ($statuses as $s) if ($s['key'] === 'OPEN' && !$s['isClosed']) return 'OPEN';
+    return initial_status_key($statuses);
+}
+
+/**
+ * Give every workspace a "New" status at the top of its list (once: a workspace
+ * that later deletes or renames it keeps its choice).
+ */
+function seed_new_status(): void
+{
+    foreach (pluck(q_all('SELECT "id" FROM "Tenant"'), 'id') as $tenantId) {
+        if (tenant_setting($tenantId, 'newStatusSeeded')) continue;
+        if (!q_val('SELECT 1 FROM "TicketStatus" WHERE "tenantId" = ? AND "key" = ?', [$tenantId, 'NEW'])) {
+            $first = (int) q_val('SELECT COALESCE(MIN("order"), 0) FROM "TicketStatus" WHERE "tenantId" = ?', [$tenantId]);
+            db_insert('TicketStatus', ['id' => cuid(), 'tenantId' => $tenantId, 'key' => 'NEW', 'label' => 'New', 'color' => '#8b5cf6',
+                'isClosed' => 0, 'order' => $first - 1, 'createdAt' => now_iso()]);
+        }
+        tenant_setting_set($tenantId, 'newStatusSeeded', 1);
+    }
 }
 
 function closed_status_keys(array $statuses): array
@@ -95,6 +120,7 @@ function seed_tenant_defaults(string $tenantId, bool $withCategories = true): vo
             db_insert('Category', ['id' => cuid(), 'name' => $n, 'color' => $c, 'tenantId' => $tenantId]);
         }
     }
+    tenant_setting_set($tenantId, 'newStatusSeeded', 1);
     foreach (DEFAULT_STATUSES as $i => $s) {
         db_insert('TicketStatus', [
             'id' => cuid(), 'tenantId' => $tenantId, 'key' => $s['key'], 'label' => $s['label'],

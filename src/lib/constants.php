@@ -23,6 +23,7 @@ const WATCHER_ROLE_HINTS = [
 
 // Defaults seeded for every new tenant.
 const DEFAULT_STATUSES = [
+    ['key' => 'NEW', 'label' => 'New', 'color' => '#8b5cf6', 'isClosed' => false],
     ['key' => 'OPEN', 'label' => 'Open', 'color' => '#3b82f6', 'isClosed' => false],
     ['key' => 'PENDING', 'label' => 'Pending', 'color' => '#f59e0b', 'isClosed' => false],
     ['key' => 'RESOLVED', 'label' => 'Resolved', 'color' => '#10b981', 'isClosed' => true],

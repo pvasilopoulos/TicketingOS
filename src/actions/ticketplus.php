@@ -137,6 +137,7 @@ function act_ticket_form_save(array $in): ?array
     [, $tenantId] = $ctx;
     $parts = [];
     foreach (TICKET_FORM_PARTS as $k => $_) $parts[$k] = ($in['part'][$k] ?? '') === 'on';
+    $parts['prefillOrgTeam'] = ($in['prefillOrgTeam'] ?? '') === 'on';
     tenant_setting_set($tenantId, 'ticketForm', $parts);
     return ['success' => 'New-ticket form saved'];
 }

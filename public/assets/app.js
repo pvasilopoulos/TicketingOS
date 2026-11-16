@@ -630,6 +630,8 @@
       if (b) add(b.getAttribute("data-team-add"));
     });
     root.addEventListener("people:pick", function (e) { add(e.detail.id, e.detail); });
+    // People who start in the Team (e.g. the customer's organization colleagues).
+    JSON.parse(root.getAttribute("data-team-start") || "[]").forEach(function (p) { add(p.id, p); });
     sync();
   }
 

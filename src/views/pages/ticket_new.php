@@ -159,7 +159,17 @@ $sectionTitle = fn (string $ic, string $t, string $sub = '') => '<div class="mb-
       <?php endif; ?>
 
       <?php if ($showTeam): ?>
-        <div class="rounded-lg border border-border bg-surface p-4" data-team-picker data-people="[]">
+        <?php
+          // Optionally start with the customer's organization colleagues (Settings → General → New-ticket form).
+          $teamStart = [];
+          if (!$staff && ticket_prefill_org_team($tenantId) && $people) {
+              $ids = array_slice(array_column($people, 'id'), 0, 50);
+              foreach (q_all('SELECT "id","name","avatarColor" FROM "User" WHERE "id" IN (' . in_ph($ids) . ') ORDER BY "name"', $ids) as $p) {
+                  $teamStart[] = ['id' => $p['id'], 'name' => $p['name'], 'color' => $p['avatarColor'], 'staff' => false];
+              }
+          }
+        ?>
+        <div class="rounded-lg border border-border bg-surface p-4" data-team-picker data-people="[]" data-team-start="<?= e(json_encode($teamStart, JSON_UNESCAPED_UNICODE)) ?>">
           <div class="flex items-center justify-between">
             <span class="text-sm font-medium text-fg">Team</span>
             <?= people_picker(['label' => 'Add people', 'staff' => $staff, 'multi' => true]) ?>

@@ -108,7 +108,7 @@ $historyIcons = [
     'MERGED' => ['git-merge', 'text-fuchsia-600 bg-fuchsia-500/10'], 'MACRO' => ['zap', 'text-yellow-600 bg-yellow-500/10'],
     'CSAT' => ['smile', 'text-pink-600 bg-pink-500/10'], 'PINNED' => ['pin', 'text-brand bg-brand/10'],
     'AI_TRIAGE' => ['sparkles', 'text-violet-600 bg-violet-500/10'], 'KB_DRAFT' => ['book-open', 'text-violet-600 bg-violet-500/10'],
-    'MESSAGE_DELETED' => ['trash-2', 'text-rose-600 bg-rose-500/10'], 'FILE_DELETED' => ['trash-2', 'text-rose-600 bg-rose-500/10'],
+    'DUE_CHANGED' => ['clock', 'text-red-600 bg-red-500/10'], 'MESSAGE_DELETED' => ['trash-2', 'text-rose-600 bg-rose-500/10'], 'FILE_DELETED' => ['trash-2', 'text-rose-600 bg-rose-500/10'],
 ];
 $replyCount = count($timeline) + 1;
 
@@ -529,6 +529,14 @@ $row = fn (string $label, string $valueHtml) => '<div class="flex items-center j
                 <select id="s-group" name="groupId" <?= $lockGroup ?> class="<?= SELECT_CLS ?>"><?= select_options(['' => '— No group —'] + array_column($groups, 'name', 'id'), $ticket['groupId'] ?? '') ?></select>
               </div>
             <?php endif; ?>
+            <?php if ($staff): $dueVal = $ticket['dueAt'] ? date('Y-m-d\TH:i', (int) ts($ticket['dueAt'])) : ''; ?>
+              <div class="col-span-2 lg:col-span-1">
+                <label for="s-due" class="<?= LABEL_CLS ?>">Due date</label>
+                <input id="s-due" type="datetime-local" name="dueAt" value="<?= e($dueVal) ?>" <?= $lockPriority ?> class="<?= INPUT_CLS ?>">
+                <input type="hidden" name="dueAtWas" value="<?= e($dueVal) ?>">
+                <p class="mt-1 text-[11px] text-muted">Clear it to go back to the SLA deadline.</p>
+              </div>
+            <?php endif; ?>
           </form>
         <?php else: ?>
           <div class="space-y-3 text-sm">
@@ -538,6 +546,7 @@ $row = fn (string $label, string $valueHtml) => '<div class="flex items-center j
             <?= $row('Category', $category ? e($category['name']) : '—') ?>
             <?= $row('Assigned to', $assigneeRows ? e(human_list(array_column($assigneeRows, 'name'))) : 'Unassigned') ?>
             <?php if ($group): ?><?= $row('Group', e($group['name'])) ?><?php endif; ?>
+            <?php if ($ticket['dueAt'] && !$curStatus['isClosed']): ?><?= $row('Due', e(date('j M Y, H:i', (int) ts($ticket['dueAt'])))) ?><?php endif; ?>
           </div>
         <?php endif; ?>
       </div>

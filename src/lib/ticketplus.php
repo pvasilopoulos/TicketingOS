@@ -249,6 +249,13 @@ const TICKET_FORM_PARTS = [
     'similar' => ['Similar open tickets', 'Warn about possible duplicates while the subject is typed.'],
 ];
 
+/** Settings → General → New-ticket form: a customer's organization colleagues start in the ticket's Team. */
+function ticket_prefill_org_team(string $tenantId): bool
+{
+    $saved = tenant_setting($tenantId, 'ticketForm');
+    return is_array($saved) && !empty($saved['prefillOrgTeam']);
+}
+
 /** Which optional parts the workspace shows: ['cc' => true, ...] (all on by default). */
 function ticket_form_parts(string $tenantId): array
 {
