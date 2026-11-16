@@ -34,12 +34,30 @@ $people = $sel ? q_all('SELECT u."id", u."name", u."email", u."avatarColor", u."
 $candidates = $sel ? q_all('SELECT u."id", u."name", u."email", u."role" FROM "User" u WHERE u."tenantId" = ? AND u."active" = 1
     AND NOT EXISTS (SELECT 1 FROM "UserOrganization" x WHERE x."userId" = u."id" AND x."organizationId" = ?) ORDER BY (CASE WHEN u."role" = \'CUSTOMER\' THEN 1 ELSE 0 END), u."name" LIMIT 500', [$tenantId, $sel['id']]) : [];
 
+// Ticket defaults of the organization (shown when editing one).
+$orgGroups = tenant_groups($tenantId);
+$orgAgents = q_all('SELECT "id","name" FROM "User" WHERE "tenantId" = ? AND "active" = 1 AND "role" IN (\'SUPER_ADMIN\',\'ADMIN\',\'AGENT\') ORDER BY "name"', [$tenantId]);
+$orgPriorities = tenant_priorities($tenantId);
+$orgDefaults = function (array $o) use ($orgGroups, $orgAgents, $orgPriorities): string {
+    $d = org_ticket_defaults($o);
+    $sel = fn (string $name, array $opts, ?string $cur) => '<select name="' . $name . '" class="' . SELECT_CLS . '">' . select_options($opts, (string) $cur) . '</select>';
+    $lbl = fn (string $t) => '<label class="mb-1 block text-xs font-medium text-muted">' . $t . '</label>';
+    return '<fieldset class="rounded-xl border border-border p-4"><legend class="px-1 text-xs font-semibold uppercase tracking-wide text-muted">New tickets of this organization</legend>'
+        . '<div class="grid gap-3 sm:grid-cols-3">'
+        . '<div>' . $lbl('Group') . $sel('defGroup', ['' => '— As usual —'] + array_column($orgGroups, 'name', 'id'), $d['groupId']) . '</div>'
+        . '<div>' . $lbl('Agent') . $sel('defAssignee', ['' => '— As usual —'] + array_column($orgAgents, 'name', 'id'), $d['assigneeId']) . '</div>'
+        . '<div>' . $lbl('Priority') . $sel('defPriority', ['' => '— As usual —'] + array_column($orgPriorities, 'label', 'key'), $d['priority']) . '</div></div>'
+        . '<div class="mt-3">' . $lbl('Always CC by email') . '<input name="defCc" value="' . e(implode(', ', $d['cc'])) . '" placeholder="it@customer.gr, manager@customer.gr" class="' . INPUT_CLS . '"></div>'
+        . '<p class="mt-2 text-xs text-muted">Used when one of its people opens a ticket (form, email, chat, Viber, WhatsApp). The agent gets the ticket unless an automation assigned it; the priority is pre-selected on the form; the support contract’s response time still sets the deadline.</p>'
+        . '</fieldset>';
+};
 $orgForm = fn (?array $o) => '<form method="post" action="/action/org-save" class="space-y-4">' . form_meta('orgs', '/settings#orgs')
     . ($o ? '<input type="hidden" name="id" value="' . e($o['id']) . '">' : '')
     . '<div class="grid gap-3 sm:grid-cols-2">'
     . '<div><label class="mb-1 block text-xs font-medium text-muted">Name</label><input name="name" required maxlength="80" value="' . e($o['name'] ?? '') . '" placeholder="Acme Corporation" class="' . INPUT_CLS . '"></div>'
     . '<div><label class="mb-1 block text-xs font-medium text-muted">Email domains</label><input name="domain" value="' . e($o['domain'] ?? '') . '" placeholder="acme.com, acme.co.uk" class="' . INPUT_CLS . '"></div></div>'
     . '<div><label class="mb-1 block text-xs font-medium text-muted">Notes <span class="font-normal">(only staff see these)</span></label><textarea name="notes" rows="2" maxlength="2000" class="' . str_replace(' h-10', '', INPUT_CLS) . ' py-2">' . e($o['notes'] ?? '') . '</textarea></div>'
+    . ($o ? $orgDefaults($o) : '')
     . '<label class="flex items-start gap-2 text-sm"><input type="checkbox" name="teamPrefill" ' . (!empty($o['teamPrefill']) ? 'checked' : '') . ' class="mt-0.5 h-4 w-4 rounded border-border accent-brand"> <span>Add its people to the Team of new tickets <span class="block text-xs text-muted">When one of its customers opens a ticket, the organization’s other people start in the ticket’s Team as viewers (they can be removed before sending).</span></span></label>'
     . '<label class="flex items-center gap-2 text-sm"><input type="checkbox" name="attach" ' . ($o ? '' : 'checked') . ' class="h-4 w-4 rounded border-border accent-brand"> Add existing customers whose email matches these domains</label>'
     . '<div class="flex flex-wrap gap-2"><button type="submit" class="' . btn_cls('primary', 'sm') . '">' . icon('check', 14) . ($o ? ' Save' : ' Create organization') . '</button>'
@@ -64,6 +82,7 @@ $orgForm = fn (?array $o) => '<form method="post" action="/action/org-save" clas
     <div class="flex flex-wrap items-center gap-3 border-b border-border px-5 py-4">
       <span class="grid h-10 w-10 place-items-center rounded-xl bg-amber-500/10 text-amber-600"><?= icon('building-2', 18) ?></span>
       <div class="min-w-0 flex-1"><h3 class="truncate font-semibold"><?= e($sel['name']) ?></h3><p class="text-xs text-muted"><?= e($sel['domain'] ?: 'No domains') ?></p></div>
+      <a href="/organization?id=<?= e($sel['id']) ?>" class="<?= btn_cls('outline', 'sm') ?>"><?= icon('layout-dashboard', 14) ?> Dashboard</a>
       <a href="/tickets?org=<?= e($sel['id']) ?>" class="<?= btn_cls('outline', 'sm') ?>"><?= icon('ticket', 14) ?> Tickets</a>
       <a href="/settings#orgs" class="<?= btn_cls('ghost', 'sm') ?>"><?= icon('x', 14) ?> Close</a>
     </div>

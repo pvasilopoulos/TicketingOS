@@ -216,6 +216,8 @@ try {
             view('pages/ticket_new', [], 'app');
         case (bool) preg_match('#^/tickets/([A-Za-z0-9]+)$#', $path, $m):
             view('pages/ticket_show', ['id' => $m[1]], 'app');
+        case $path === '/organization':
+            view('pages/org_dashboard', [], 'app');
         case $path === '/invoices':
             view('pages/invoices', [], 'app');
         case (bool) preg_match('#^/invoices/([A-Za-z0-9]+)$#', $path, $m):

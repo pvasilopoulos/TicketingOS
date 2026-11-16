@@ -124,7 +124,8 @@ $sectionTitle = fn (string $ic, string $t, string $sub = '') => '<div class="mb-
         <div>
           <label for="priority" class="<?= LABEL_CLS ?>">Priority</label>
           <select id="priority" name="priority" class="<?= SELECT_CLS ?>" data-priority>
-            <?= select_options(array_column($priorities, 'label', 'key'), $old('priority', default_priority_key($priorities))) ?>
+            <?php $orgPrio = $staff ? null : requester_ticket_defaults($tenantId, $user['id'])['priority']; ?>
+            <?= select_options(array_column($priorities, 'label', 'key'), $old('priority', $orgPrio && priority_exists($priorities, $orgPrio) ? $orgPrio : default_priority_key($priorities))) ?>
           </select>
           <p class="mt-1.5 flex items-center gap-1.5 text-xs text-muted" data-sla-preview hidden><?= icon('clock', 13) ?><span></span></p>
         </div>

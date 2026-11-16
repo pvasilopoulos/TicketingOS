@@ -265,6 +265,31 @@ function ticket_team_start(array $user): array
         ORDER BY u."name" LIMIT 50', [$user['id'], $user['id']]);
 }
 
+/* ---------- Ticket defaults per organization (Settings → Organizations) ---------- */
+
+/** ['groupId' => ?, 'assigneeId' => ?, 'priority' => ?, 'cc' => [emails]] of an organization row. */
+function org_ticket_defaults(?array $org): array
+{
+    $d = $org ? (json_decode((string) ($org['ticketDefaults'] ?? ''), true) ?: []) : [];
+    return [
+        'groupId' => ($d['groupId'] ?? '') ?: null, 'assigneeId' => ($d['assigneeId'] ?? '') ?: null,
+        'priority' => ($d['priority'] ?? '') ?: null, 'cc' => array_values(array_filter((array) ($d['cc'] ?? []), 'is_string')),
+    ];
+}
+
+/** Defaults for a requester's new tickets: from their first organization (primary first) that has any. */
+function requester_ticket_defaults(string $tenantId, string $userId): array
+{
+    $rows = q_all('SELECT o.* FROM "UserOrganization" uo JOIN "Organization" o ON o."id" = uo."organizationId" JOIN "User" u ON u."id" = uo."userId"
+        WHERE uo."userId" = ? AND o."tenantId" = ? AND o."ticketDefaults" IS NOT NULL
+        ORDER BY (CASE WHEN u."organizationId" = o."id" THEN 0 ELSE 1 END), o."name"', [$userId, $tenantId]);
+    foreach ($rows as $o) {
+        $d = org_ticket_defaults($o);
+        if ($d['groupId'] || $d['assigneeId'] || $d['priority'] || $d['cc']) return $d + ['orgName' => $o['name']];
+    }
+    return org_ticket_defaults(null) + ['orgName' => null];
+}
+
 /** v13: the workspace-wide switch of v1.13.0 became one per organization. */
 function migrate_team_prefill(): void
 {

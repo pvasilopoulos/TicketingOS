@@ -89,6 +89,17 @@ function act_org_save(array $in): ?array
     }
     $data = ['name' => $name, 'domain' => $domains ? implode(', ', $domains) : null, 'notes' => mb_substr(trim((string) ($in['notes'] ?? '')), 0, 2000) ?: null,
         'teamPrefill' => ($in['teamPrefill'] ?? '') === 'on' ? 1 : 0];
+    // Defaults for the organization's new tickets (sent only when editing an existing one).
+    if ($id && array_key_exists('defGroup', $in)) {
+        $g = str_in($in, 'defGroup'); $a = str_in($in, 'defAssignee'); $p = str_in($in, 'defPriority');
+        if ($g !== '' && !q_val('SELECT 1 FROM "AgentGroup" WHERE "id" = ? AND "tenantId" = ?', [$g, $tenantId])) return ['error' => 'Unknown group'];
+        if ($a !== '' && !q_val('SELECT 1 FROM "User" WHERE "id" = ? AND "tenantId" = ? AND "role" IN (\'SUPER_ADMIN\',\'ADMIN\',\'AGENT\')', [$a, $tenantId])) return ['error' => 'Unknown agent'];
+        if ($p !== '' && !priority_exists(tenant_priorities($tenantId), $p)) return ['error' => 'Unknown priority'];
+        $cc = parse_cc_list(str_in($in, 'defCc'));
+        if (is_string($cc)) return ['error' => $cc];
+        $def = array_filter(['groupId' => $g, 'assigneeId' => $a, 'priority' => $p, 'cc' => $cc]);
+        $data['ticketDefaults'] = $def ? json_encode($def) : null;
+    }
     if ($id) {
         if (!q_val('SELECT 1 FROM "Organization" WHERE "id" = ? AND "tenantId" = ?', [$id, $tenantId])) return ['error' => 'Organization not found'];
         db_update('Organization', $data, '"id" = ?', [$id]);

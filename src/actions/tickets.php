@@ -170,7 +170,10 @@ function create_ticket(string $tenantId, array $requester, array $data, ?array $
     if ($categoryId && !q_val('SELECT 1 FROM "Category" WHERE "id" = ? AND "tenantId" = ?', [$categoryId, $tenantId])) return 'Invalid category';
 
     $priorities = tenant_priorities($tenantId);
-    $priority = (string) ($data['priority'] ?? '') ?: default_priority_key($priorities);
+    // The requester's organization may set a default group, agent, priority and CC (Settings → Organizations).
+    $orgDef = requester_ticket_defaults($tenantId, $requester['id']);
+    if ($orgDef['priority'] && !priority_exists($priorities, $orgDef['priority'])) $orgDef['priority'] = null;
+    $priority = (string) ($data['priority'] ?? '') ?: ($orgDef['priority'] ?? '') ?: default_priority_key($priorities);
     if (!priority_exists($priorities, $priority)) return 'Invalid priority';
     $statuses = tenant_statuses($tenantId);
     $sla = tenant_sla($tenantId);
@@ -178,6 +181,7 @@ function create_ticket(string $tenantId, array $requester, array $data, ?array $
     // Group: explicit, else routed from the category.
     $groupId = ($data['groupId'] ?? '') ?: null;
     if ($groupId && !q_val('SELECT 1 FROM "AgentGroup" WHERE "id" = ? AND "tenantId" = ?', [$groupId, $tenantId])) return 'Invalid group';
+    if (!$groupId && $orgDef['groupId'] && q_val('SELECT 1 FROM "AgentGroup" WHERE "id" = ? AND "tenantId" = ?', [$orgDef['groupId'], $tenantId])) $groupId = $orgDef['groupId'];
     if (!$groupId && $categoryId) $groupId = q_val('SELECT "groupId" FROM "Category" WHERE "id" = ?', [$categoryId]) ?: null;
 
     // Custom fields that apply to this category (customers only fill the visible ones).
@@ -248,12 +252,36 @@ function create_ticket(string $tenantId, array $requester, array $data, ?array $
     }
     process_mentions($ticket, $tenantId, $actor, $description);
     apply_automations($tenantId, $ticket, $statuses, $priorities, $sla);
+    // The organization's agent takes it (if the automations didn't assign it already).
+    if ($orgDef['assigneeId']) org_default_assign($ticket['id'], $tenantId, $orgDef['assigneeId'], (string) $orgDef['orgName']);
     if ($groupId) auto_assign_ticket($ticket['id'], $tenantId);
+    // People the organization always copies by email.
+    if ($orgDef['cc']) {
+        add_ticket_cc($ticket['id'], $orgDef['cc'], null);
+        if (empty($data['deferCc']) && empty($data['skipNotify'])) notify_ticket_cc($ticket, $tenantId, "New ticket #$number: $subject", $description);
+    }
     reindex_ticket($ticket['id']);
     $fresh = find_ticket($ticket['id'], $tenantId) ?? $ticket;
     ai_triage_after_response($tenantId, $ticket['id']);
     webhook_emit($tenantId, 'ticket.created', ['ticket' => api_ticket_brief($fresh) + ['fields' => $values ?: (object) []]]);
     return $fresh;
+}
+
+/** Assign a new ticket to its organization's default agent (active staff only). */
+function org_default_assign(string $ticketId, string $tenantId, string $agentId, string $orgName): void
+{
+    $t = q_one('SELECT * FROM "Ticket" WHERE "id" = ? AND "tenantId" = ?', [$ticketId, $tenantId]);
+    $a = q_one('SELECT "id","name" FROM "User" WHERE "id" = ? AND "tenantId" = ? AND "active" = 1 AND "role" IN (\'SUPER_ADMIN\',\'ADMIN\',\'AGENT\')', [$agentId, $tenantId]);
+    if (!$t || !$a || $t['assigneeId']) return;
+    db_update('Ticket', ['assigneeId' => $a['id'], 'updatedAt' => now_iso()], '"id" = ?', [$ticketId]);
+    log_event($tenantId, $ticketId, null, 'ASSIGNED', "assigned the ticket to {$a['name']} (agent of $orgName)");
+    dispatch([
+        'tenantId' => $tenantId, 'recipients' => [$a['id']], 'category' => 'assigned', 'ticket' => ticket_ref($t),
+        'inAppType' => 'TICKET_ASSIGNED',
+        'inAppMessage' => "You were assigned ticket #{$t['number']}: {$t['subject']}",
+        'pushBody' => 'You were assigned this ticket',
+        'emailLine' => "You were assigned ticket #{$t['number']}: {$t['subject']} ($orgName).",
+    ]);
 }
 
 function act_ticket_create(array $in): ?array
@@ -306,7 +334,7 @@ function act_ticket_create(array $in): ?array
         'subject' => str_in($in, 'subject'), 'description' => (string) ($in['description'] ?? ''),
         'priority' => str_in($in, 'priority'), 'categoryId' => str_in($in, 'categoryId'),
         'groupId' => $staff && can($user, 'tickets.group') ? str_in($in, 'groupId') : '',
-        'fields' => (array) ($in['cf'] ?? []), 'source' => $source, 'dueAt' => $due,
+        'fields' => (array) ($in['cf'] ?? []), 'source' => $source, 'dueAt' => $due, 'deferCc' => true,
     ], $user);
     if (is_string($ticket)) return ['error' => $ticket];
     $number = $ticket['number'];
@@ -325,8 +353,8 @@ function act_ticket_create(array $in): ?array
             'emailLine' => "{$user['name']} opened ticket #$number for you: $subject. You can follow and reply to it here.",
         ]);
     }
-    // People copied by email hear about the new ticket.
-    if ($cc) notify_ticket_cc($ticket, $tenantId, "New ticket #$number: $subject", sanitize_rich_html((string) ($in['description'] ?? '')));
+    // People copied by email (on the form or by the organization) hear about the new ticket.
+    if (ticket_cc($ticket['id'])) notify_ticket_cc($ticket, $tenantId, "New ticket #$number: $subject", sanitize_rich_html((string) ($in['description'] ?? '')));
 
     if ($staff) {
         $dec = fn ($v) => json_decode((string) $v, true) ?: [];

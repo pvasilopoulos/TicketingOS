@@ -501,6 +501,7 @@ CREATE TABLE IF NOT EXISTS `Organization` (
   `hourlyRate` decimal(10,2) DEFAULT NULL,
   `billing` mediumtext DEFAULT NULL,
   `teamPrefill` int(11) NOT NULL DEFAULT 0,
+  `ticketDefaults` mediumtext DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `tenantId` (`tenantId`,`name`),
   KEY `Organization_tenant_domain_idx` (`tenantId`,`domain`),

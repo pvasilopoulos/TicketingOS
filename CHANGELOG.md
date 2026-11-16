@@ -4,6 +4,15 @@ All notable changes to TicketingOS (PHP edition). Versions follow [Semantic Vers
 **major** for changes that need manual steps when updating, **minor** for new features, **patch** for fixes.
 The app shows this list under **About & what’s new** (menu footer → version number).
 
+## [1.15.0] - 2026-11-16
+
+### Added
+- **Ticket defaults per organization** (Settings → Organizations → an organization → “New tickets of this organization”): group, agent, priority and always-CC emails for every new ticket of its customers, from any channel. The priority is pre-selected on the customer’s form and used for email, chat, Viber and WhatsApp tickets; an explicit priority wins. The agent is assigned unless an automation already assigned the ticket.
+- **Organization dashboard** (`/organization`): customer managers get “My organization” in the menu; staff open it from an organization’s **Dashboard** button. Shows open and overdue tickets, new and resolved in 30 days, resolved on time and average first response (90 days), the open tickets, contract hours used and left, billable time this and last month, and recent invoices with the unpaid total.
+
+### Database
+- Runtime schema v14: `Organization.ticketDefaults` (applied automatically).
+
 ## [1.14.0] - 2026-11-16
 
 ### Changed
