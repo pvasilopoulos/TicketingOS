@@ -1446,8 +1446,47 @@
 
   // Multi-select picker (ticket assignees): close on outside click, save on close.
   document.addEventListener("click", function (e) {
-    $$("details[data-multi-pick][open]").forEach(function (d) { if (!d.contains(e.target)) d.open = false; });
+    $$("details[data-multi-pick][open], details[data-multi-filter][open]").forEach(function (d) { if (!d.contains(e.target)) d.open = false; });
   });
+
+  // Multi-value filters (ticket status / priority): tick several, the list applies when it closes.
+  function multiSync(d) {
+    var on = $$("[data-multi-opt]", d).filter(function (c) { return c.checked; });
+    d.querySelector("[data-multi-value]").value = on.map(function (c) { return c.value; }).join(",");
+    var names = on.map(function (c) { return c.closest("label").querySelector("[data-multi-text]").textContent; });
+    d.querySelector("[data-multi-label]").textContent = !names.length ? d.getAttribute("data-all") : names.length <= 2 ? names.join(", ") : names.length + " " + d.getAttribute("data-noun");
+    d.dataset.dirty = "1";
+  }
+  document.addEventListener("change", function (e) {
+    var d = e.target.closest && e.target.closest("details[data-multi-filter]");
+    if (d && e.target.matches("[data-multi-opt]")) multiSync(d);
+  });
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest("[data-multi-clear], [data-multi-apply]");
+    if (!b) return;
+    var d = b.closest("details[data-multi-filter]");
+    if (b.hasAttribute("data-multi-clear")) { $$("[data-multi-opt]", d).forEach(function (c) { c.checked = false; }); multiSync(d); }
+    d.open = false;
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && e.target.matches && e.target.matches("[data-multi-search]")) { e.preventDefault(); e.target.closest("details").open = false; return; }
+    if (e.key !== "Escape") return;
+    $$("details[data-multi-filter][open]").forEach(function (d) { d.open = false; });
+  });
+  document.addEventListener("input", function (e) {
+    if (!e.target.matches || !e.target.matches("[data-multi-search]")) return;
+    var q = fold(e.target.value.trim());
+    $$("[data-multi-row]", e.target.closest("details")).forEach(function (r) { r.hidden = !!q && fold(r.textContent).indexOf(q) < 0; });
+  });
+  document.addEventListener("toggle", function (e) {
+    var d = e.target;
+    if (d.matches && d.matches("details[data-multi-filter]") && d.open) { var s = d.querySelector("[data-multi-search]"); if (s) { s.value = ""; $$("[data-multi-row]", d).forEach(function (r) { r.hidden = false; }); setTimeout(function () { s.focus(); }, 0); } }
+    if (!d.matches || !d.matches("details[data-multi-filter]") || d.open || d.dataset.dirty !== "1") return;
+    d.dataset.dirty = "";
+    var form = d.closest("form");
+    $$("input, select", form).forEach(function (i) { if (!i.value && i.name) i.disabled = true; });
+    form.submit();
+  }, true);
   document.addEventListener("toggle", function (e) {
     var d = e.target;
     if (!d.matches || !d.matches("details[data-multi-pick]") || d.open || d.dataset.dirty !== "1") return;

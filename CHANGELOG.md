@@ -4,6 +4,12 @@ All notable changes to TicketingOS (PHP edition). Versions follow [Semantic Vers
 **major** for changes that need manual steps when updating, **minor** for new features, **patch** for fixes.
 The app shows this list under **About & what’s new** (menu footer → version number).
 
+## [1.12.0] - 2026-11-16
+
+### Added
+- Ticket filters take several values: status, priority, category, tags, assignee (me, unassigned or any agent), groups and organizations. Tick what you want; the list updates when it closes. Values of one filter mean “any of them”; different filters still combine. Long lists have a search box (accents and case ignored).
+- Links, saved views, CSV export and the API accept comma-separated values, e.g. `/tickets?status=OPEN,PENDING`.
+
 ## [1.11.1] - 2026-11-16
 
 ### Fixed

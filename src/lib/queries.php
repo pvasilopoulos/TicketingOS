@@ -53,24 +53,55 @@ function ticket_scope_sql(array $user, string $tenantId, array &$params): string
 const TICKETS_PER_PAGE = 50;
 const BOARD_COLUMN_LIMIT = 50;
 
+/** Values of a multi-value filter: "OPEN,PENDING" (or an array) => ['OPEN', 'PENDING']. */
+function filter_values(mixed $v): array
+{
+    $list = is_array($v) ? $v : explode(',', (string) $v);
+    return array_slice(array_values(array_unique(array_filter(array_map(fn ($x) => trim((string) $x), $list), fn ($x) => $x !== ''))), 0, 30);
+}
+
+/** "t.col = ?" or "t.col IN (?, ?)" for a multi-value filter. */
+function filter_in_sql(string $col, array $vals, array &$params): string
+{
+    array_push($params, ...$vals);
+    return count($vals) === 1 ? "$col = ?" : "$col IN (" . in_ph($vals) . ')';
+}
+
 /**
  * WHERE clause for the ticket list/board/export from query-string filters:
- * q, status, priority, category, tag, overdue=1, assignee=me|none.
+ * q and, each with one or several comma-separated values, status, priority, category, tag, overdue=1, assignee=me|none.
  */
 function ticket_filter_sql(array $user, string $tenantId, array $sp, array &$params, array $closedKeys): string
 {
     $where = [ticket_scope_sql($user, $tenantId, $params)];
-    if (!empty($sp['status'])) { $where[] = 't."status" = ?'; $params[] = $sp['status']; }
-    if (!empty($sp['priority'])) { $where[] = 't."priority" = ?'; $params[] = $sp['priority']; }
-    if (!empty($sp['category'])) { $where[] = 't."categoryId" = ?'; $params[] = $sp['category']; }
-    if (($sp['group'] ?? '') === 'mine') { $where[] = 't."groupId" IN (SELECT gm2."groupId" FROM "AgentGroupMember" gm2 WHERE gm2."userId" = ?)'; $params[] = $user['id']; }
-    elseif (($sp['group'] ?? '') === 'none') { $where[] = 't."groupId" IS NULL'; }
-    elseif (!empty($sp['group'])) { $where[] = 't."groupId" = ?'; $params[] = $sp['group']; }
-    if (!empty($sp['org'])) { $where[] = REQUESTER_IN_ORG_SQL; $params[] = $sp['org']; }
-    if (!empty($sp['source'])) { $where[] = 't."source" = ?'; $params[] = $sp['source']; }
-    if (!empty($sp['tag'])) { $where[] = 'EXISTS (SELECT 1 FROM "TicketTag" tt WHERE tt."ticketId" = t."id" AND tt."tagId" = ?)'; $params[] = $sp['tag']; }
-    if (($sp['assignee'] ?? '') === 'me') { $where[] = ASSIGNED_TO_SQL; array_push($params, $user['id'], $user['id']); }
-    if (($sp['assignee'] ?? '') === 'none') { $where[] = 't."assigneeId" IS NULL'; }
+    if ($v = filter_values($sp['status'] ?? '')) $where[] = filter_in_sql('t."status"', $v, $params);
+    if ($v = filter_values($sp['priority'] ?? '')) $where[] = filter_in_sql('t."priority"', $v, $params);
+    if ($v = filter_values($sp['category'] ?? '')) $where[] = filter_in_sql('t."categoryId"', $v, $params);
+    if ($v = filter_values($sp['source'] ?? '')) $where[] = filter_in_sql('t."source"', $v, $params);
+    // Several values of one filter mean "any of them".
+    if ($v = filter_values($sp['group'] ?? '')) {
+        $or = [];
+        if (in_array('mine', $v, true)) { $or[] = 't."groupId" IN (SELECT gm2."groupId" FROM "AgentGroupMember" gm2 WHERE gm2."userId" = ?)'; $params[] = $user['id']; }
+        if (in_array('none', $v, true)) $or[] = 't."groupId" IS NULL';
+        if ($ids = array_values(array_diff($v, ['mine', 'none']))) $or[] = filter_in_sql('t."groupId"', $ids, $params);
+        $where[] = '(' . implode(' OR ', $or) . ')';
+    }
+    if ($v = filter_values($sp['org'] ?? '')) {
+        $where[] = 'EXISTS (SELECT 1 FROM "UserOrganization" ruo WHERE ruo."userId" = t."requesterId" AND ' . filter_in_sql('ruo."organizationId"', $v, $params) . ')';
+    }
+    if ($v = filter_values($sp['tag'] ?? '')) {
+        $where[] = 'EXISTS (SELECT 1 FROM "TicketTag" tt WHERE tt."ticketId" = t."id" AND ' . filter_in_sql('tt."tagId"', $v, $params) . ')';
+    }
+    if ($v = filter_values($sp['assignee'] ?? '')) {
+        $or = [];
+        if (in_array('none', $v, true)) $or[] = 't."assigneeId" IS NULL';
+        $ids = array_values(array_unique(array_map(fn ($x) => $x === 'me' ? $user['id'] : $x, array_diff($v, ['none']))));
+        if ($ids) {
+            $or[] = filter_in_sql('t."assigneeId"', $ids, $params);
+            $or[] = 'EXISTS (SELECT 1 FROM "TicketAssignee" ta WHERE ta."ticketId" = t."id" AND ' . filter_in_sql('ta."userId"', $ids, $params) . ')';
+        }
+        $where[] = '(' . implode(' OR ', $or) . ')';
+    }
     if (($sp['overdue'] ?? '') === '1') {
         $where[] = 't."dueAt" < ?';
         $params[] = now_iso();

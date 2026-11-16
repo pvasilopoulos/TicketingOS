@@ -27,6 +27,33 @@ const ICON_BTN_DANGER = 'inline-flex h-8 w-8 items-center justify-center rounded
 const SMALL_SELECT = 'h-8 rounded-md border border-border bg-surface px-1.5 text-xs text-fg focus:outline-none focus:ring-2 focus:ring-brand/40 cursor-pointer';
 const FILTER_SELECT = 'h-9 rounded-lg border border-border bg-surface px-2.5 text-sm text-fg focus:outline-none focus:ring-2 focus:ring-brand/40 cursor-pointer';
 
+/**
+ * Filter dropdown where several values can be ticked (GET forms). The choice is
+ * sent as one comma-separated field and the form submits when the list closes.
+ */
+function multi_filter(string $name, string $allLabel, string $noun, array $options, mixed $current, string $extra = ''): string
+{
+    $sel = array_values(array_intersect(filter_values($current), array_map('strval', array_keys($options))));
+    $label = !$sel ? $allLabel : (count($sel) <= 2 ? implode(', ', array_map(fn ($k) => $options[$k], $sel)) : count($sel) . ' ' . $noun);
+    $h = '<details class="' . e(cx('group relative', $extra)) . '" data-multi-filter data-all="' . e($allLabel) . '" data-noun="' . e($noun) . '">'
+        . '<summary aria-label="' . e(ucfirst($noun)) . '" class="' . e(cx(FILTER_SELECT, 'flex list-none items-center gap-1.5 [&::-webkit-details-marker]:hidden group-open:ring-2 group-open:ring-brand/40',
+            $sel ? 'border-brand/50 bg-brand/5' : '')) . ' max-sm:h-10 max-sm:text-base">'
+        . '<span class="min-w-0 flex-1 truncate sm:max-w-44" data-multi-label>' . e($label) . '</span>'
+        . icon('chevron-down', 15, 'shrink-0 text-muted transition-transform group-open:rotate-180') . '</summary>'
+        . '<input type="hidden" name="' . e($name) . '" value="' . e(implode(',', $sel)) . '" data-multi-value>'
+        . '<div class="absolute left-0 z-30 mt-1 max-h-80 min-w-full w-max max-w-72 overflow-y-auto rounded-xl border border-border bg-surface p-1 shadow-xl">'
+        . (count($options) > 8 ? '<div class="sticky -top-1 z-10 -mx-1 -mt-1 mb-1 border-b border-border bg-surface p-1.5"><input type="search" data-multi-search placeholder="Search…" aria-label="Search ' . e($noun) . '" class="h-8 w-full rounded-md border border-border bg-surface-2 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/40"></div>' : '');
+    foreach ($options as $k => $text) {
+        $h .= '<label class="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm hover:bg-surface-2" data-multi-row>'
+            . '<input type="checkbox" value="' . e((string) $k) . '"' . (in_array((string) $k, $sel, true) ? ' checked' : '') . ' class="h-4 w-4 rounded border-border accent-brand" data-multi-opt>'
+            . '<span class="min-w-0 flex-1 truncate" data-multi-text>' . e($text) . '</span></label>';
+    }
+    return $h . '<div class="sticky -bottom-1 -mx-1 -mb-1 mt-1 flex items-center justify-between gap-2 border-t border-border bg-surface px-2.5 py-1.5">'
+        . '<button type="button" data-multi-clear class="rounded-md px-2 py-1 text-xs text-muted hover:bg-surface-2 hover:text-fg cursor-pointer">Clear</button>'
+        . '<button type="button" data-multi-apply class="rounded-md bg-brand px-3 py-1 text-xs font-medium text-brand-fg hover:opacity-90 cursor-pointer">Apply</button></div>'
+        . '</div></details>';
+}
+
 function btn_cls(string $variant = 'primary', string $size = 'md', string $extra = ''): string
 {
     return cx(BTN_BASE, BTN_VARIANTS[$variant], BTN_SIZES[$size], $extra);

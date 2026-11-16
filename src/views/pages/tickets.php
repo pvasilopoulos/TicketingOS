@@ -125,34 +125,20 @@ $pagerOpts = ['perPageOptions' => [25, 50, 100]];
       </div>
 
       <div data-filters-panel class="flex w-full flex-wrap items-center gap-2 max-sm:hidden max-sm:data-[open=true]:grid max-sm:data-[open=true]:grid-cols-2 sm:w-auto">
-        <select name="status" aria-label="Status" class="<?= FILTER_SELECT ?> max-sm:h-10 max-sm:w-full max-sm:text-base" data-autosubmit>
-          <?= select_options(['' => 'All statuses'] + array_column($statuses, 'label', 'key'), $sp['status'] ?? '') ?>
-        </select>
-        <select name="priority" aria-label="Priority" class="<?= FILTER_SELECT ?> max-sm:h-10 max-sm:w-full max-sm:text-base" data-autosubmit>
-          <?= select_options(['' => 'All priorities'] + array_column($priorities, 'label', 'key'), $sp['priority'] ?? '') ?>
-        </select>
-        <select name="category" aria-label="Category" class="<?= FILTER_SELECT ?> max-sm:h-10 max-sm:w-full max-sm:text-base" data-autosubmit>
-          <?= select_options(['' => 'All categories'] + array_column($categories, 'name', 'id'), $sp['category'] ?? '') ?>
-        </select>
+        <?= multi_filter('status', 'All statuses', 'statuses', array_column($statuses, 'label', 'key'), $sp['status'] ?? '') ?>
+        <?= multi_filter('priority', 'All priorities', 'priorities', array_column($priorities, 'label', 'key'), $sp['priority'] ?? '') ?>
+        <?= multi_filter('category', 'All categories', 'categories', array_column($categories, 'name', 'id'), $sp['category'] ?? '') ?>
         <?php if ($tags): ?>
-          <select name="tag" aria-label="Tag" class="<?= FILTER_SELECT ?> max-sm:h-10 max-sm:w-full max-sm:text-base" data-autosubmit>
-            <?= select_options(['' => 'All tags'] + array_map(fn ($n) => "#$n", array_column($tags, 'name', 'id')), $sp['tag'] ?? '') ?>
-          </select>
+          <?= multi_filter('tag', 'All tags', 'tags', array_map(fn ($n) => "#$n", array_column($tags, 'name', 'id')), $sp['tag'] ?? '') ?>
         <?php endif; ?>
         <?php if ($staff): ?>
-          <select name="assignee" aria-label="Assignee" class="<?= FILTER_SELECT ?> max-sm:h-10 max-sm:w-full max-sm:text-base" data-autosubmit>
-            <?= select_options(['' => 'Anyone', 'me' => 'Assigned to me', 'none' => 'Unassigned'], $sp['assignee'] ?? '') ?>
-          </select>
+          <?= multi_filter('assignee', 'Anyone', 'assignees', ['me' => 'Assigned to me', 'none' => 'Unassigned'] + array_column(array_filter($agents, fn ($a) => $a['id'] !== $user['id']), 'name', 'id'), $sp['assignee'] ?? '') ?>
         <?php endif; ?>
         <?php if ($groupsList): ?>
-          <select name="group" aria-label="Group" class="<?= FILTER_SELECT ?> max-sm:h-10 max-sm:w-full max-sm:text-base" data-autosubmit>
-            <?= select_options(['' => 'All groups', 'mine' => 'My groups', 'none' => 'No group'] + array_column($groupsList, 'name', 'id'), $sp['group'] ?? '') ?>
-          </select>
+          <?= multi_filter('group', 'All groups', 'groups', ['mine' => 'My groups', 'none' => 'No group'] + array_column($groupsList, 'name', 'id'), $sp['group'] ?? '') ?>
         <?php endif; ?>
         <?php if ($orgsList): ?>
-          <select name="org" aria-label="Organization" class="<?= FILTER_SELECT ?> max-sm:h-10 max-sm:w-full max-sm:text-base" data-autosubmit>
-            <?= select_options(['' => 'All organizations'] + array_column($orgsList, 'name', 'id'), $sp['org'] ?? '') ?>
-          </select>
+          <?= multi_filter('org', 'All organizations', 'organizations', array_column($orgsList, 'name', 'id'), $sp['org'] ?? '') ?>
         <?php endif; ?>
         <?php if ($view === 'list'): ?>
           <label class="inline-flex items-center gap-1.5 text-sm text-muted max-sm:col-span-2">
