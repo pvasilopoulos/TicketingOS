@@ -4,6 +4,11 @@ All notable changes to TicketingOS (PHP edition). Versions follow [Semantic Vers
 **major** for changes that need manual steps when updating, **minor** for new features, **patch** for fixes.
 The app shows this list under **About & what’s new** (menu footer → version number).
 
+## [1.11.1] - 2026-11-16
+
+### Fixed
+- Ticket board: all status columns fit the screen side by side, without horizontal scrolling (columns share the width; on narrow columns the priority moves under the subject).
+
 ## [1.11.0] - 2026-11-12
 
 ### Added

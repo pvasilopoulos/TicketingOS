@@ -10,12 +10,12 @@
     </button>
   <?php endforeach; ?>
 </nav>
-<div class="flex flex-col gap-4 pb-3 sm:flex-row sm:gap-4 sm:overflow-x-auto" data-board data-can-manage="<?= $canManage ? '1' : '0' ?>">
+<div class="flex flex-col gap-4 pb-3 sm:flex-row sm:gap-3 sm:overflow-x-auto xl:gap-4" data-board data-can-manage="<?= $canManage ? '1' : '0' ?>">
   <?php foreach ($statuses as $s):
       $col = $columns[$s['key']] ?? ['total' => 0, 'rows' => []];
       $cards = $col['rows'];
       $more = $col['total'] - count($cards); ?>
-    <div data-board-col="<?= e($s['key']) ?>" style="--st:<?= safe_color($s['color']) ?>" class="flex w-full shrink-0 scroll-mt-16 flex-col overflow-hidden rounded-2xl border border-[color-mix(in_srgb,var(--st)_28%,var(--color-border))] border-t-4 border-t-[var(--st)] bg-[color-mix(in_srgb,var(--st)_7%,var(--color-surface-2))] transition-colors data-[over=true]:border-brand data-[over=true]:bg-brand/10 sm:w-72 sm:scroll-mt-0 sm:rounded-xl">
+    <div data-board-col="<?= e($s['key']) ?>" style="--st:<?= safe_color($s['color']) ?>" class="flex w-full shrink-0 scroll-mt-16 flex-col overflow-hidden rounded-2xl border border-[color-mix(in_srgb,var(--st)_28%,var(--color-border))] border-t-4 border-t-[var(--st)] bg-[color-mix(in_srgb,var(--st)_7%,var(--color-surface-2))] transition-colors data-[over=true]:border-brand data-[over=true]:bg-brand/10 sm:w-auto sm:min-w-[10rem] sm:flex-1 sm:basis-0 sm:scroll-mt-0 sm:rounded-xl">
       <div class="flex items-center justify-between px-3.5 py-3 sm:px-3 sm:py-2.5">
         <span class="inline-flex items-center gap-2 text-sm font-semibold">
           <span class="h-2.5 w-2.5 rounded-full bg-[var(--st)] ring-4 ring-[color-mix(in_srgb,var(--st)_20%,transparent)]"></span><span class="text-[color-mix(in_srgb,var(--st)_75%,var(--color-fg))]"><?= e($s['label']) ?></span>
@@ -26,8 +26,8 @@
         <?php foreach ($cards as $c): ?>
           <a href="/tickets/<?= e($c['id']) ?>" data-board-card="<?= e($c['id']) ?>" draggable="<?= $canManage ? 'true' : 'false' ?>"
              class="<?= cx('group block rounded-xl border border-border border-l-4 border-l-[var(--st)] bg-surface p-3.5 text-left shadow-sm shadow-black/[0.03] transition active:scale-[0.99] hover:shadow-md sm:rounded-lg sm:p-3 sm:shadow-none', $canManage ? 'sm:cursor-grab sm:active:cursor-grabbing' : '') ?>">
-            <div class="flex items-start justify-between gap-2">
-              <span class="line-clamp-2 text-[15px] font-medium leading-snug sm:text-sm"><?= e($c['subject']) ?></span>
+            <div class="flex flex-wrap items-start justify-between gap-x-2 gap-y-1">
+              <span class="line-clamp-2 min-w-0 flex-1 basis-28 text-[15px] font-medium leading-snug sm:text-sm"><?= e($c['subject']) ?></span>
               <?= priority_badge($c['priority']['label'], $c['priority']['color']) ?>
             </div>
             <?php if ($c['dueAt'] && ($db = due_badge($c['dueAt'], $c['status']['isClosed']))): ?>
