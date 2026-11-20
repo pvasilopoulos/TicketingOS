@@ -4,6 +4,17 @@ All notable changes to TicketingOS (PHP edition). Versions follow [Semantic Vers
 **major** for changes that need manual steps when updating, **minor** for new features, **patch** for fixes.
 The app shows this list under **About & what’s new** (menu footer → version number).
 
+## [1.16.0] - 2026-11-20
+
+### Added
+- **Single sign-on with Microsoft 365 and Google**: “Continue with Microsoft / Google” on the sign-in page. The first sign-in links the account with the same email; after that it follows that Microsoft / Google account.
+- Settings → Security → **Single sign-on** (workspace admins): which providers, staff and/or customers, customers of your organizations’ email domains join on their own, agents must use single sign-on (administrators can still use a password), trusted Microsoft directories.
+- Settings → Security → **Sign-in providers** (super admins): the platform’s Microsoft and Google app registrations, with the redirect URIs and setup steps; secrets are stored encrypted. `SSO_*` in .env works too.
+- Microsoft emails are accepted only when Microsoft confirms the domain (`xms_edov`) or the directory is trusted; Google emails only when verified. SSO sign-ins and links are in the Audit log (Sign-ins).
+
+### Database
+- Runtime schema v15: `UserIdentity` table (applied automatically).
+
 ## [1.15.0] - 2026-11-16
 
 ### Added

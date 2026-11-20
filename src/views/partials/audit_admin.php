@@ -18,7 +18,7 @@ $aurl = function (array $c) use ($filters, $page): string {
     return '/settings?' . http_build_query($p) . '#audit';
 };
 $catOf = function (string $action): string {
-    if (str_starts_with($action, 'sign-in')) return 'signin';
+    if (str_starts_with($action, 'sign-in') || str_starts_with($action, 'sso-') && $action !== 'sso-save') return 'signin';
     if ($action === 'ticket-export') return 'tickets';
     return AUDITED_ACTIONS[$action][0] ?? 'settings';
 };

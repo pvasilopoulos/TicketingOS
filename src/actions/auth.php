@@ -33,6 +33,7 @@ function act_login(array $in): ?array
         if ($user['tenantId']) audit($user['tenantId'], null, 'sign-in-blocked', "Blocked sign-in of deactivated account {$user['email']}", 'user', $user['id']);
         return ['error' => 'This account has been deactivated. Contact your workspace administrator.'];
     }
+    if ($why = sso_password_blocked($user)) return ['error' => $why];
     if ($user['tenantId'] && is_staff($user['role'])) audit($user['tenantId'], $user, 'sign-in', "{$user['name']} signed in", 'user', $user['id']);
     db_update('User', ['lastLoginAt' => now_iso()], '"id" = ?', [$user['id']]);
     start_session_for($user);

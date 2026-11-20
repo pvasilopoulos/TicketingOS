@@ -189,7 +189,7 @@ function person_erase(string $tenantId, array $p, bool $content): array
     $upd = ['name' => 'Erased user', 'email' => $anonEmail, 'active' => 0, 'passwordHash' => password_hash(bin2hex(random_bytes(24)), PASSWORD_DEFAULT)];
     foreach (['phone' => null, 'signature' => null] as $c => $v) if (db_column_exists('User', $c)) $upd[$c] = $v;
     db_update('User', $upd, '"id" = ?', [$p['id']]);
-    foreach (['PushSubscription', 'NotificationPreference', 'SavedView', 'PasswordResetToken', 'Notification', 'UserOrganization'] as $t) {
+    foreach (['PushSubscription', 'NotificationPreference', 'SavedView', 'PasswordResetToken', 'Notification', 'UserOrganization', 'UserIdentity'] as $t) {
         if (db_table_exists($t) && db_column_exists($t, 'userId')) q('DELETE FROM ' . qi($t) . ' WHERE "userId" = ?', [$p['id']]);
     }
     q('UPDATE "CsatSurvey" SET "comment" = NULL WHERE "requesterId" = ?', [$p['id']]);

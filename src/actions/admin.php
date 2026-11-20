@@ -586,6 +586,7 @@ function act_member_remove(array $in): ?array
     if (is_tenant_admin($target['role']) && active_admin_count($tenantId, $target['id']) < 1) {
         return ['error' => 'A workspace needs at least one active administrator'];
     }
+    q('DELETE FROM "UserIdentity" WHERE "userId" = ?', [$userId]);
     q('DELETE FROM "User" WHERE "id" = ?', [$userId]);
     return ['ok' => true];
 }

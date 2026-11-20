@@ -697,6 +697,7 @@ $s = fn (string $form) => flash($form);
   <?php if ($canSecurity): ?>
   <section id="security" data-settings-section="security" class="scroll-mt-24 space-y-6">
     <?php require ROOT . '/src/views/partials/security_admin.php'; ?>
+    <?php require ROOT . '/src/views/partials/sso_admin.php'; ?>
   </section>
   <?php endif; ?>
   <?php if (can($me, 'audit.view')): ?>

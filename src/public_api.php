@@ -76,7 +76,7 @@ function audit_filter_sql(string $tenantId, array $f): array
     $where = '"tenantId" = ?';
     $params = [$tenantId];
     $cat = (string) ($f['acat'] ?? '');
-    if ($cat === 'signin') { $where .= ' AND "action" LIKE ?'; $params[] = 'sign-in%'; }
+    if ($cat === 'signin') { $where .= ' AND ("action" LIKE ? OR "action" IN (?, ?))'; array_push($params, 'sign-in%', 'sso-linked', 'sso-signup'); }
     elseif (isset(AUDIT_CATEGORIES[$cat])) {
         $acts = array_keys(array_filter(AUDITED_ACTIONS, fn ($a) => $a[0] === $cat));
         if ($cat === 'tickets') $acts[] = 'ticket-export';

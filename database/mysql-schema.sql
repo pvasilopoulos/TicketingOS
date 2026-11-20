@@ -136,6 +136,19 @@ CREATE TABLE IF NOT EXISTS `PasswordResetToken` (
   FOREIGN KEY (`userId`) REFERENCES `User` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS `UserIdentity` (
+  `id` varchar(40) NOT NULL,
+  `userId` varchar(40) NOT NULL,
+  `provider` varchar(20) NOT NULL,
+  `subject` varchar(191) NOT NULL,
+  `email` varchar(191) DEFAULT NULL,
+  `createdAt` varchar(30) NOT NULL,
+  `lastUsedAt` varchar(30) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `UserIdentity_subject_idx` (`provider`,`subject`),
+  KEY `UserIdentity_user_idx` (`userId`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS `Category` (
   `id` varchar(40) NOT NULL,
   `name` varchar(191) NOT NULL,

@@ -21,7 +21,7 @@ require SRC . '/public_api.php';
 $ACTIONS = [
     // auth
     'login' => 'act_login', 'register' => 'act_register', 'logout' => 'act_logout',
-    'forgot' => 'act_forgot', 'reset' => 'act_reset',
+    'forgot' => 'act_forgot', 'reset' => 'act_reset', 'sso-save' => 'act_sso_save', 'sso-platform-save' => 'act_sso_platform_save',
     // tickets
     'ticket-create' => 'act_ticket_create', 'ticket-update' => 'act_ticket_update', 'ticket-bulk' => 'act_ticket_bulk',
     'comment-add' => 'act_comment_add', 'comment-edit' => 'act_comment_edit', 'comment-delete' => 'act_comment_delete', 'comment-pin' => 'act_comment_pin',
@@ -63,7 +63,7 @@ $ACTIONS = [
 ];
 
 // Never leak secrets/old input for these fields back into flash state.
-const SECRET_FIELDS = ['password', 'confirm', 'smtpPassword', 'msClientSecret', '_csrf', 'token', 'apiKey'];
+const SECRET_FIELDS = ['password', 'confirm', 'smtpPassword', 'msClientSecret', 'clientSecret', '_csrf', 'token', 'apiKey'];
 
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $path = request_path();
@@ -81,6 +81,8 @@ try {
         if ($k === '' || !hash_equals($k, (string) ($_GET['key'] ?? ''))) abort(403);
         json_out(run_cron());
     }
+    // Single sign-on (Microsoft / Google).
+    if (preg_match('#^/sso/(microsoft|google)(/callback)?$#', $path, $m) && $method === 'GET') empty($m[2]) ? sso_start($m[1]) : sso_callback($m[1]);
     if ($path === '/widget.js') public_widget_js();
     if ($path === '/brand/logo') brand_logo_out();
     // Viber / WhatsApp webhooks (signed by the app; no session).

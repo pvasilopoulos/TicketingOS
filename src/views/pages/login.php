@@ -13,6 +13,11 @@
   <div class="pt-1"><?= auth_submit('Sign in') ?></div>
 </form>
 
+<?php if ($sso = sso_buttons()): ?>
+<div class="my-6 flex items-center gap-3 text-xs font-medium uppercase tracking-wider text-muted"><span class="h-px flex-1 bg-border"></span>or<span class="h-px flex-1 bg-border"></span></div>
+<?= $sso ?>
+<?php endif; ?>
+
 <?php if (signup_open()): ?>
 <div class="mt-7 border-t border-border/70 pt-6 text-center text-sm text-muted">
   New here? <a href="/register" class="font-semibold text-brand hover:underline">Create a workspace</a>
