@@ -4,6 +4,11 @@ All notable changes to TicketingOS (PHP edition). Versions follow [Semantic Vers
 **major** for changes that need manual steps when updating, **minor** for new features, **patch** for fixes.
 The app shows this list under **About & what’s new** (menu footer → version number).
 
+## [1.16.1] - 2026-11-20
+
+### Fixed
+- Microsoft sign-in works with **single-tenant** app registrations: Settings → Security → Sign-in providers → Microsoft has an optional **Directory (tenant) ID** (or `SSO_MICROSOFT_DIRECTORY` in .env). Empty keeps the multi-tenant `/common` sign-in.
+
 ## [1.16.0] - 2026-11-20
 
 ### Added

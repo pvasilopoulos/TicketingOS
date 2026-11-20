@@ -28,7 +28,10 @@ function sso_config_file(): string
     return ROOT . '/storage/branding/sso.json';
 }
 
-/** ['microsoft' => ['clientId' => …, 'clientSecret' => plain, 'source' => 'settings'|'env'|null], 'google' => …] */
+/**
+ * ['microsoft' => ['clientId' => …, 'clientSecret' => plain, 'directory' => tenant ID or '', 'source' => 'settings'|'env'|null], 'google' => …]
+ * directory: set for a single-tenant Microsoft app (only that directory's people can use it); empty = any directory.
+ */
 function sso_platform(): array
 {
     static $c = null;
@@ -39,14 +42,16 @@ function sso_platform(): array
     foreach (array_keys(SSO_PROVIDERS) as $p) {
         $id = trim((string) ($saved[$p]['clientId'] ?? ''));
         $secret = decrypt_secret($saved[$p]['clientSecret'] ?? '');
+        $dir = strtolower(trim((string) ($saved[$p]['directory'] ?? '')));
         $source = $id !== '' && $secret !== '' ? 'settings' : null;
         if (!$source) {
             $k = 'SSO_' . strtoupper($p) . '_';
             $id = (string) env($k . 'CLIENT_ID', '');
             $secret = (string) env($k . 'CLIENT_SECRET', '');
+            $dir = strtolower(trim((string) env($k . 'DIRECTORY', '')));
             $source = $id !== '' && $secret !== '' ? 'env' : null;
         }
-        $c[$p] = ['clientId' => $id, 'clientSecret' => $secret, 'source' => $source];
+        $c[$p] = ['clientId' => $id, 'clientSecret' => $secret, 'directory' => $p === 'microsoft' ? $dir : '', 'source' => $source];
     }
     return $c;
 }
@@ -63,14 +68,14 @@ function sso_available(): array
 }
 
 /** Save (or with $clear remove) a provider's app registration. An empty secret keeps the saved one. */
-function sso_platform_save(string $provider, string $clientId, string $secret, bool $clear): void
+function sso_platform_save(string $provider, string $clientId, string $secret, bool $clear, string $directory = ''): void
 {
     $raw = @file_get_contents(sso_config_file());
     $data = $raw ? (json_decode($raw, true) ?: []) : [];
     if ($clear) {
         unset($data[$provider]);
     } else {
-        $data[$provider] = ['clientId' => $clientId, 'clientSecret' => $secret !== '' ? encrypt_secret($secret) : ($data[$provider]['clientSecret'] ?? '')];
+        $data[$provider] = ['clientId' => $clientId, 'clientSecret' => $secret !== '' ? encrypt_secret($secret) : ($data[$provider]['clientSecret'] ?? ''), 'directory' => $directory];
     }
     if (!is_dir(dirname(sso_config_file()))) mkdir(dirname(sso_config_file()), 0775, true);
     file_put_contents(sso_config_file(), json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES), LOCK_EX);
@@ -86,7 +91,9 @@ function sso_endpoints(string $provider): array
 {
     if ($provider === 'microsoft') {
         $b = rtrim((string) env('SSO_MICROSOFT_BASE', 'https://login.microsoftonline.com'), '/');
-        return ['authorize' => "$b/common/oauth2/v2.0/authorize", 'token' => "$b/common/oauth2/v2.0/token", 'issuer' => "$b/{tid}/v2.0"];
+        // A single-tenant app must use its own directory's endpoints; a multi-tenant one uses /common.
+        $dir = sso_platform()['microsoft']['directory'] ?: 'common';
+        return ['authorize' => "$b/$dir/oauth2/v2.0/authorize", 'token' => "$b/$dir/oauth2/v2.0/token", 'issuer' => "$b/{tid}/v2.0"];
     }
     $a = rtrim((string) env('SSO_GOOGLE_AUTH_BASE', 'https://accounts.google.com'), '/');
     $t = rtrim((string) env('SSO_GOOGLE_TOKEN_BASE', 'https://oauth2.googleapis.com'), '/');

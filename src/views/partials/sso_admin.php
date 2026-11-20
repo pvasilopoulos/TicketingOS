@@ -67,7 +67,7 @@ $ssoToggle = function (string $name, bool $on, string $title, string $hint, bool
         </div>
         <ol class="list-decimal space-y-1 pl-4 text-xs text-muted">
           <?php if ($p === 'microsoft'): ?>
-            <li>Microsoft Entra admin center → App registrations → New registration. Supported account types: any organizational directory and personal Microsoft accounts.</li>
+            <li>Microsoft Entra admin center → App registrations → New registration. For customers from other companies too, choose “Accounts in any organizational directory and personal Microsoft accounts”; for your own people only, “Single tenant” and fill in Directory below.</li>
             <li>Redirect URI (Web): the address below. Then Certificates &amp; secrets → New client secret.</li>
             <li>Token configuration → Add optional claim → ID → <code>email</code> and <code>xms_edov</code>.</li>
           <?php else: ?>
@@ -83,6 +83,13 @@ $ssoToggle = function (string $name, bool $on, string $title, string $hint, bool
           <label for="cid-<?= $p ?>" class="<?= LABEL_CLS ?>">Client ID</label>
           <input id="cid-<?= $p ?>" name="clientId" value="<?= e($c['source'] === 'settings' ? $c['clientId'] : '') ?>" autocomplete="off" class="<?= INPUT_CLS ?> font-mono text-xs">
         </div>
+        <?php if ($p === 'microsoft'): ?>
+        <div>
+          <label for="dir-<?= $p ?>" class="<?= LABEL_CLS ?>">Directory (tenant) ID <span class="font-normal text-muted">(single-tenant apps only)</span></label>
+          <input id="dir-<?= $p ?>" name="directory" value="<?= e($c['source'] === 'settings' ? $c['directory'] : '') ?>" placeholder="Leave empty for a multi-tenant app" autocomplete="off" class="<?= INPUT_CLS ?> font-mono text-xs">
+          <p class="mt-1 text-xs text-muted">From the app’s Overview page. Then only people of that directory can sign in with Microsoft.</p>
+        </div>
+        <?php endif; ?>
         <div>
           <label for="cs-<?= $p ?>" class="<?= LABEL_CLS ?>">Client secret</label>
           <input id="cs-<?= $p ?>" name="clientSecret" type="password" autocomplete="new-password" placeholder="<?= $c['source'] === 'settings' ? 'Saved — leave empty to keep it' : '' ?>" class="<?= INPUT_CLS ?> font-mono text-xs">

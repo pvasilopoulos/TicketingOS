@@ -46,6 +46,10 @@ function act_sso_platform_save(array $in): ?array
     $had = (sso_platform()[$p]['source'] ?? null) === 'settings';
     if ($secret === '' && !$had) return ['error' => 'Enter the client secret'];
     if (mb_strlen($secret) > 500) return ['error' => 'The client secret is too long'];
-    sso_platform_save($p, $id, $secret, false);
+    $dir = $p === 'microsoft' ? strtolower(str_in($in, 'directory')) : '';
+    if ($dir !== '' && !preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/', $dir) && !preg_match('/^[a-z0-9-]+(.[a-z0-9-]+)+$/', $dir)) {
+        return ['error' => 'The directory is a tenant ID (00000000-0000-0000-0000-000000000000) or a domain such as contoso.onmicrosoft.com'];
+    }
+    sso_platform_save($p, $id, $secret, false, $dir);
     return ['success' => SSO_PROVIDERS[$p] . ' sign-in saved'];
 }
