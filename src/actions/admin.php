@@ -343,6 +343,8 @@ function act_email_save(array $in): ?array
     $existing = email_settings($tenantId);
     $smtpPw = str_in($in, 'smtpPassword');
     $msSecret = str_in($in, 'msClientSecret');
+    $msExpires = secret_date_in(str_in($in, 'msClientSecretExpires'));
+    if ($msExpires === null) return ['error' => 'The secret’s expiry date isn’t a valid date'];
 
     $data = [
         'enabled' => $enabled ? 1 : 0,
@@ -359,6 +361,7 @@ function act_email_save(array $in): ?array
         'msClientId' => str_in($in, 'msClientId') ?: null,
         'msClientSecret' => $msSecret !== '' ? encrypt_secret($msSecret) : ($existing['msClientSecret'] ?? null),
         'msSender' => str_in($in, 'msSender') ?: null,
+        'msClientSecretExpires' => $msExpires ?: null,
         'updatedAt' => now_iso(),
     ];
 

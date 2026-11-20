@@ -4,6 +4,14 @@ All notable changes to TicketingOS (PHP edition). Versions follow [Semantic Vers
 **major** for changes that need manual steps when updating, **minor** for new features, **patch** for fixes.
 The app shows this list under **About & what’s new** (menu footer → version number).
 
+## [1.17.0] - 2026-11-20
+
+### Added
+- **Reminders before an app secret expires.** Settings → Notifications & email → Microsoft 365 and Settings → Security → Sign-in providers have a **Secret expires on** date. Administrators (email secret) and super admins (sign-in secrets) get an in-app notification and an email 30, 14, 7, 3 and 1 days before, on the day, and once after it expires. The settings show a warning from 30 days before. Needs the background jobs (cron).
+
+### Database
+- Runtime schema v16: `EmailSetting.msClientSecretExpires` (applied automatically).
+
 ## [1.16.1] - 2026-11-20
 
 ### Fixed

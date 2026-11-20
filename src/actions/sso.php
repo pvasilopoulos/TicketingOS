@@ -50,6 +50,8 @@ function act_sso_platform_save(array $in): ?array
     if ($dir !== '' && !preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/', $dir) && !preg_match('/^[a-z0-9-]+(.[a-z0-9-]+)+$/', $dir)) {
         return ['error' => 'The directory is a tenant ID (00000000-0000-0000-0000-000000000000) or a domain such as contoso.onmicrosoft.com'];
     }
-    sso_platform_save($p, $id, $secret, false, $dir);
+    $expires = secret_date_in(str_in($in, 'expires'));
+    if ($expires === null) return ['error' => 'The secret’s expiry date isn’t a valid date'];
+    sso_platform_save($p, $id, $secret, false, $dir, $expires);
     return ['success' => SSO_PROVIDERS[$p] . ' sign-in saved'];
 }

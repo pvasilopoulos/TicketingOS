@@ -268,6 +268,7 @@ CREATE TABLE IF NOT EXISTS `EmailSetting` (
   `msClientId` varchar(191) DEFAULT NULL,
   `msClientSecret` mediumtext DEFAULT NULL,
   `msSender` varchar(191) DEFAULT NULL,
+  `msClientSecretExpires` varchar(10) DEFAULT NULL,
   `updatedAt` varchar(30) NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `tenantId` (`tenantId`),

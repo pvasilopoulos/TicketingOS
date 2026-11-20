@@ -43,6 +43,7 @@ function sso_platform(): array
         $id = trim((string) ($saved[$p]['clientId'] ?? ''));
         $secret = decrypt_secret($saved[$p]['clientSecret'] ?? '');
         $dir = strtolower(trim((string) ($saved[$p]['directory'] ?? '')));
+        $expires = (string) ($saved[$p]['expires'] ?? '');
         $source = $id !== '' && $secret !== '' ? 'settings' : null;
         if (!$source) {
             $k = 'SSO_' . strtoupper($p) . '_';
@@ -51,7 +52,7 @@ function sso_platform(): array
             $dir = strtolower(trim((string) env($k . 'DIRECTORY', '')));
             $source = $id !== '' && $secret !== '' ? 'env' : null;
         }
-        $c[$p] = ['clientId' => $id, 'clientSecret' => $secret, 'directory' => $p === 'microsoft' ? $dir : '', 'source' => $source];
+        $c[$p] = ['clientId' => $id, 'clientSecret' => $secret, 'directory' => $p === 'microsoft' ? $dir : '', 'expires' => $source === 'settings' ? $expires : '', 'source' => $source];
     }
     return $c;
 }
@@ -68,17 +69,29 @@ function sso_available(): array
 }
 
 /** Save (or with $clear remove) a provider's app registration. An empty secret keeps the saved one. */
-function sso_platform_save(string $provider, string $clientId, string $secret, bool $clear, string $directory = ''): void
+function sso_platform_save(string $provider, string $clientId, string $secret, bool $clear, string $directory = '', string $expires = ''): void
 {
     $raw = @file_get_contents(sso_config_file());
     $data = $raw ? (json_decode($raw, true) ?: []) : [];
     if ($clear) {
         unset($data[$provider]);
     } else {
-        $data[$provider] = ['clientId' => $clientId, 'clientSecret' => $secret !== '' ? encrypt_secret($secret) : ($data[$provider]['clientSecret'] ?? ''), 'directory' => $directory];
+        $data[$provider] = ['clientId' => $clientId, 'clientSecret' => $secret !== '' ? encrypt_secret($secret) : ($data[$provider]['clientSecret'] ?? ''), 'directory' => $directory, 'expires' => $expires, 'reminded' => $data[$provider]['reminded'] ?? null];
     }
     if (!is_dir(dirname(sso_config_file()))) mkdir(dirname(sso_config_file()), 0775, true);
     file_put_contents(sso_config_file(), json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES), LOCK_EX);
+}
+
+/** The last expiry reminder sent for a provider's secret ("date|stage"); with $set, record it. */
+function sso_reminded(string $provider, ?string $set = null): ?string
+{
+    $raw = @file_get_contents(sso_config_file());
+    $data = $raw ? (json_decode($raw, true) ?: []) : [];
+    if ($set === null) return $data[$provider]['reminded'] ?? null;
+    if (!isset($data[$provider])) return null;
+    $data[$provider]['reminded'] = $set;
+    file_put_contents(sso_config_file(), json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES), LOCK_EX);
+    return $set;
 }
 
 function sso_redirect_uri(string $provider): string

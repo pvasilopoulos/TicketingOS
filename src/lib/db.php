@@ -191,7 +191,7 @@ function ts(?string $iso): ?float
  * (hosts like Plesk often have no shell for bin/migrate.php). A marker file in
  * storage/ keeps this to one cheap check per request.
  */
-const RUNTIME_SCHEMA_VERSION = 15;
+const RUNTIME_SCHEMA_VERSION = 16;
 
 /** Does a table have a column? (works for SQLite and MySQL/MariaDB) */
 function db_column_exists(string $table, string $col): bool
@@ -248,6 +248,7 @@ function ensure_runtime_schema(): void
             'provider' => ['VARCHAR(20) NOT NULL', 'TEXT NOT NULL'], 'subject' => ['VARCHAR(191) NOT NULL', 'TEXT NOT NULL'],
             'email' => ['VARCHAR(191) NULL', 'TEXT'], 'createdAt' => ['VARCHAR(30) NOT NULL', 'TEXT NOT NULL'], 'lastUsedAt' => ['VARCHAR(30) NULL', 'TEXT'],
         ], ['UserIdentity_subject_idx' => ['provider', 'subject'], 'UserIdentity_user_idx' => ['userId']]);
+        db_add_column('EmailSetting', 'msClientSecretExpires', 'VARCHAR(10) NULL', 'TEXT'); // v16: reminder before the Microsoft 365 secret expires
         @file_put_contents($marker, $sig);
     } catch (Throwable $e) {
         error_log('[schema] ' . $e->getMessage());

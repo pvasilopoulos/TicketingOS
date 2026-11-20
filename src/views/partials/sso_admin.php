@@ -94,6 +94,12 @@ $ssoToggle = function (string $name, bool $on, string $title, string $hint, bool
           <label for="cs-<?= $p ?>" class="<?= LABEL_CLS ?>">Client secret</label>
           <input id="cs-<?= $p ?>" name="clientSecret" type="password" autocomplete="new-password" placeholder="<?= $c['source'] === 'settings' ? 'Saved — leave empty to keep it' : '' ?>" class="<?= INPUT_CLS ?> font-mono text-xs">
         </div>
+        <div>
+          <label for="exp-<?= $p ?>" class="<?= LABEL_CLS ?>">Secret expires on <span class="font-normal text-muted">(optional)</span></label>
+          <input id="exp-<?= $p ?>" name="expires" type="date" value="<?= e($c['expires']) ?>" class="<?= INPUT_CLS ?>">
+          <p class="mt-1 text-xs text-muted">Super admins are reminded 30, 14, 7, 3 and 1 days before.</p>
+        </div>
+        <?= secret_expiry_alert($c['expires'] ?: null, 'when it expires, nobody can sign in with ' . $label . '.') ?>
         <div class="flex flex-wrap gap-2">
           <button type="submit" class="<?= btn_cls() ?>"><?= icon('check', 16) ?> Save</button>
           <?php if ($c['source'] === 'settings'): ?>

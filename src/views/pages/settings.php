@@ -633,7 +633,13 @@ $s = fn (string $form) => flash($form);
             <label for="msSender" class="<?= LABEL_CLS ?>">Send as (mailbox)</label>
             <input id="msSender" name="msSender" type="email" placeholder="support@company.com" value="<?= e($ev('msSender')) ?>" class="<?= INPUT_CLS ?>">
           </div>
+          <div>
+            <label for="msClientSecretExpires" class="<?= LABEL_CLS ?>">Secret expires on <span class="font-normal text-muted">(optional)</span></label>
+            <input id="msClientSecretExpires" name="msClientSecretExpires" type="date" value="<?= e($ev('msClientSecretExpires')) ?>" class="<?= INPUT_CLS ?>">
+            <p class="mt-1 text-xs text-muted">The “Expires” date in Entra (Certificates &amp; secrets). Administrators are reminded 30, 14, 7, 3 and 1 days before.</p>
+          </div>
         </div>
+        <?= secret_expiry_alert($email['msClientSecretExpires'] ?? null, 'when it expires, emails stop.') ?>
       </fieldset>
 
       <div class="flex items-center gap-3 pt-1">
