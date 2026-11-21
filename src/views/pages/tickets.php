@@ -27,9 +27,37 @@ $SORTS = [
     'number' => ['Ticket number', 't."number" DESC'],
 ];
 $sort = isset($SORTS[$sp['sort'] ?? '']) ? $sp['sort'] : 'newest';
+// Group by (staff): sections in the list, swimlanes on the board.
+$groupings = $staff ? ticket_groupings($view === 'board') : [];
+$groupBy = isset($groupings[$sp['groupby'] ?? '']) ? $sp['groupby'] : '';
+$groups = [];
+$sections = [];
+$lanes = [];
+$laneMore = 0;
 $perPage = in_array((int) ($sp['per'] ?? 0), [25, 50, 100], true) ? (int) $sp['per'] : TICKETS_PER_PAGE;
 
-if ($view === 'board') {
+if ($view === 'board' && $groupBy) {
+    // Swimlanes: one row per group (up to BOARD_LANE_LIMIT), the status columns inside.
+    $groups = ticket_groups($groupBy, $where, $params, $tenantId, $statuses, $priorities, $closedKeys);
+    $laneGroups = array_slice($groups, 0, BOARD_LANE_LIMIT, true);
+    $laneMore = count($groups) - count($laneGroups);
+    $total = array_sum(array_column($groups, 'total'));
+    if ($laneGroups) {
+        $expr = ticket_group_expr($groupBy);
+        $keys = array_map('strval', array_keys($laneGroups));
+        $inKeys = $expr . ' IN (' . in_ph($keys) . ')';
+        $counts = [];
+        foreach (q_all("SELECT $expr AS \"gk\", t.\"status\", COUNT(*) AS \"n\" FROM \"Ticket\" t WHERE $where AND $inKeys GROUP BY $expr, t.\"status\"", [...$params, ...$keys]) as $r) $counts[(string) $r['gk']][$r['status']] = (int) $r['n'];
+        $pick = q_all("SELECT \"id\", \"gk\", \"status\" FROM (SELECT t.\"id\", $expr AS \"gk\", t.\"status\", ROW_NUMBER() OVER (PARTITION BY $expr, t.\"status\" ORDER BY t.\"createdAt\" DESC) AS \"rn\" FROM \"Ticket\" t WHERE $where AND $inKeys) x WHERE \"rn\" <= " . BOARD_LANE_CELL_LIMIT, [...$params, ...$keys]);
+        $byId = key_by(ticket_rows_by_ids(array_column($pick, 'id'), $statuses, $priorities), 'id');
+        foreach ($laneGroups as $k => $g) {
+            $cols = [];
+            foreach ($statuses as $s) $cols[$s['key']] = ['total' => $counts[(string) $k][$s['key']] ?? 0, 'rows' => []];
+            $lanes[(string) $k] = $g + ['columns' => $cols];
+        }
+        foreach ($pick as $r) if (isset($byId[$r['id']], $lanes[(string) $r['gk']]['columns'][$r['status']])) $lanes[(string) $r['gk']]['columns'][$r['status']]['rows'][] = $byId[$r['id']];
+    }
+} elseif ($view === 'board') {
     // Each column shows its newest cards; the header shows the real total.
     $counts = array_column(q_all("SELECT t.\"status\", COUNT(*) AS n FROM \"Ticket\" t WHERE $where GROUP BY t.\"status\"", $params), 'n', 'status');
     foreach ($statuses as $s) {
@@ -42,8 +70,24 @@ if ($view === 'board') {
     $total = (int) q_val("SELECT COUNT(*) FROM \"Ticket\" t WHERE $where", $params);
     $pages = max(1, (int) ceil($total / $perPage));
     $page = min($page, $pages);
-    $ids = pluck(q_all("SELECT t.\"id\" FROM \"Ticket\" t WHERE $where ORDER BY " . $SORTS[$sort][1] . " LIMIT " . $perPage . ' OFFSET ' . (($page - 1) * $perPage), $params), 'id');
-    $rows = ticket_rows_by_ids($ids, $statuses, $priorities);
+    if ($groupBy) {
+        // Sections: the page keeps the groups in order; a group may continue on the next page.
+        $groups = ticket_groups($groupBy, $where, $params, $tenantId, $statuses, $priorities, $closedKeys);
+        $op = [];
+        $orderSql = ticket_group_order_sql($groupBy, $groups, $op);
+        $picked = q_all("SELECT t.\"id\", " . ticket_group_expr($groupBy) . " AS \"gk\" FROM \"Ticket\" t WHERE $where ORDER BY $orderSql, " . $SORTS[$sort][1] . " LIMIT " . $perPage . ' OFFSET ' . (($page - 1) * $perPage), [...$params, ...$op]);
+        $rows = ticket_rows_by_ids(array_column($picked, 'id'), $statuses, $priorities);
+        $gkOf = array_column($picked, 'gk', 'id');
+        $seenBefore = $page > 1 ? (string) (q_val("SELECT " . ticket_group_expr($groupBy) . " FROM \"Ticket\" t WHERE $where ORDER BY $orderSql, " . $SORTS[$sort][1] . ' LIMIT 1 OFFSET ' . (($page - 1) * $perPage - 1), [...$params, ...$op]) ?? "\0") : "\0";
+        foreach ($rows as $r) {
+            $k = (string) ($gkOf[$r['id']] ?? '');
+            if (!$sections || (string) array_key_last($sections) !== $k) $sections[$k] = ($groups[$k] ?? ['key' => $k, 'label' => $k, 'color' => null, 'total' => 0, 'open' => 0, 'overdue' => 0, 'link' => null]) + ['rows' => [], 'continued' => !$sections && $k === $seenBefore];
+            $sections[$k]['rows'][] = $r;
+        }
+    } else {
+        $ids = pluck(q_all("SELECT t.\"id\" FROM \"Ticket\" t WHERE $where ORDER BY " . $SORTS[$sort][1] . " LIMIT " . $perPage . ' OFFSET ' . (($page - 1) * $perPage), $params), 'id');
+        $rows = ticket_rows_by_ids($ids, $statuses, $priorities);
+    }
 }
 
 $categories = q_all('SELECT "id","name" FROM "Category" WHERE "tenantId" = ? ORDER BY "name" ASC', [$tenantId]);
@@ -66,7 +110,7 @@ $filterKeys = ['q', 'status', 'priority', 'category', 'tag', 'overdue', 'assigne
 $groupsList = $staff ? tenant_groups($tenantId) : [];
 $orgsList = $staff ? tenant_orgs($tenantId) : [];
 $activeFilters = count(array_intersect_key($filters, array_flip($filterKeys)));
-$hasFilters = $activeFilters > 0;
+$hasFilters = $activeFilters > 0 || $groupBy !== '';
 $overdue = ($sp['overdue'] ?? '') === '1';
 $mine = ($sp['assignee'] ?? '') === 'me';
 
@@ -140,6 +184,14 @@ $pagerOpts = ['perPageOptions' => [25, 50, 100]];
         <?php if ($orgsList): ?>
           <?= multi_filter('org', 'All organizations', 'organizations', array_column($orgsList, 'name', 'id'), $sp['org'] ?? '') ?>
         <?php endif; ?>
+        <?php if ($groupings): ?>
+          <label class="inline-flex items-center gap-1.5 text-sm text-muted max-sm:col-span-2" title="Group the tickets">
+            <?= icon('rows-3', 15) ?>
+            <select name="groupby" aria-label="Group by" class="<?= FILTER_SELECT ?> max-sm:h-10 max-sm:flex-1 max-sm:text-base" data-autosubmit>
+              <?= select_options(['' => 'No grouping'] + array_map(fn ($l) => 'By ' . mb_strtolower($l), $groupings), $groupBy) ?>
+            </select>
+          </label>
+        <?php endif; ?>
         <?php if ($view === 'list'): ?>
           <label class="inline-flex items-center gap-1.5 text-sm text-muted max-sm:col-span-2">
             <?= icon('arrow-up-down', 15) ?>
@@ -178,11 +230,13 @@ $pagerOpts = ['perPageOptions' => [25, 50, 100]];
       </div>
     </div>
   <?php elseif ($view === 'board'): ?>
-    <?= render_partial('partials/ticket_board', ['columns' => $columns, 'statuses' => $statuses, 'canManage' => $staff && can($user, 'tickets.status'), 'url' => $url]) ?>
+    <?= render_partial('partials/ticket_board', ['columns' => $columns, 'lanes' => $lanes, 'laneMore' => $laneMore, 'groupBy' => $groupBy, 'statuses' => $statuses, 'canManage' => $staff && can($user, 'tickets.status'), 'url' => $url]) ?>
   <?php else: ?>
     <?= pager($page, $pages, $total, $perPage, $url, $pagerOpts + ['class' => 'mb-3']) ?>
     <?php if ($staff && can($user, 'tickets.bulk')): ?>
-      <?= render_partial('partials/bulk_list', ['rows' => $rows, 'statuses' => $statuses, 'priorities' => $priorities, 'agents' => $agents]) ?>
+      <?= render_partial('partials/bulk_list', ['rows' => $rows, 'sections' => $sections, 'groupBy' => $groupBy, 'statuses' => $statuses, 'priorities' => $priorities, 'agents' => $agents]) ?>
+    <?php elseif ($sections): ?>
+      <div class="space-y-3"><?php foreach ($sections as $sec) echo ticket_group_section($groupBy, $sec, fn ($r) => ticket_list_item($r)); ?></div>
     <?php else: ?>
       <div class="rounded-xl border border-border bg-surface">
         <div class="divide-y divide-border"><?php foreach ($rows as $t) echo ticket_list_item($t); ?></div>

@@ -470,3 +470,41 @@ function people_picker(array $o = []): string
         . '<div class="flex items-center justify-between border-t border-border px-3 py-1.5 text-[11px] text-muted"><span data-pp-status></span><span class="hidden sm:inline">↑↓ move · Enter add · Esc close</span></div>'
         . '</div></div>';
 }
+
+/** The badge-style summary of a ticket group: "12 · 3 open · 1 overdue". */
+function ticket_group_counts(array $g): string
+{
+    $h = '<span class="rounded-full bg-surface-2 px-2 py-0.5 text-xs font-medium tabular-nums text-muted">' . number_format($g['total']) . '</span>';
+    if ($g['open'] && $g['open'] !== $g['total']) $h .= '<span class="text-xs text-muted">' . number_format($g['open']) . ' open</span>';
+    if ($g['overdue']) $h .= '<span class="inline-flex items-center gap-1 rounded-full bg-red-500/10 px-2 py-0.5 text-xs font-medium text-red-600 dark:text-red-400">' . icon('clock', 11) . number_format($g['overdue']) . ' overdue</span>';
+    return $h;
+}
+
+/** Leading mark of a group: the organization / group icon, the agent's avatar or the status / priority color. */
+function ticket_group_mark(string $by, array $g): string
+{
+    if ($g['key'] === '') return '<span class="grid h-6 w-6 shrink-0 place-items-center rounded-full border border-dashed border-border text-muted">' . icon('minus', 12) . '</span>';
+    if ($by === 'assignee') return avatar($g['label'], $g['color'] ?? '#64748b', 24);
+    if ($by === 'org') return '<span class="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-brand/10 text-brand">' . icon('building-2', 13) . '</span>';
+    if ($by === 'group') return '<span class="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-sky-500/10 text-sky-600">' . icon('users-round', 13) . '</span>';
+    return '<span class="h-2.5 w-2.5 shrink-0 rounded-full" style="background-color:' . safe_color($g['color'] ?? '#64748b') . '"></span>';
+}
+
+/**
+ * One collapsible section of the grouped ticket list. $row renders a ticket row.
+ * The open / closed state is remembered per browser (data-remember-open).
+ */
+function ticket_group_section(string $by, array $sec, callable $row, string $lead = ''): string
+{
+    $h = '<details open data-remember-open="tickets:' . e($by) . ':' . e($sec['key']) . '" class="group/sec overflow-hidden rounded-xl border border-border bg-surface">'
+        . '<summary class="flex cursor-pointer list-none items-center gap-2.5 border-b border-border bg-surface-2/50 px-4 py-2.5 sm:px-5 [&::-webkit-details-marker]:hidden group-[:not([open])]/sec:border-b-0">'
+        . '<span class="text-muted transition-transform group-[:not([open])]/sec:-rotate-90">' . icon('chevron-down', 16) . '</span>'
+        . $lead . ticket_group_mark($by, $sec)
+        . '<span class="min-w-0 truncate text-sm font-semibold">' . e($sec['label']) . '</span>'
+        . (!empty($sec['continued']) ? '<span class="text-xs text-muted">(continued)</span>' : '')
+        . '<span class="flex flex-wrap items-center gap-1.5">' . ticket_group_counts($sec) . '</span>'
+        . (!empty($sec['link']) ? '<a href="' . e($sec['link']) . '" class="ml-auto inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-brand hover:bg-brand/10" onclick="event.stopPropagation()">' . icon('layout-dashboard', 13) . '<span class="hidden sm:inline">Dashboard</span></a>' : '')
+        . '</summary><div class="divide-y divide-border">';
+    foreach ($sec['rows'] as $r) $h .= $row($r);
+    return $h . '</div></details>';
+}

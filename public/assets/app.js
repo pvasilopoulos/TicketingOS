@@ -720,8 +720,12 @@
 
   function bindBoard(board) {
     if (board.getAttribute("data-can-manage") !== "1") return;
-    var dragId = null;
-    function col(el) { return el.closest("[data-board-col]"); }
+    var dragId = null, dragLane = null;
+    // Grouped board: a card only moves between the statuses of its own row (swimlane).
+    function col(el) {
+      var c = el.closest("[data-board-col]");
+      return c && c.closest("[data-board-lane]") === dragLane ? c : null;
+    }
     function updateCounts() {
       $$("[data-board-col]", board).forEach(function (c) {
         var n = $$("[data-board-card]", c).length;
@@ -733,6 +737,7 @@
       var card = e.target.closest("[data-board-card]");
       if (!card) return;
       dragId = card.getAttribute("data-board-card");
+      dragLane = card.closest("[data-board-lane]");
       card.classList.add("opacity-50");
       e.dataTransfer.effectAllowed = "move";
       try { e.dataTransfer.setData("text/plain", dragId); } catch (err) {}
@@ -754,7 +759,7 @@
       if (!c || !dragId) return;
       e.preventDefault();
       var card = board.querySelector('[data-board-card="' + dragId + '"]');
-      var from = col(card);
+      var from = card.closest("[data-board-col]");
       c.dataset.over = "false";
       if (from === c) return;
       // Optimistic move, then persist.
@@ -1860,6 +1865,14 @@
     $$("form[data-reply]").forEach(bindReply);
     $$("[data-bulk]").forEach(bindBulk);
     $$("[data-board]").forEach(bindBoard);
+    // Collapsible sections (grouped tickets) remember being closed, per browser.
+    $$("details[data-remember-open]").forEach(function (d) {
+      var k = "open:" + d.getAttribute("data-remember-open");
+      try { if (localStorage.getItem(k) === "0") d.open = false; } catch (e) {}
+      d.addEventListener("toggle", function () {
+        try { localStorage.setItem(k, d.open ? "1" : "0"); } catch (e) {}
+      });
+    });
     $$("form[data-dirty]").forEach(bindDirty);
     $$("form[data-rule-form]").forEach(bindRuleForm);
     $$("form[data-email-form]").forEach(bindEmailForm);

@@ -52,6 +52,9 @@ function ticket_scope_sql(array $user, string $tenantId, array &$params): string
 
 const TICKETS_PER_PAGE = 50;
 const BOARD_COLUMN_LIMIT = 50;
+/** Board grouped into swimlanes: at most this many lanes, and cards per lane and status. */
+const BOARD_LANE_LIMIT = 30;
+const BOARD_LANE_CELL_LIMIT = 10;
 
 /** Values of a multi-value filter: "OPEN,PENDING" (or an array) => ['OPEN', 'PENDING']. */
 function filter_values(mixed $v): array
@@ -196,4 +199,97 @@ function set_ticket_co_assignees(string $ticketId, ?string $leadId, array $ids):
         if ($id === $leadId) continue;
         db_insert('TicketAssignee', ['ticketId' => $ticketId, 'userId' => $id, 'createdAt' => $now]);
     }
+}
+
+/* ---------- Grouping the ticket list / board (?groupby=) ---------- */
+
+/** What tickets can be grouped by; the board can't group by status (its columns already are). */
+function ticket_groupings(bool $board): array
+{
+    $o = ['org' => 'Organization', 'assignee' => 'Assignee', 'group' => 'Group', 'priority' => 'Priority', 'status' => 'Status'];
+    if ($board) unset($o['status']);
+    return $o;
+}
+
+/**
+ * SQL for a ticket's group key ('' = none). A ticket's organization is its
+ * requester's main organization (else the first one they belong to).
+ */
+function ticket_group_expr(string $by): string
+{
+    return match ($by) {
+        'org' => 'COALESCE((SELECT COALESCE(gu."organizationId", (SELECT MIN(guo."organizationId") FROM "UserOrganization" guo WHERE guo."userId" = gu."id")) FROM "User" gu WHERE gu."id" = t."requesterId"), \'\')',
+        'assignee' => 'COALESCE(t."assigneeId", \'\')',
+        'group' => 'COALESCE(t."groupId", \'\')',
+        'priority' => 't."priority"',
+        'status' => 't."status"',
+    };
+}
+
+/**
+ * The groups of the filtered tickets, in display order, each with
+ * key, label, color, total, open and overdue counts and (organizations) a dashboard link.
+ * Organizations, agents and groups: most overdue first, then most open, by name; "none" last.
+ * Priorities: highest first. Statuses: workflow order.
+ */
+function ticket_groups(string $by, string $where, array $params, string $tenantId, array $statuses, array $priorities, array $closedKeys): array
+{
+    $expr = ticket_group_expr($by);
+    $p = $params;
+    $open = $closedKeys ? 't."status" NOT IN (' . in_ph($closedKeys) . ')' : '1 = 1';
+    $sel = "SELECT $expr AS \"gk\", COUNT(*) AS \"total\",
+        SUM(CASE WHEN $open THEN 1 ELSE 0 END) AS \"open\",
+        SUM(CASE WHEN $open AND t.\"dueAt\" IS NOT NULL AND t.\"dueAt\" < ? THEN 1 ELSE 0 END) AS \"overdue\"
+      FROM \"Ticket\" t WHERE $where GROUP BY $expr";
+    $args = array_merge($closedKeys, $closedKeys, [now_iso()], $p);
+    $rows = q_all($sel, $args);
+
+    $names = [];
+    $colors = [];
+    switch ($by) {
+        case 'org': $names = array_column(tenant_orgs($tenantId), 'name', 'id'); $none = 'No organization'; break;
+        case 'group': $names = array_column(tenant_groups($tenantId), 'name', 'id'); $none = 'No group'; break;
+        case 'assignee':
+            $ids = array_values(array_filter(array_column($rows, 'gk')));
+            foreach ($ids ? q_all('SELECT "id", "name", "avatarColor" FROM "User" WHERE "id" IN (' . in_ph($ids) . ')', $ids) : [] as $u) { $names[$u['id']] = $u['name']; $colors[$u['id']] = $u['avatarColor']; }
+            $none = 'Unassigned';
+            break;
+        case 'priority': $names = array_column($priorities, 'label', 'key'); $colors = array_column($priorities, 'color', 'key'); $none = 'No priority'; break;
+        default: $names = array_column($statuses, 'label', 'key'); $colors = array_column($statuses, 'color', 'key'); $none = 'No status';
+    }
+    $out = [];
+    foreach ($rows as $r) {
+        $k = (string) $r['gk'];
+        $out[$k] = [
+            'key' => $k, 'label' => $k === '' ? $none : ($names[$k] ?? $k), 'color' => $colors[$k] ?? null,
+            'total' => (int) $r['total'], 'open' => (int) $r['open'], 'overdue' => (int) $r['overdue'],
+            'link' => $by === 'org' && $k !== '' ? '/organization?id=' . rawurlencode($k) : null,
+        ];
+    }
+    if ($by === 'priority' || $by === 'status') {
+        $order = $by === 'priority' ? array_reverse(array_column($priorities, 'key')) : array_column($statuses, 'key');
+        $pos = array_flip($order);
+        uasort($out, fn ($a, $b) => ($pos[$a['key']] ?? 999) <=> ($pos[$b['key']] ?? 999));
+    } else {
+        uasort($out, fn ($a, $b) => [$a['key'] === '', -$a['overdue'], -$a['open'], mb_strtolower($a['label'])] <=> [$b['key'] === '', -$b['overdue'], -$b['open'], mb_strtolower($b['label'])]);
+    }
+    return $out;
+}
+
+/** ORDER BY piece that keeps the groups in display order (params appended to $params). */
+function ticket_group_order_sql(string $by, array $groups, array &$params): string
+{
+    $keys = array_keys($groups);
+    if (!$keys) return '0';
+    $sql = 'CASE ' . ticket_group_expr($by);
+    foreach ($keys as $i => $k) { $sql .= ' WHEN ? THEN ' . $i; $params[] = (string) $k; }
+    return $sql . ' ELSE ' . count($keys) . ' END';
+}
+
+/** The list filter that shows one group's tickets (for "open in list" links), or []. */
+function ticket_group_filter(string $by, string $key): array
+{
+    if ($by === 'org') return $key === '' ? [] : ['org' => $key];
+    if ($by === 'assignee' || $by === 'group') return [$by => $key === '' ? 'none' : $key];
+    return [$by => $key];
 }

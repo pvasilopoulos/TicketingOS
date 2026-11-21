@@ -4,6 +4,14 @@ All notable changes to TicketingOS (PHP edition). Versions follow [Semantic Vers
 **major** for changes that need manual steps when updating, **minor** for new features, **patch** for fixes.
 The app shows this list under **About & what’s new** (menu footer → version number).
 
+## [1.18.0] - 2026-11-21
+
+### Added
+- **Group by** on the tickets page (staff): organization, assignee, group, priority or status.
+  - List: collapsible sections with totals, open and overdue counts and a link to the organization dashboard; the busiest groups first, “none” last; a group that continues on the next page says so. Bulk actions still work.
+  - Board: **swimlanes**, one row per group with the status columns inside (up to 30 rows, 10 cards per status, “+N more” opens the list). Cards move between statuses within their row.
+  - Collapsed sections are remembered per browser; saved views keep the grouping (`?groupby=org`).
+
 ## [1.17.0] - 2026-11-20
 
 ### Added
