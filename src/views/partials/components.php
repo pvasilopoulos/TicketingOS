@@ -505,6 +505,21 @@ function ticket_group_section(string $by, array $sec, callable $row, string $lea
         . '<span class="flex flex-wrap items-center gap-1.5">' . ticket_group_counts($sec) . '</span>'
         . (!empty($sec['link']) ? '<a href="' . e($sec['link']) . '" class="ml-auto inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-brand hover:bg-brand/10" onclick="event.stopPropagation()">' . icon('layout-dashboard', 13) . '<span class="hidden sm:inline">Dashboard</span></a>' : '')
         . '</summary><div class="divide-y divide-border">';
+    if (!empty($sec['subs'])) {
+        // Second level: a smaller collapsible header per subgroup, its tickets indented under it.
+        foreach ($sec['subs'] as $sub) {
+            $h .= '<details open data-remember-open="tickets:' . e($by) . ':' . e($sec['key']) . ':' . e($sec['subBy']) . ':' . e($sub['key']) . '" class="group/sub">'
+                . '<summary class="flex cursor-pointer list-none items-center gap-2 bg-surface-2/25 py-2 pl-8 pr-4 sm:pl-10 sm:pr-5 [&::-webkit-details-marker]:hidden">'
+                . '<span class="text-muted transition-transform group-[:not([open])]/sub:-rotate-90">' . icon('chevron-down', 14) . '</span>'
+                . ticket_group_mark($sec['subBy'], $sub)
+                . '<span class="min-w-0 truncate text-sm font-medium">' . e($sub['label']) . '</span>'
+                . '<span class="flex flex-wrap items-center gap-1.5">' . ticket_group_counts($sub) . '</span>'
+                . '</summary><div class="divide-y divide-border border-l-2 border-border/70 sm:ml-6 ml-4">';
+            foreach ($sub['rows'] as $r) $h .= $row($r);
+            $h .= '</div></details>';
+        }
+        return $h . '</div></details>';
+    }
     foreach ($sec['rows'] as $r) $h .= $row($r);
     return $h . '</div></details>';
 }

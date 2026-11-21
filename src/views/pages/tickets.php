@@ -30,6 +30,8 @@ $sort = isset($SORTS[$sp['sort'] ?? '']) ? $sp['sort'] : 'newest';
 // Group by (staff): sections in the list, swimlanes on the board.
 $groupings = $staff ? ticket_groupings($view === 'board') : [];
 $groupBy = isset($groupings[$sp['groupby'] ?? '']) ? $sp['groupby'] : '';
+// A second level inside each group (list only), e.g. organization → assignee.
+$groupBy2 = $groupBy && $view === 'list' && isset($groupings[$sp['then'] ?? '']) && $sp['then'] !== $groupBy ? $sp['then'] : '';
 $groups = [];
 $sections = [];
 $lanes = [];
@@ -75,7 +77,13 @@ if ($view === 'board' && $groupBy) {
         $groups = ticket_groups($groupBy, $where, $params, $tenantId, $statuses, $priorities, $closedKeys);
         $op = [];
         $orderSql = ticket_group_order_sql($groupBy, $groups, $op);
-        $picked = q_all("SELECT t.\"id\", " . ticket_group_expr($groupBy) . " AS \"gk\" FROM \"Ticket\" t WHERE $where ORDER BY $orderSql, " . $SORTS[$sort][1] . " LIMIT " . $perPage . ' OFFSET ' . (($page - 1) * $perPage), [...$params, ...$op]);
+        if ($groupBy2) {
+            $groups2 = ticket_groups($groupBy2, $where, $params, $tenantId, $statuses, $priorities, $closedKeys);
+            $pairs = ticket_group_pairs($groupBy, $groupBy2, $where, $params, $closedKeys);
+            $orderSql .= ', ' . ticket_group_order_sql($groupBy2, $groups2, $op);
+        }
+        $picked = q_all("SELECT t.\"id\", " . ticket_group_expr($groupBy) . " AS \"gk\"" . ($groupBy2 ? ', ' . ticket_group_expr($groupBy2) . ' AS "gk2"' : '') . " FROM \"Ticket\" t WHERE $where ORDER BY $orderSql, " . $SORTS[$sort][1] . " LIMIT " . $perPage . ' OFFSET ' . (($page - 1) * $perPage), [...$params, ...$op]);
+        $gk2Of = $groupBy2 ? array_column($picked, 'gk2', 'id') : [];
         $rows = ticket_rows_by_ids(array_column($picked, 'id'), $statuses, $priorities);
         $gkOf = array_column($picked, 'gk', 'id');
         $seenBefore = $page > 1 ? (string) (q_val("SELECT " . ticket_group_expr($groupBy) . " FROM \"Ticket\" t WHERE $where ORDER BY $orderSql, " . $SORTS[$sort][1] . ' LIMIT 1 OFFSET ' . (($page - 1) * $perPage - 1), [...$params, ...$op]) ?? "\0") : "\0";
@@ -83,6 +91,13 @@ if ($view === 'board' && $groupBy) {
             $k = (string) ($gkOf[$r['id']] ?? '');
             if (!$sections || (string) array_key_last($sections) !== $k) $sections[$k] = ($groups[$k] ?? ['key' => $k, 'label' => $k, 'color' => null, 'total' => 0, 'open' => 0, 'overdue' => 0, 'link' => null]) + ['rows' => [], 'continued' => !$sections && $k === $seenBefore];
             $sections[$k]['rows'][] = $r;
+            if ($groupBy2) {
+                $k2 = (string) ($gk2Of[$r['id']] ?? '');
+                $sections[$k]['subBy'] = $groupBy2;
+                $sections[$k]['subs'][$k2] ??= ['key' => $k2, 'label' => $groups2[$k2]['label'] ?? $k2, 'color' => $groups2[$k2]['color'] ?? null, 'link' => null, 'rows' => []]
+                    + ($pairs[$k][$k2] ?? ['total' => 0, 'open' => 0, 'overdue' => 0]);
+                $sections[$k]['subs'][$k2]['rows'][] = $r;
+            }
         }
     } else {
         $ids = pluck(q_all("SELECT t.\"id\" FROM \"Ticket\" t WHERE $where ORDER BY " . $SORTS[$sort][1] . " LIMIT " . $perPage . ' OFFSET ' . (($page - 1) * $perPage), $params), 'id');
@@ -191,6 +206,14 @@ $pagerOpts = ['perPageOptions' => [25, 50, 100]];
               <?= select_options(['' => 'No grouping'] + array_map(fn ($l) => 'By ' . mb_strtolower($l), $groupings), $groupBy) ?>
             </select>
           </label>
+          <?php if ($groupBy && $view === 'list'): ?>
+            <label class="inline-flex items-center gap-1.5 text-sm text-muted max-sm:col-span-2" title="Group again inside each group">
+              <?= icon('list-tree', 15) ?>
+              <select name="then" aria-label="Then by" class="<?= FILTER_SELECT ?> max-sm:h-10 max-sm:flex-1 max-sm:text-base" data-autosubmit>
+                <?= select_options(['' => 'No subgroups'] + array_map(fn ($l) => 'Then by ' . mb_strtolower($l), array_diff_key($groupings, [$groupBy => 1])), $groupBy2) ?>
+              </select>
+            </label>
+          <?php endif; ?>
         <?php endif; ?>
         <?php if ($view === 'list'): ?>
           <label class="inline-flex items-center gap-1.5 text-sm text-muted max-sm:col-span-2">

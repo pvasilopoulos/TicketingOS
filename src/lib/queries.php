@@ -293,3 +293,19 @@ function ticket_group_filter(string $by, string $key): array
     if ($by === 'assignee' || $by === 'group') return [$by => $key === '' ? 'none' : $key];
     return [$by => $key];
 }
+
+/** Counts per (group, subgroup) pair for a two-level grouped list: [k1][k2] => total, open, overdue. */
+function ticket_group_pairs(string $by, string $by2, string $where, array $params, array $closedKeys): array
+{
+    $e1 = ticket_group_expr($by);
+    $e2 = ticket_group_expr($by2);
+    $open = $closedKeys ? 't."status" NOT IN (' . in_ph($closedKeys) . ')' : '1 = 1';
+    $out = [];
+    foreach (q_all("SELECT $e1 AS \"k1\", $e2 AS \"k2\", COUNT(*) AS \"total\",
+            SUM(CASE WHEN $open THEN 1 ELSE 0 END) AS \"open\",
+            SUM(CASE WHEN $open AND t.\"dueAt\" IS NOT NULL AND t.\"dueAt\" < ? THEN 1 ELSE 0 END) AS \"overdue\"
+          FROM \"Ticket\" t WHERE $where GROUP BY $e1, $e2", array_merge($closedKeys, $closedKeys, [now_iso()], $params)) as $r) {
+        $out[(string) $r['k1']][(string) $r['k2']] = ['total' => (int) $r['total'], 'open' => (int) $r['open'], 'overdue' => (int) $r['overdue']];
+    }
+    return $out;
+}

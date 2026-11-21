@@ -4,6 +4,11 @@ All notable changes to TicketingOS (PHP edition). Versions follow [Semantic Vers
 **major** for changes that need manual steps when updating, **minor** for new features, **patch** for fixes.
 The app shows this list under **About & what’s new** (menu footer → version number).
 
+## [1.19.0] - 2026-11-21
+
+### Added
+- **Two-level grouping** in the ticket list: after **Group by**, pick **Then by** (e.g. organization → assignee, or organization → status). Each subgroup has its own collapsible header with totals, open and overdue counts. Saved views keep it (`?groupby=org&then=assignee`). The board keeps one level (its rows), since its columns are the statuses.
+
 ## [1.18.0] - 2026-11-21
 
 ### Added
